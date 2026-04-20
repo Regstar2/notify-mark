@@ -59,14 +59,15 @@ public final class ReminderReceiver extends BroadcastReceiver {
             return;
         }
 
+        long displayTimeMillis = System.currentTimeMillis();
         int displayNotificationId = notificationIdForDisplay(
                 notificationId,
-                triggerAtMillis,
+                displayTimeMillis,
                 repeatMode
         );
         notificationManager.notify(
                 displayNotificationId,
-                buildNotification(context, safeTitle(title), lineNumber, triggerAtMillis)
+                buildNotification(context, safeTitle(title), lineNumber, displayTimeMillis)
         );
 
         scheduleNextRepeat(

@@ -28,7 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class ReminderScheduler {
-    public static final String CHANNEL_ID = "task_reminders_loud";
+    public static final String CHANNEL_ID = "task_reminders_aggressive";
     public static final String ACTION_SHOW_REMINDER =
             "com.regstar.obsidiannotification.action.SHOW_REMINDER";
     public static final String EXTRA_TASK_KEY = "task_key";
@@ -54,7 +54,7 @@ public final class ReminderScheduler {
 
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "Напоминания задач",
+                "Настойчивые напоминания задач",
                 NotificationManager.IMPORTANCE_HIGH
         );
         channel.setDescription("Настойчивые локальные напоминания из markdown-задач Obsidian.");
@@ -320,9 +320,11 @@ public final class ReminderScheduler {
     ) {
         PendingIntent pendingIntent = createReminderPendingIntent(context, reminder);
         alarmManager.cancel(pendingIntent);
-        alarmManager.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                reminder.getTriggerAtMillis(),
+        alarmManager.setAlarmClock(
+                new AlarmManager.AlarmClockInfo(
+                        reminder.getTriggerAtMillis(),
+                        createOpenAppPendingIntent(context, reminder.getNotificationId())
+                ),
                 pendingIntent
         );
     }
@@ -377,6 +379,18 @@ public final class ReminderScheduler {
                 notificationId,
                 baseReminderIntent(context, notificationId),
                 PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE
+        );
+    }
+
+    private static PendingIntent createOpenAppPendingIntent(Context context, int notificationId) {
+        Intent intent = new Intent(context, MainActivity.class)
+                .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+        return PendingIntent.getActivity(
+                context,
+                notificationId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
     }
 
