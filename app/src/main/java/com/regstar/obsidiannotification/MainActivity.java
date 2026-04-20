@@ -346,7 +346,7 @@ public final class MainActivity extends Activity {
                 return;
             }
 
-            renderParseResult(snapshot.getParseResult());
+            renderParseResult(snapshot);
             NoteChangeMonitor.ensureScheduled(this);
         } catch (IOException | RuntimeException exception) {
             ErrorLog.record(this, "Не удалось прочитать источник в интерфейсе", exception);
@@ -357,7 +357,8 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void renderParseResult(TaskParseResult parseResult) {
+    private void renderParseResult(NoteStore.TaskSnapshot snapshot) {
+        TaskParseResult parseResult = snapshot.getParseResult();
         List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
         TaskCache.saveActiveTasks(this, activeTasks);
         ReminderSchedule schedule = ReminderScheduler.schedule(this, activeTasks);
@@ -366,7 +367,7 @@ public final class MainActivity extends Activity {
 
         renderTasks(parseResult.getTasks());
         setNextReminder(schedule.getNextReminder());
-        setStatus(buildStatus(parseResult, schedule));
+        setStatus(buildStatus(parseResult, schedule, snapshot));
     }
 
     private void refreshNoteIfChanged() {
@@ -384,7 +385,7 @@ public final class MainActivity extends Activity {
             TaskParseResult parseResult = snapshot.getParseResult();
             String fingerprint = NoteChangeMonitor.fingerprintOf(parseResult);
             if (!fingerprint.equals(renderedFingerprint)) {
-                renderParseResult(parseResult);
+                renderParseResult(snapshot);
             }
         } catch (IOException | RuntimeException exception) {
             ErrorLog.record(this, "Не удалось обновить источник в интерфейсе", exception);
@@ -425,7 +426,11 @@ public final class MainActivity extends Activity {
         noteRefreshHandler.removeCallbacks(noteRefreshRunnable);
     }
 
-    private String buildStatus(TaskParseResult parseResult, ReminderSchedule schedule) {
+    private String buildStatus(
+            TaskParseResult parseResult,
+            ReminderSchedule schedule,
+            NoteStore.TaskSnapshot snapshot
+    ) {
         String permissionStatus = schedule.isNotificationsAllowed()
                 ? "уведомления разрешены"
                 : "нет разрешения на уведомления";
@@ -434,8 +439,9 @@ public final class MainActivity extends Activity {
                 : "точные напоминания не разрешены, используется неточный fallback";
         String status = String.format(
                 Locale.getDefault(),
-                "Источник: %s\nВсего задач: %d\nАктивных задач: %d\nЗапланировано уведомлений: %d\n%s\n%s\nОбновлено: %s",
+                "Источник: %s\nФайлов прочитано: %d\nВсего задач: %d\nАктивных задач: %d\nЗапланировано уведомлений: %d\n%s\n%s\nОбновлено: %s",
                 NoteStore.sourceLabel(this),
+                snapshot.getDocumentCount(),
                 parseResult.getTasks().size(),
                 parseResult.getActiveTasks().size(),
                 schedule.getScheduledCount(),
@@ -468,7 +474,14 @@ public final class MainActivity extends Activity {
             return;
         }
 
+        String currentSource = null;
+        boolean showGroupHeaders = hasMultipleSources(visibleTasks);
         for (ObsidianTask task : visibleTasks) {
+            String sourceName = task.getSourceName();
+            if (showGroupHeaders && !sourceName.equals(currentSource)) {
+                currentSource = sourceName;
+                taskList.addView(createSourceHeader(sourceName));
+            }
             taskList.addView(createTaskView(task));
         }
     }
@@ -485,6 +498,29 @@ public final class MainActivity extends Activity {
             }
         }
         return activeTasks;
+    }
+
+    private boolean hasMultipleSources(List<ObsidianTask> tasks) {
+        String firstSource = null;
+        for (ObsidianTask task : tasks) {
+            String sourceName = task.getSourceName();
+            if (firstSource == null) {
+                firstSource = sourceName;
+            } else if (!firstSource.equals(sourceName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private View createSourceHeader(String sourceName) {
+        TextView header = new TextView(this);
+        header.setText(sourceName == null || sourceName.isEmpty() ? "Без имени файла" : sourceName);
+        header.setTextColor(getColor(R.color.text_primary));
+        header.setTextSize(16);
+        header.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        header.setPadding(0, dp(14), 0, dp(8));
+        return header;
     }
 
     private View createTaskView(ObsidianTask task) {

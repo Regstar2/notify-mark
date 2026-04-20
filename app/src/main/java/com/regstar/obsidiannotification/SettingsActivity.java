@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification;
 
 import android.app.Activity;
+import android.content.ClipData;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -14,9 +15,14 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class SettingsActivity extends Activity {
-    private static final int REQUEST_OPEN_NOTE = 3001;
-    private static final int REQUEST_OPEN_FOLDER = 3002;
+    private static final int REQUEST_REPLACE_NOTES = 3001;
+    private static final int REQUEST_REPLACE_FOLDER = 3002;
+    private static final int REQUEST_ADD_NOTES = 3003;
+    private static final int REQUEST_ADD_FOLDER = 3004;
 
     private TextView statusText;
     private Button activeFilterButton;
@@ -26,6 +32,9 @@ public final class SettingsActivity extends Activity {
     private EditText tagKeywordInput;
     private EditText priorityKeywordInput;
     private EditText snoozeMinutesInput;
+    private EditText includePatternsInput;
+    private EditText excludePatternsInput;
+    private EditText maxFilesInput;
     private CheckBox recordSnoozeCountCheckbox;
 
     @Override
@@ -39,17 +48,26 @@ public final class SettingsActivity extends Activity {
     @SuppressWarnings("deprecation")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+        if (resultCode != RESULT_OK || data == null) {
             return;
         }
 
-        Uri selectedUri = data.getData();
-        persistReadPermission(data, selectedUri);
+        List<Uri> selectedUris = selectedUris(data);
+        if (selectedUris.isEmpty()) {
+            return;
+        }
+        for (Uri selectedUri : selectedUris) {
+            persistReadPermission(data, selectedUri);
+        }
 
-        if (requestCode == REQUEST_OPEN_NOTE) {
-            NoteStore.saveNoteUri(this, selectedUri);
-        } else if (requestCode == REQUEST_OPEN_FOLDER) {
-            NoteStore.saveFolderUri(this, selectedUri);
+        if (requestCode == REQUEST_REPLACE_NOTES) {
+            NoteStore.saveNoteUris(this, selectedUris);
+        } else if (requestCode == REQUEST_REPLACE_FOLDER) {
+            NoteStore.saveFolderUri(this, selectedUris.get(0));
+        } else if (requestCode == REQUEST_ADD_NOTES) {
+            NoteStore.addNoteUris(this, selectedUris);
+        } else if (requestCode == REQUEST_ADD_FOLDER) {
+            NoteStore.addFolderUri(this, selectedUris.get(0));
         } else {
             return;
         }
@@ -82,13 +100,25 @@ public final class SettingsActivity extends Activity {
         statusText.setPadding(0, dp(12), 0, dp(12));
         root.addView(statusText, fullWidth());
 
-        Button chooseNoteButton = createButton("Выбрать одну заметку");
-        chooseNoteButton.setOnClickListener(view -> openNotePicker());
+        Button chooseNoteButton = createButton("Выбрать заметку или несколько заметок");
+        chooseNoteButton.setOnClickListener(view -> openNotePicker(REQUEST_REPLACE_NOTES));
         root.addView(chooseNoteButton, fullWidthWithBottomMargin());
 
         Button chooseFolderButton = createButton("Выбрать папку с заметками");
-        chooseFolderButton.setOnClickListener(view -> openFolderPicker());
+        chooseFolderButton.setOnClickListener(view -> openFolderPicker(REQUEST_REPLACE_FOLDER));
         root.addView(chooseFolderButton, fullWidthWithBottomMargin());
+
+        Button addNoteButton = createButton("Добавить заметку");
+        addNoteButton.setOnClickListener(view -> openNotePicker(REQUEST_ADD_NOTES));
+        root.addView(addNoteButton, fullWidthWithBottomMargin());
+
+        Button addFolderButton = createButton("Добавить папку");
+        addFolderButton.setOnClickListener(view -> openFolderPicker(REQUEST_ADD_FOLDER));
+        root.addView(addFolderButton, fullWidthWithBottomMargin());
+
+        Button clearSourcesButton = createButton("Очистить источники");
+        clearSourcesButton.setOnClickListener(view -> clearSources());
+        root.addView(clearSourcesButton, fullWidthWithBottomMargin());
 
         activeFilterButton = createButton("");
         activeFilterButton.setOnClickListener(view -> {
@@ -100,6 +130,7 @@ public final class SettingsActivity extends Activity {
         root.addView(activeFilterButton, fullWidthWithBottomMargin());
 
         addFormatSettings(root);
+        addScanSettings(root);
         addNotificationActionSettings(root);
         addDebugSettings(root);
 
@@ -166,6 +197,41 @@ public final class SettingsActivity extends Activity {
         return input;
     }
 
+    private void addScanSettings(LinearLayout root) {
+        TextView scanTitle = new TextView(this);
+        scanTitle.setText("Поиск задач в файлах");
+        scanTitle.setTextSize(18);
+        scanTitle.setTextColor(getColor(R.color.text_primary));
+        scanTitle.setPadding(0, dp(12), 0, dp(6));
+        root.addView(scanTitle, fullWidth());
+
+        NoteScanSettings settings = NoteScanSettings.load(this);
+        includePatternsInput = addKeywordInput(
+                root,
+                "Искать файлы",
+                settings.getIncludePatternsText()
+        );
+        excludePatternsInput = addKeywordInput(
+                root,
+                "Исключать файлы и папки",
+                settings.getExcludePatternsText()
+        );
+        maxFilesInput = addKeywordInput(
+                root,
+                "Максимум файлов за сканирование",
+                String.valueOf(settings.getMaxFiles())
+        );
+        maxFilesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+
+        Button saveScanButton = createButton("Сохранить поиск задач");
+        saveScanButton.setOnClickListener(view -> saveScanSettings());
+        root.addView(saveScanButton, fullWidthWithBottomMargin());
+
+        Button resetScanButton = createButton("Сбросить поиск задач");
+        resetScanButton.setOnClickListener(view -> resetScanSettings());
+        root.addView(resetScanButton, fullWidthWithBottomMargin());
+    }
+
     private void addNotificationActionSettings(LinearLayout root) {
         TextView actionTitle = new TextView(this);
         actionTitle.setText("Действия из уведомления");
@@ -224,7 +290,7 @@ public final class SettingsActivity extends Activity {
     }
 
     @SuppressWarnings("deprecation")
-    private void openNotePicker() {
+    private void openNotePicker(int requestCode) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/*");
@@ -236,17 +302,18 @@ public final class SettingsActivity extends Activity {
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        startActivityForResult(intent, REQUEST_OPEN_NOTE);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        startActivityForResult(intent, requestCode);
     }
 
     @SuppressWarnings("deprecation")
-    private void openFolderPicker() {
+    private void openFolderPicker(int requestCode) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
-        startActivityForResult(intent, REQUEST_OPEN_FOLDER);
+        startActivityForResult(intent, requestCode);
     }
 
     private void persistReadPermission(Intent data, Uri selectedUri) {
@@ -262,6 +329,33 @@ public final class SettingsActivity extends Activity {
         } catch (SecurityException ignored) {
             // Some providers grant only temporary read access.
         }
+    }
+
+    private List<Uri> selectedUris(Intent data) {
+        List<Uri> uris = new ArrayList<>();
+        ClipData clipData = data.getClipData();
+        if (clipData != null) {
+            for (int i = 0; i < clipData.getItemCount(); i++) {
+                Uri uri = clipData.getItemAt(i).getUri();
+                if (uri != null) {
+                    uris.add(uri);
+                }
+            }
+        }
+
+        Uri dataUri = data.getData();
+        if (dataUri != null && !uris.contains(dataUri)) {
+            uris.add(dataUri);
+        }
+        return uris;
+    }
+
+    private void clearSources() {
+        NoteStore.clearSources(this);
+        ReminderScheduler.cancelScheduled(this);
+        NoteChangeMonitor.cancel(this);
+        Toast.makeText(this, "Источники очищены", Toast.LENGTH_SHORT).show();
+        updateStatus();
     }
 
     private void rescheduleAll() {
@@ -331,12 +425,44 @@ public final class SettingsActivity extends Activity {
         rescheduleAll();
     }
 
+    private void saveScanSettings() {
+        int maxFiles;
+        try {
+            maxFiles = Integer.parseInt(maxFilesInput.getText().toString().trim());
+        } catch (NumberFormatException exception) {
+            maxFiles = NoteScanSettings.DEFAULT_MAX_FILES;
+        }
+
+        NoteScanSettings settings = NoteScanSettings.fromValues(
+                includePatternsInput.getText().toString(),
+                excludePatternsInput.getText().toString(),
+                maxFiles
+        );
+        NoteScanSettings.save(this, settings);
+        populateScanInputs(settings);
+        Toast.makeText(this, "Поиск задач сохранен", Toast.LENGTH_SHORT).show();
+        rescheduleAll();
+    }
+
+    private void resetScanSettings() {
+        NoteScanSettings.reset(this);
+        populateScanInputs(NoteScanSettings.defaults());
+        Toast.makeText(this, "Поиск задач сброшен", Toast.LENGTH_SHORT).show();
+        rescheduleAll();
+    }
+
     private void populateFormatInputs(TaskFormatSettings settings) {
         dueKeywordInput.setText(settings.getDueKeyword());
         repeatKeywordInput.setText(settings.getRepeatKeyword());
         repeatUntilDoneKeywordInput.setText(settings.getRepeatUntilDoneKeyword());
         tagKeywordInput.setText(settings.getTagKeyword());
         priorityKeywordInput.setText(settings.getPriorityKeyword());
+    }
+
+    private void populateScanInputs(NoteScanSettings settings) {
+        includePatternsInput.setText(settings.getIncludePatternsText());
+        excludePatternsInput.setText(settings.getExcludePatternsText());
+        maxFilesInput.setText(String.valueOf(settings.getMaxFiles()));
     }
 
     private void sendTestNotification() {
@@ -361,7 +487,9 @@ public final class SettingsActivity extends Activity {
         String cachedAt = TaskCache.getSavedAt(this);
         String latestError = ErrorLog.latest(this);
         TaskFormatSettings formatSettings = TaskFormatSettings.load(this);
+        NoteScanSettings scanSettings = NoteScanSettings.load(this);
         StringBuilder status = new StringBuilder("Источник: " + NoteStore.sourceLabel(this)
+                + "\nИсточников: " + NoteStore.getSavedSourceCount(this)
                 + "\nФильтр: " + (UserPreferences.isActiveOnly(this) ? "только активные" : "все задачи")
                 + "\nТочные напоминания: "
                 + (ReminderScheduler.canScheduleExactAlarms(this) ? "разрешены" : "не разрешены")
@@ -369,6 +497,7 @@ public final class SettingsActivity extends Activity {
                 + "\nОтложить: " + ActionPreferences.getSnoozeMinutes(this) + " мин."
                 + "\nСчетчик отложений: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "включен" : "выключен")
                 + "\nФормат: " + formatSettings.formatForStatus()
+                + "\nПоиск: " + scanSettings.formatForStatus()
                 + "\nЛокальный кэш задач: " + TaskCache.getCachedTaskCount(this)
                 + (cachedAt == null ? "" : "\nКэш обновлен: " + cachedAt));
         if (latestError != null) {

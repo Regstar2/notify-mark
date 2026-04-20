@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.database.Cursor;
 import android.net.Uri;
@@ -17,8 +18,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -30,8 +34,11 @@ public final class NoteStore {
     private static final String KEY_NOTE_URI = "note_uri";
     private static final String KEY_SOURCE_URI = "source_uri";
     private static final String KEY_SOURCE_TYPE = "source_type";
+    private static final String KEY_SOURCES = "sources";
     private static final Pattern ACTIVE_TASK_MARKER =
             Pattern.compile("^(\\s*[-*+]\\s+\\[)[ xX](\\].*)$");
+    private static final Pattern CHECKBOX_TASK_MARKER =
+            Pattern.compile("(?m)^\\s*[-*+]\\s+\\[[ xX]\\]");
     private static final Pattern SNOOZED_COUNT =
             Pattern.compile("(?iu)@snoozed\\(\\s*(\\d+)\\s*\\)");
 
@@ -46,18 +53,39 @@ public final class NoteStore {
     }
 
     public static Uri getSavedSourceUri(Context context) {
-        String savedUri = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(KEY_SOURCE_URI, null);
-        if (savedUri == null) {
-            savedUri = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                    .getString(KEY_NOTE_URI, null);
-        }
-        return savedUri == null ? null : Uri.parse(savedUri);
+        List<NoteSource> sources = getSavedSources(context);
+        return sources.isEmpty() ? null : sources.get(0).getUri();
     }
 
     public static String getSavedSourceType(Context context) {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getString(KEY_SOURCE_TYPE, SOURCE_NOTE);
+        List<NoteSource> sources = getSavedSources(context);
+        return sources.isEmpty() ? SOURCE_NOTE : sources.get(0).getType();
+    }
+
+    public static boolean hasSavedSources(Context context) {
+        return !getSavedSources(context).isEmpty();
+    }
+
+    public static int getSavedSourceCount(Context context) {
+        return getSavedSources(context).size();
+    }
+
+    public static List<NoteSource> getSavedSources(Context context) {
+        SharedPreferences preferences =
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        List<NoteSource> sources = decodeSources(preferences.getString(KEY_SOURCES, null));
+        if (!sources.isEmpty()) {
+            return sources;
+        }
+
+        Uri legacyUri = getLegacySavedSourceUri(preferences);
+        if (legacyUri == null) {
+            return new ArrayList<>();
+        }
+        String legacyType = preferences.getString(KEY_SOURCE_TYPE, SOURCE_NOTE);
+        List<NoteSource> legacySources = new ArrayList<>();
+        legacySources.add(new NoteSource(legacyType, legacyUri));
+        return legacySources;
     }
 
     public static Uri requireSavedSourceUri(Context context) throws IOException {
@@ -77,38 +105,170 @@ public final class NoteStore {
     }
 
     public static void saveNoteUri(Context context, Uri uri) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putString(KEY_SOURCE_TYPE, SOURCE_NOTE)
-                .putString(KEY_SOURCE_URI, uri.toString())
-                .putString(KEY_NOTE_URI, uri.toString())
-                .apply();
+        List<NoteSource> sources = new ArrayList<>();
+        sources.add(new NoteSource(SOURCE_NOTE, uri));
+        saveSources(context, sources);
     }
 
     public static void saveFolderUri(Context context, Uri uri) {
+        List<NoteSource> sources = new ArrayList<>();
+        sources.add(new NoteSource(SOURCE_FOLDER, uri));
+        saveSources(context, sources);
+    }
+
+    public static void saveNoteUris(Context context, List<Uri> uris) {
+        List<NoteSource> sources = new ArrayList<>();
+        for (Uri uri : uris) {
+            sources.add(new NoteSource(SOURCE_NOTE, uri));
+        }
+        saveSources(context, sources);
+    }
+
+    public static void addNoteUris(Context context, List<Uri> uris) {
+        List<NoteSource> sources = getSavedSources(context);
+        for (Uri uri : uris) {
+            sources.add(new NoteSource(SOURCE_NOTE, uri));
+        }
+        saveSources(context, sources);
+    }
+
+    public static void addFolderUri(Context context, Uri uri) {
+        List<NoteSource> sources = getSavedSources(context);
+        sources.add(new NoteSource(SOURCE_FOLDER, uri));
+        saveSources(context, sources);
+    }
+
+    public static void clearSources(Context context) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
-                .putString(KEY_SOURCE_TYPE, SOURCE_FOLDER)
-                .putString(KEY_SOURCE_URI, uri.toString())
+                .remove(KEY_SOURCES)
+                .remove(KEY_SOURCE_URI)
+                .remove(KEY_SOURCE_TYPE)
                 .remove(KEY_NOTE_URI)
                 .apply();
     }
 
     public static boolean canWriteSavedSource(Context context) {
-        Uri sourceUri = getSavedSourceUri(context);
-        if (sourceUri == null) {
+        List<NoteSource> sources = getSavedSources(context);
+        if (sources.isEmpty()) {
             return false;
         }
-        if ("file".equalsIgnoreCase(sourceUri.getScheme())) {
+
+        for (NoteSource source : sources) {
+            if (!canWriteUri(context, source.getUri())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean canWriteUri(Context context, Uri uri) {
+        if (uri == null) {
+            return false;
+        }
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
             return true;
         }
-
         for (UriPermission permission : context.getContentResolver().getPersistedUriPermissions()) {
-            if (permission.getUri().equals(sourceUri) && permission.isWritePermission()) {
+            if (!permission.isWritePermission()) {
+                continue;
+            }
+            if (permission.getUri().equals(uri)
+                    || uri.toString().startsWith(permission.getUri().toString())) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static void saveSources(Context context, List<NoteSource> rawSources) {
+        List<NoteSource> sources = dedupeSources(rawSources);
+        SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_SOURCES, encodeSources(sources));
+
+        if (sources.isEmpty()) {
+            editor.remove(KEY_SOURCE_TYPE)
+                    .remove(KEY_SOURCE_URI)
+                    .remove(KEY_NOTE_URI);
+        } else {
+            NoteSource firstSource = sources.get(0);
+            editor.putString(KEY_SOURCE_TYPE, firstSource.getType())
+                    .putString(KEY_SOURCE_URI, firstSource.getUri().toString());
+            if (SOURCE_NOTE.equals(firstSource.getType())) {
+                editor.putString(KEY_NOTE_URI, firstSource.getUri().toString());
+            } else {
+                editor.remove(KEY_NOTE_URI);
+            }
+        }
+        editor.apply();
+    }
+
+    private static List<NoteSource> dedupeSources(List<NoteSource> rawSources) {
+        Map<String, NoteSource> uniqueSources = new LinkedHashMap<>();
+        if (rawSources == null) {
+            return new ArrayList<>();
+        }
+
+        for (NoteSource source : rawSources) {
+            if (source == null || source.getUri() == null) {
+                continue;
+            }
+            uniqueSources.put(source.getType() + "|" + source.getUri(), source);
+        }
+        return new ArrayList<>(uniqueSources.values());
+    }
+
+    private static String encodeSources(List<NoteSource> sources) {
+        StringBuilder builder = new StringBuilder();
+        for (NoteSource source : sources) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(source.getType())
+                    .append('|')
+                    .append(Base64.getUrlEncoder().withoutPadding().encodeToString(
+                            source.getUri().toString().getBytes(StandardCharsets.UTF_8)
+                    ));
+        }
+        return builder.toString();
+    }
+
+    private static List<NoteSource> decodeSources(String encodedSources) {
+        List<NoteSource> sources = new ArrayList<>();
+        if (encodedSources == null || encodedSources.trim().isEmpty()) {
+            return sources;
+        }
+
+        for (String line : encodedSources.split("\\n")) {
+            String[] parts = line.split("\\|", 2);
+            if (parts.length != 2) {
+                continue;
+            }
+            try {
+                String type = normalizeSourceType(parts[0]);
+                String uri = new String(
+                        Base64.getUrlDecoder().decode(parts[1]),
+                        StandardCharsets.UTF_8
+                );
+                sources.add(new NoteSource(type, Uri.parse(uri)));
+            } catch (RuntimeException ignored) {
+                // Ignore malformed stored source entries.
+            }
+        }
+        return dedupeSources(sources);
+    }
+
+    private static Uri getLegacySavedSourceUri(SharedPreferences preferences) {
+        String savedUri = preferences.getString(KEY_SOURCE_URI, null);
+        if (savedUri == null) {
+            savedUri = preferences.getString(KEY_NOTE_URI, null);
+        }
+        return savedUri == null ? null : Uri.parse(savedUri);
+    }
+
+    private static String normalizeSourceType(String sourceType) {
+        return SOURCE_FOLDER.equals(sourceType) ? SOURCE_FOLDER : SOURCE_NOTE;
     }
 
     public static String readMarkdown(Context context, Uri uri) throws IOException {
@@ -147,13 +307,31 @@ public final class NoteStore {
     }
 
     public static List<NoteDocument> readDocuments(Context context) throws IOException {
-        Uri sourceUri = requireSavedSourceUri(context);
-        if (SOURCE_FOLDER.equals(getSavedSourceType(context))) {
-            return readFolderDocuments(context, sourceUri);
+        List<NoteSource> sources = getSavedSources(context);
+        if (sources.isEmpty()) {
+            throw new IOException("заметка или папка не выбрана");
         }
 
         List<NoteDocument> documents = new ArrayList<>();
-        documents.add(new NoteDocument(displayName(context, sourceUri), sourceUri, readMarkdown(context, sourceUri)));
+        NoteScanSettings scanSettings = NoteScanSettings.load(context);
+        for (NoteSource source : sources) {
+            if (SOURCE_FOLDER.equals(source.getType())) {
+                documents.addAll(readFolderDocuments(context, source.getUri(), scanSettings));
+            } else {
+                documents.add(new NoteDocument(
+                        displayName(context, source.getUri()),
+                        source.getUri(),
+                        readMarkdown(context, source.getUri())
+                ));
+            }
+            if (documents.size() >= scanSettings.getMaxFiles()) {
+                break;
+            }
+        }
+
+        if (documents.isEmpty()) {
+            throw new IOException("не найдено markdown-файлов по текущим источникам и шаблонам поиска");
+        }
         return documents;
     }
 
@@ -169,6 +347,9 @@ public final class NoteStore {
         for (NoteDocument document : readDocuments(context)) {
             documentCount++;
             totalCharacters += document.getMarkdown().length();
+            if (!looksLikeTaskDocument(document.getMarkdown())) {
+                continue;
+            }
             results.add(TaskParser.parseDocument(
                     document.getMarkdown(),
                     java.time.LocalDate.now(),
@@ -177,6 +358,10 @@ public final class NoteStore {
             ));
         }
         return new TaskSnapshot(TaskParseResult.merge(results), documentCount, totalCharacters);
+    }
+
+    private static boolean looksLikeTaskDocument(String markdown) {
+        return markdown != null && CHECKBOX_TASK_MARKER.matcher(markdown).find();
     }
 
     public static List<ObsidianTask> readTasks(Context context) throws IOException {
@@ -225,13 +410,28 @@ public final class NoteStore {
     }
 
     public static String sourceLabel(Context context) {
-        Uri sourceUri = getSavedSourceUri(context);
-        if (sourceUri == null) {
+        List<NoteSource> sources = getSavedSources(context);
+        if (sources.isEmpty()) {
             return "не выбрано";
         }
 
-        String type = SOURCE_FOLDER.equals(getSavedSourceType(context)) ? "папка" : "заметка";
-        return type + ": " + displayName(context, sourceUri);
+        if (sources.size() == 1) {
+            NoteSource source = sources.get(0);
+            String type = SOURCE_FOLDER.equals(source.getType()) ? "папка" : "заметка";
+            return type + ": " + displayName(context, source.getUri());
+        }
+
+        StringBuilder builder = new StringBuilder("источников: ").append(sources.size());
+        int limit = Math.min(3, sources.size());
+        for (int i = 0; i < limit; i++) {
+            builder.append(i == 0 ? " (" : ", ");
+            builder.append(displayName(context, sources.get(i).getUri()));
+        }
+        if (sources.size() > limit) {
+            builder.append(", ...");
+        }
+        builder.append(')');
+        return builder.toString();
     }
 
     private static TaskEditResult editActiveTaskLine(
@@ -313,11 +513,38 @@ public final class NoteStore {
         return builder.toString();
     }
 
-    private static List<NoteDocument> readFolderDocuments(Context context, Uri treeUri) throws IOException {
+    private static List<NoteDocument> readFolderDocuments(
+            Context context,
+            Uri treeUri,
+            NoteScanSettings scanSettings
+    ) throws IOException {
         List<NoteDocument> documents = new ArrayList<>();
+        scanFolderDocuments(
+                context,
+                treeUri,
+                DocumentsContract.getTreeDocumentId(treeUri),
+                "",
+                scanSettings,
+                documents
+        );
+        return documents;
+    }
+
+    private static void scanFolderDocuments(
+            Context context,
+            Uri treeUri,
+            String documentId,
+            String parentPath,
+            NoteScanSettings scanSettings,
+            List<NoteDocument> documents
+    ) throws IOException {
+        if (documents.size() >= scanSettings.getMaxFiles()) {
+            return;
+        }
+
         Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
                 treeUri,
-                DocumentsContract.getTreeDocumentId(treeUri)
+                documentId
         );
 
         try (Cursor cursor = context.getContentResolver().query(
@@ -336,27 +563,50 @@ public final class NoteStore {
             }
 
             while (cursor.moveToNext()) {
-                String documentId = cursor.getString(0);
+                String childDocumentId = cursor.getString(0);
                 String displayName = cursor.getString(1);
                 String mimeType = cursor.getString(2);
-                if (!isMarkdownDocument(displayName, mimeType)) {
+                String relativePath = parentPath.isEmpty()
+                        ? displayName
+                        : parentPath + "/" + displayName;
+                Uri documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childDocumentId);
+
+                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)) {
+                    if (!scanSettings.shouldSkipDirectory(relativePath)) {
+                        scanFolderDocuments(
+                                context,
+                                treeUri,
+                                childDocumentId,
+                                relativePath,
+                                scanSettings,
+                                documents
+                        );
+                    }
+                    if (documents.size() >= scanSettings.getMaxFiles()) {
+                        return;
+                    }
                     continue;
                 }
 
-                Uri documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId);
-                documents.add(new NoteDocument(displayName, documentUri, readMarkdown(context, documentUri)));
+                if (!isMarkdownDocument(displayName, mimeType)
+                        || !scanSettings.shouldReadFile(relativePath, displayName)) {
+                    continue;
+                }
+
+                documents.add(new NoteDocument(
+                        relativePath,
+                        documentUri,
+                        readMarkdown(context, documentUri)
+                ));
+                if (documents.size() >= scanSettings.getMaxFiles()) {
+                    return;
+                }
             }
         } catch (SecurityException exception) {
             throw exception;
         } catch (RuntimeException exception) {
             throw new IOException("не удалось прочитать папку заметок: " + exception.getMessage(), exception);
         }
-
-        if (documents.isEmpty()) {
-            throw new IOException("в выбранной папке не найдено markdown-файлов");
-        }
-
-        return documents;
     }
 
     private static boolean isMarkdownDocument(String displayName, String mimeType) {
@@ -386,6 +636,24 @@ public final class NoteStore {
             return uri.toString();
         }
         return uri.toString();
+    }
+
+    public static final class NoteSource {
+        private final String type;
+        private final Uri uri;
+
+        public NoteSource(String type, Uri uri) {
+            this.type = normalizeSourceType(type);
+            this.uri = uri;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public Uri getUri() {
+            return uri;
+        }
     }
 
     public static final class NoteDocument {
