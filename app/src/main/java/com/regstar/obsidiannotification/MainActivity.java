@@ -336,10 +336,17 @@ public final class MainActivity extends Activity {
         refreshButton.setEnabled(true);
 
         try {
-            TaskParseResult parseResult = NoteStore.readTaskParseResult(this);
-            renderParseResult(parseResult);
+            NoteStore.TaskSnapshot snapshot = NoteStore.readTaskSnapshot(this);
+            if (NoteChangeMonitor.isSuspiciousPartialRead(this, snapshot)) {
+                restoreAndRenderCachedTasks("Файл выглядит частично синхронизированным.");
+                return;
+            }
+
+            renderParseResult(snapshot.getParseResult());
             NoteChangeMonitor.ensureScheduled(this);
-        } catch (IOException | SecurityException exception) {
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(this, "Не удалось прочитать источник в интерфейсе", exception);
+            NoteChangeMonitor.restoreFromCache(this, exception.getMessage());
             NoteChangeMonitor.ensureScheduled(this);
             setStatus("Файл временно недоступен: " + exception.getMessage()
                     + "\nТекущие уведомления сохранены.");
@@ -348,6 +355,7 @@ public final class MainActivity extends Activity {
 
     private void renderParseResult(TaskParseResult parseResult) {
         List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
+        TaskCache.saveActiveTasks(this, activeTasks);
         ReminderSchedule schedule = ReminderScheduler.schedule(this, activeTasks);
         renderedFingerprint = NoteChangeMonitor.fingerprintOf(parseResult);
         NoteChangeMonitor.recordSuccessfulSync(this, renderedFingerprint);
@@ -363,15 +371,45 @@ public final class MainActivity extends Activity {
         }
 
         try {
-            TaskParseResult parseResult = NoteStore.readTaskParseResult(this);
+            NoteStore.TaskSnapshot snapshot = NoteStore.readTaskSnapshot(this);
+            if (NoteChangeMonitor.isSuspiciousPartialRead(this, snapshot)) {
+                restoreAndRenderCachedTasks("Файл выглядит частично синхронизированным.");
+                return;
+            }
+
+            TaskParseResult parseResult = snapshot.getParseResult();
             String fingerprint = NoteChangeMonitor.fingerprintOf(parseResult);
             if (!fingerprint.equals(renderedFingerprint)) {
                 renderParseResult(parseResult);
             }
-        } catch (IOException | SecurityException exception) {
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(this, "Не удалось обновить источник в интерфейсе", exception);
+            NoteChangeMonitor.restoreFromCache(this, exception.getMessage());
             setStatus("Файл временно недоступен: " + exception.getMessage()
                     + "\nТекущие уведомления сохранены.");
         }
+    }
+
+    private void restoreAndRenderCachedTasks(String reason) {
+        ErrorLog.record(this, reason);
+        boolean restored = NoteChangeMonitor.restoreFromCache(this, reason);
+        List<ObsidianTask> cachedTasks = TaskCache.loadActiveTasks(this);
+        if (!cachedTasks.isEmpty()) {
+            ReminderSchedule schedule = null;
+            try {
+                schedule = ReminderScheduler.schedule(this, cachedTasks);
+            } catch (RuntimeException exception) {
+                ErrorLog.record(this, "Не удалось показать ближайшее напоминание из кэша", exception);
+            }
+            renderTasks(cachedTasks);
+            setNextReminder(schedule == null ? null : schedule.getNextReminder());
+            setStatus(reason
+                    + "\nИспользуется локальный кэш задач: " + cachedTasks.size()
+                    + "\nУведомления " + (restored ? "восстановлены." : "оставлены без изменений."));
+            return;
+        }
+
+        setStatus(reason + "\nЛокальный кэш задач пуст.");
     }
 
     private void startForegroundNotePolling() {

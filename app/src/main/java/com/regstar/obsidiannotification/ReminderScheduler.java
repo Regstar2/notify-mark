@@ -78,7 +78,11 @@ public final class ReminderScheduler {
     }
 
     public static ReminderSchedule schedule(Context context, List<ObsidianTask> tasks) {
-        return schedule(context, tasks, LocalDateTime.now(), ZoneId.systemDefault());
+        return schedule(context, tasks, LocalDateTime.now(), ZoneId.systemDefault(), true);
+    }
+
+    public static ReminderSchedule rescheduleAll(Context context, List<ObsidianTask> tasks) {
+        return schedule(context, tasks, LocalDateTime.now(), ZoneId.systemDefault(), false);
     }
 
     static ReminderSchedule schedule(
@@ -86,6 +90,16 @@ public final class ReminderScheduler {
             List<ObsidianTask> tasks,
             LocalDateTime now,
             ZoneId zoneId
+    ) {
+        return schedule(context, tasks, now, zoneId, true);
+    }
+
+    private static ReminderSchedule schedule(
+            Context context,
+            List<ObsidianTask> tasks,
+            LocalDateTime now,
+            ZoneId zoneId,
+            boolean preserveExistingRepeats
     ) {
         cancelLegacyScheduled(context);
 
@@ -111,7 +125,8 @@ public final class ReminderScheduler {
             }
 
             ScheduledState existing = existingState.get(task.getTaskKey());
-            if (shouldKeepExistingReminder(task, reminder, existing, nowMillis)) {
+            if (preserveExistingRepeats
+                    && shouldKeepExistingReminder(task, reminder, existing, nowMillis)) {
                 reminder = copyWithExistingTrigger(reminder, existing, zoneId);
             }
 

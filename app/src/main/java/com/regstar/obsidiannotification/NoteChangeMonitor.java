@@ -21,8 +21,11 @@ public final class NoteChangeMonitor {
     private static final String KEY_LAST_FINGERPRINT = "last_fingerprint";
     private static final String KEY_LAST_SYNC_AT = "last_sync_at";
     private static final String KEY_LAST_ERROR = "last_error";
+    private static final String KEY_EMPTY_READ_COUNT = "empty_read_count";
     private static final long BACKGROUND_CHECK_INTERVAL_MS = 60_000L;
     private static final int REQUEST_SYNC_NOTE = 2001;
+    private static final int MAX_EMPTY_READ_CHARACTERS = 0;
+    private static final int MAX_PROTECTED_EMPTY_READS = 4;
 
     private NoteChangeMonitor() {
     }
@@ -58,10 +61,25 @@ public final class NoteChangeMonitor {
     }
 
     public static NoteSyncResult syncNow(Context context) {
+        return syncNow(context, false);
+    }
+
+    public static NoteSyncResult syncNow(Context context, boolean forceReschedule) {
         try {
-            TaskParseResult parseResult = NoteStore.readTaskParseResult(context);
+            NoteStore.TaskSnapshot snapshot = NoteStore.readTaskSnapshot(context);
+            TaskParseResult parseResult = snapshot.getParseResult();
+            if (isSuspiciousPartialRead(context, snapshot)) {
+                String message = "Источник прочитан как пустой. Возможно, файл еще синхронизируется.";
+                recordFailedSync(context, message);
+                boolean restored = restoreFromCache(context, message);
+                return NoteSyncResult.failure(message, restored);
+            }
+
             List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
-            ReminderSchedule schedule = ReminderScheduler.schedule(context, activeTasks);
+            TaskCache.saveActiveTasks(context, activeTasks);
+            ReminderSchedule schedule = forceReschedule
+                    ? ReminderScheduler.rescheduleAll(context, activeTasks)
+                    : ReminderScheduler.schedule(context, activeTasks);
             String fingerprint = fingerprintOf(parseResult);
             String previousFingerprint = getLastFingerprint(context);
             recordSuccessfulSync(context, fingerprint);
@@ -70,10 +88,37 @@ public final class NoteChangeMonitor {
                     parseResult.getTasks().size(),
                     schedule
             );
-        } catch (IOException | SecurityException exception) {
+        } catch (IOException | RuntimeException exception) {
             recordFailedSync(context, exception);
-            return NoteSyncResult.failure(exception.getMessage());
+            boolean restored = restoreFromCache(context, exception.getMessage());
+            return NoteSyncResult.failure(exception.getMessage(), restored);
         }
+    }
+
+    public static boolean restoreFromCache(Context context, String reason) {
+        if (NoteStore.getSavedSourceUri(context) == null) {
+            return false;
+        }
+
+        List<ObsidianTask> cachedTasks = TaskCache.loadActiveTasks(context);
+        if (cachedTasks.isEmpty()) {
+            return false;
+        }
+
+        try {
+            ReminderScheduler.rescheduleAll(context, cachedTasks);
+        } catch (RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось восстановить напоминания из кэша", exception);
+            return false;
+        }
+        ErrorLog.record(
+                context,
+                "Восстановлены напоминания из локального кэша: "
+                        + cachedTasks.size()
+                        + ". Причина: "
+                        + safeMessage(reason)
+        );
+        return true;
     }
 
     public static String getLastFingerprint(Context context) {
@@ -86,6 +131,7 @@ public final class NoteChangeMonitor {
                 .edit()
                 .putString(KEY_LAST_FINGERPRINT, fingerprint)
                 .putString(KEY_LAST_SYNC_AT, LocalDateTime.now().toString())
+                .remove(KEY_EMPTY_READ_COUNT)
                 .remove(KEY_LAST_ERROR)
                 .apply();
     }
@@ -117,11 +163,47 @@ public final class NoteChangeMonitor {
     }
 
     private static void recordFailedSync(Context context, Exception exception) {
+        recordFailedSync(context, exception.getMessage());
+    }
+
+    private static void recordFailedSync(Context context, String message) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putString(KEY_LAST_SYNC_AT, LocalDateTime.now().toString())
-                .putString(KEY_LAST_ERROR, exception.getMessage())
+                .putString(KEY_LAST_ERROR, safeMessage(message))
                 .apply();
+        ErrorLog.record(context, "Ошибка синхронизации: " + safeMessage(message));
+    }
+
+    static boolean isSuspiciousPartialRead(
+            Context context,
+            NoteStore.TaskSnapshot snapshot
+    ) {
+        boolean emptyReadWithCache = snapshot.getTotalCharacters() <= MAX_EMPTY_READ_CHARACTERS
+                && snapshot.getParseResult().getTasks().isEmpty()
+                && TaskCache.hasCachedTasks(context);
+        if (!emptyReadWithCache) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .remove(KEY_EMPTY_READ_COUNT)
+                    .apply();
+            return false;
+        }
+
+        int emptyReadCount = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_EMPTY_READ_COUNT, 0) + 1;
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_EMPTY_READ_COUNT, emptyReadCount)
+                .apply();
+        return emptyReadCount <= MAX_PROTECTED_EMPTY_READS;
+    }
+
+    private static String safeMessage(String message) {
+        if (message == null || message.trim().isEmpty()) {
+            return "без подробностей";
+        }
+        return message;
     }
 
     private static PendingIntent createSyncPendingIntent(Context context, int flag) {
@@ -141,19 +223,22 @@ public final class NoteChangeMonitor {
         private final int taskCount;
         private final ReminderSchedule schedule;
         private final String errorMessage;
+        private final boolean restoredFromCache;
 
         private NoteSyncResult(
                 boolean success,
                 boolean changed,
                 int taskCount,
                 ReminderSchedule schedule,
-                String errorMessage
+                String errorMessage,
+                boolean restoredFromCache
         ) {
             this.success = success;
             this.changed = changed;
             this.taskCount = taskCount;
             this.schedule = schedule;
             this.errorMessage = errorMessage;
+            this.restoredFromCache = restoredFromCache;
         }
 
         public static NoteSyncResult success(
@@ -161,11 +246,15 @@ public final class NoteChangeMonitor {
                 int taskCount,
                 ReminderSchedule schedule
         ) {
-            return new NoteSyncResult(true, changed, taskCount, schedule, null);
+            return new NoteSyncResult(true, changed, taskCount, schedule, null, false);
         }
 
         public static NoteSyncResult failure(String errorMessage) {
-            return new NoteSyncResult(false, false, 0, null, errorMessage);
+            return failure(errorMessage, false);
+        }
+
+        public static NoteSyncResult failure(String errorMessage, boolean restoredFromCache) {
+            return new NoteSyncResult(false, false, 0, null, errorMessage, restoredFromCache);
         }
 
         public boolean isSuccess() {
@@ -186,6 +275,10 @@ public final class NoteChangeMonitor {
 
         public String getErrorMessage() {
             return errorMessage;
+        }
+
+        public boolean isRestoredFromCache() {
+            return restoredFromCache;
         }
     }
 }

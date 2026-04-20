@@ -114,11 +114,19 @@ public final class NoteStore {
     }
 
     public static TaskParseResult readTaskParseResult(Context context) throws IOException {
+        return readTaskSnapshot(context).getParseResult();
+    }
+
+    public static TaskSnapshot readTaskSnapshot(Context context) throws IOException {
         List<TaskParseResult> results = new ArrayList<>();
+        int documentCount = 0;
+        int totalCharacters = 0;
         for (NoteDocument document : readDocuments(context)) {
+            documentCount++;
+            totalCharacters += document.getMarkdown().length();
             results.add(TaskParser.parseDocument(document.getMarkdown(), document.getDisplayName()));
         }
-        return TaskParseResult.merge(results);
+        return new TaskSnapshot(TaskParseResult.merge(results), documentCount, totalCharacters);
     }
 
     public static List<ObsidianTask> readTasks(Context context) throws IOException {
@@ -240,6 +248,34 @@ public final class NoteStore {
 
         public String getMarkdown() {
             return markdown;
+        }
+    }
+
+    public static final class TaskSnapshot {
+        private final TaskParseResult parseResult;
+        private final int documentCount;
+        private final int totalCharacters;
+
+        public TaskSnapshot(
+                TaskParseResult parseResult,
+                int documentCount,
+                int totalCharacters
+        ) {
+            this.parseResult = parseResult;
+            this.documentCount = documentCount;
+            this.totalCharacters = totalCharacters;
+        }
+
+        public TaskParseResult getParseResult() {
+            return parseResult;
+        }
+
+        public int getDocumentCount() {
+            return documentCount;
+        }
+
+        public int getTotalCharacters() {
+            return totalCharacters;
         }
     }
 }

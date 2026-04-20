@@ -141,7 +141,7 @@ public final class SettingsActivity extends Activity {
     }
 
     private void rescheduleAll() {
-        NoteChangeMonitor.NoteSyncResult result = NoteChangeMonitor.syncNow(this);
+        NoteChangeMonitor.NoteSyncResult result = NoteChangeMonitor.syncNow(this, true);
         NoteChangeMonitor.ensureScheduled(this);
         if (result.isSuccess()) {
             Toast.makeText(
@@ -150,9 +150,12 @@ public final class SettingsActivity extends Activity {
                     Toast.LENGTH_SHORT
             ).show();
         } else {
+            String message = result.isRestoredFromCache()
+                    ? "Источник не прочитан, уведомления восстановлены из кэша"
+                    : "Не удалось прочитать источник: " + result.getErrorMessage();
             Toast.makeText(
                     this,
-                    "Не удалось прочитать источник: " + result.getErrorMessage(),
+                    message,
                     Toast.LENGTH_LONG
             ).show();
         }
@@ -169,10 +172,18 @@ public final class SettingsActivity extends Activity {
     }
 
     private void updateStatus() {
-        statusText.setText("Источник: " + NoteStore.sourceLabel(this)
+        String cachedAt = TaskCache.getSavedAt(this);
+        String latestError = ErrorLog.latest(this);
+        StringBuilder status = new StringBuilder("Источник: " + NoteStore.sourceLabel(this)
                 + "\nФильтр: " + (UserPreferences.isActiveOnly(this) ? "только активные" : "все задачи")
                 + "\nТочные напоминания: "
-                + (ReminderScheduler.canScheduleExactAlarms(this) ? "разрешены" : "не разрешены"));
+                + (ReminderScheduler.canScheduleExactAlarms(this) ? "разрешены" : "не разрешены")
+                + "\nЛокальный кэш задач: " + TaskCache.getCachedTaskCount(this)
+                + (cachedAt == null ? "" : "\nКэш обновлен: " + cachedAt));
+        if (latestError != null) {
+            status.append("\nПоследняя ошибка: ").append(latestError);
+        }
+        statusText.setText(status.toString());
     }
 
     private void updateActiveFilterButton() {

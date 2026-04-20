@@ -160,9 +160,19 @@ public final class ReminderReceiver extends BroadcastReceiver {
         }
 
         try {
-            ObsidianTask task = NoteStore.findActiveTask(context, taskKey);
-            return task == null ? ActiveTaskLookup.missing() : ActiveTaskLookup.found(task);
-        } catch (IOException | SecurityException exception) {
+            NoteStore.TaskSnapshot snapshot = NoteStore.readTaskSnapshot(context);
+            if (NoteChangeMonitor.isSuspiciousPartialRead(context, snapshot)) {
+                return ActiveTaskLookup.unknown();
+            }
+
+            for (ObsidianTask task : snapshot.getParseResult().getActiveTasks()) {
+                if (task.getTaskKey().equals(taskKey)) {
+                    return ActiveTaskLookup.found(task);
+                }
+            }
+            return ActiveTaskLookup.missing();
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось проверить задачу перед повтором", exception);
             return ActiveTaskLookup.unknown();
         }
     }
