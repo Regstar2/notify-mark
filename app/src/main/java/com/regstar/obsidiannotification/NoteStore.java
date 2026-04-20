@@ -37,6 +37,8 @@ public final class NoteStore {
     private static final String KEY_SOURCES = "sources";
     private static final Pattern ACTIVE_TASK_MARKER =
             Pattern.compile("^(\\s*[-*+]\\s+\\[)[ xX](\\].*)$");
+    private static final Pattern NON_CHECKBOX_BULLET_MARKER =
+            Pattern.compile("^(\\s*[-*+]\\s+)(?!\\[[ xX]\\]\\s+)(.+)$");
     private static final Pattern SNOOZED_COUNT =
             Pattern.compile("(?iu)@snoozed\\(\\s*(\\d+)\\s*\\)");
 
@@ -389,10 +391,17 @@ public final class NoteStore {
     public static TaskEditResult markTaskDone(Context context, String taskKey) {
         return editActiveTaskLine(context, taskKey, line -> {
             Matcher matcher = ACTIVE_TASK_MARKER.matcher(line);
-            if (!matcher.find()) {
-                return null;
+            if (matcher.find()) {
+                return matcher.group(1) + "x" + matcher.group(2);
             }
-            return matcher.group(1) + "x" + matcher.group(2);
+
+            Matcher bulletMatcher = NON_CHECKBOX_BULLET_MARKER.matcher(line);
+            if (bulletMatcher.find()) {
+                return bulletMatcher.group(1) + "[x] " + bulletMatcher.group(2);
+            }
+
+            String trimmed = line == null ? "" : line.trim();
+            return trimmed.isEmpty() ? null : "- [x] " + trimmed;
         });
     }
 
