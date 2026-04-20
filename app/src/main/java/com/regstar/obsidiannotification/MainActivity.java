@@ -1,12 +1,15 @@
 package com.regstar.obsidiannotification;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.view.View;
@@ -29,6 +32,7 @@ import java.util.Locale;
 
 public final class MainActivity extends Activity {
     private static final int REQUEST_OPEN_NOTE = 1001;
+    private static final int REQUEST_NOTIFICATIONS = 1002;
     private static final String PREFS_NAME = "obsidian_notification_prefs";
     private static final String KEY_NOTE_URI = "note_uri";
     private static final DateTimeFormatter DATE_TIME_FORMAT =
@@ -37,12 +41,16 @@ public final class MainActivity extends Activity {
     private SharedPreferences preferences;
     private Uri noteUri;
     private TextView statusText;
+    private TextView nextReminderText;
     private Button refreshButton;
+    private Button notificationPermissionButton;
     private LinearLayout taskList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        ReminderScheduler.ensureNotificationChannel(this);
 
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         String savedUri = preferences.getString(KEY_NOTE_URI, null);
@@ -51,9 +59,13 @@ public final class MainActivity extends Activity {
         }
 
         buildUi();
+        updateNotificationPermissionUi();
+        requestNotificationPermissionIfNeeded();
 
         if (noteUri == null) {
+            ReminderScheduler.cancelScheduled(this);
             setStatus("Выберите markdown-файл с задачами Obsidian.");
+            setNextReminder(null);
             renderEmptyState("Задачи появятся здесь после выбора заметки.");
         } else {
             readAndRenderNote();
@@ -87,6 +99,31 @@ public final class MainActivity extends Activity {
         readAndRenderNote();
     }
 
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_NOTIFICATIONS) {
+            return;
+        }
+
+        updateNotificationPermissionUi();
+        if (hasNotificationPermission()) {
+            if (noteUri == null) {
+                setStatus("Уведомления разрешены. Выберите markdown-файл с задачами Obsidian.");
+            } else {
+                readAndRenderNote();
+            }
+        } else {
+            ReminderScheduler.cancelScheduled(this);
+            setStatus("Разрешение на уведомления не выдано. Напоминания не будут показаны.");
+            setNextReminder(null);
+        }
+    }
+
     private void buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -104,7 +141,7 @@ public final class MainActivity extends Activity {
         ));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Читает чекбоксы из markdown-заметки и показывает активные задачи.");
+        subtitle.setText("Читает чекбоксы из markdown-заметки и планирует локальные напоминания.");
         subtitle.setTextColor(getColor(R.color.text_secondary));
         subtitle.setTextSize(15);
         subtitle.setPadding(0, dp(8), 0, dp(16));
@@ -145,11 +182,32 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
+        notificationPermissionButton = new Button(this);
+        notificationPermissionButton.setText("Разрешить уведомления");
+        notificationPermissionButton.setAllCaps(false);
+        notificationPermissionButton.setOnClickListener(view -> requestNotificationPermission());
+        LinearLayout.LayoutParams permissionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        permissionParams.setMargins(0, 0, 0, dp(12));
+        root.addView(notificationPermissionButton, permissionParams);
+
         statusText = new TextView(this);
         statusText.setTextColor(getColor(R.color.text_secondary));
         statusText.setTextSize(14);
-        statusText.setPadding(0, 0, 0, dp(12));
+        statusText.setPadding(0, 0, 0, dp(8));
         root.addView(statusText, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        nextReminderText = new TextView(this);
+        nextReminderText.setTextColor(getColor(R.color.text_primary));
+        nextReminderText.setTextSize(15);
+        nextReminderText.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        nextReminderText.setPadding(0, 0, 0, dp(12));
+        root.addView(nextReminderText, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -187,7 +245,9 @@ public final class MainActivity extends Activity {
 
     private void readAndRenderNote() {
         if (noteUri == null) {
+            ReminderScheduler.cancelScheduled(this);
             setStatus("Файл не выбран.");
+            setNextReminder(null);
             renderEmptyState("Нажмите «Выбрать заметку».");
             return;
         }
@@ -197,18 +257,32 @@ public final class MainActivity extends Activity {
         try {
             String markdown = readUriText(noteUri);
             List<ObsidianTask> tasks = TaskParser.parse(markdown);
+            ReminderSchedule schedule = ReminderScheduler.schedule(this, tasks);
+
             renderTasks(tasks);
-            setStatus(String.format(
-                    Locale.getDefault(),
-                    "Файл: %s\nАктивных задач: %d\nОбновлено: %s",
-                    getDisplayName(noteUri),
-                    tasks.size(),
-                    DATE_TIME_FORMAT.format(LocalDateTime.now())
-            ));
+            setNextReminder(schedule.getNextReminder());
+            setStatus(buildStatus(tasks.size(), schedule));
         } catch (IOException | SecurityException exception) {
+            ReminderScheduler.cancelScheduled(this);
             setStatus("Не удалось прочитать файл: " + exception.getMessage());
+            setNextReminder(null);
             renderEmptyState("Проверьте доступ к заметке или выберите файл заново.");
         }
+    }
+
+    private String buildStatus(int taskCount, ReminderSchedule schedule) {
+        String permissionStatus = schedule.isNotificationsAllowed()
+                ? "уведомления разрешены"
+                : "нет разрешения на уведомления";
+        return String.format(
+                Locale.getDefault(),
+                "Файл: %s\nАктивных задач: %d\nЗапланировано уведомлений: %d\n%s\nОбновлено: %s",
+                getDisplayName(noteUri),
+                taskCount,
+                schedule.getScheduledCount(),
+                permissionStatus,
+                DATE_TIME_FORMAT.format(LocalDateTime.now())
+        );
     }
 
     private String readUriText(Uri uri) throws IOException {
@@ -315,6 +389,25 @@ public final class MainActivity extends Activity {
         return minutes + " мин.";
     }
 
+    private void setNextReminder(ScheduledReminder reminder) {
+        if (!hasNotificationPermission()) {
+            nextReminderText.setText("Ближайшее напоминание: уведомления не разрешены.");
+            return;
+        }
+
+        if (reminder == null) {
+            nextReminderText.setText("Ближайшее напоминание: нет будущих задач со временем.");
+            return;
+        }
+
+        nextReminderText.setText(String.format(
+                Locale.getDefault(),
+                "Ближайшее напоминание: %s · %s",
+                DATE_TIME_FORMAT.format(reminder.getTriggerAt()),
+                reminder.getTitle()
+        ));
+    }
+
     private void renderEmptyState(String message) {
         taskList.removeAllViews();
 
@@ -347,6 +440,35 @@ public final class MainActivity extends Activity {
             return uri.toString();
         }
         return uri.toString();
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (!hasNotificationPermission() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestNotificationPermission();
+        }
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || hasNotificationPermission()) {
+            updateNotificationPermissionUi();
+            return;
+        }
+
+        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
+    }
+
+    private boolean hasNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return true;
+        }
+        return checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void updateNotificationPermissionUi() {
+        boolean needsPermissionButton = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && !hasNotificationPermission();
+        notificationPermissionButton.setVisibility(needsPermissionButton ? View.VISIBLE : View.GONE);
     }
 
     private void setStatus(String message) {
