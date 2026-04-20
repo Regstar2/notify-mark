@@ -101,6 +101,7 @@ public final class SettingsActivity extends Activity {
 
         addFormatSettings(root);
         addNotificationActionSettings(root);
+        addDebugSettings(root);
 
         Button rescheduleButton = createButton("Перепланировать все уведомления");
         rescheduleButton.setOnClickListener(view -> rescheduleAll());
@@ -189,6 +190,37 @@ public final class SettingsActivity extends Activity {
         Button saveActionSettingsButton = createButton("Сохранить действия уведомления");
         saveActionSettingsButton.setOnClickListener(view -> saveActionSettings());
         root.addView(saveActionSettingsButton, fullWidthWithBottomMargin());
+    }
+
+    private void addDebugSettings(LinearLayout root) {
+        TextView debugTitle = new TextView(this);
+        debugTitle.setText("Отладка");
+        debugTitle.setTextSize(18);
+        debugTitle.setTextColor(getColor(R.color.text_primary));
+        debugTitle.setPadding(0, dp(12), 0, dp(6));
+        root.addView(debugTitle, fullWidth());
+
+        TextView debugDescription = new TextView(this);
+        debugDescription.setText("Кнопки работают с первой активной задачей в выбранной заметке.");
+        debugDescription.setTextSize(14);
+        debugDescription.setTextColor(getColor(R.color.text_secondary));
+        debugDescription.setPadding(0, 0, 0, dp(8));
+        root.addView(debugDescription, fullWidth());
+
+        Button immediateReminderButton = createButton("Отладка: уведомление сейчас");
+        immediateReminderButton.setOnClickListener(view ->
+                runDebugAction(DebugReminderActions.showImmediateReminder(this)));
+        root.addView(immediateReminderButton, fullWidthWithBottomMargin());
+
+        Button doneButton = createButton("Отладка: выполнить первую задачу");
+        doneButton.setOnClickListener(view ->
+                runDebugAction(DebugReminderActions.markFirstTaskDone(this)));
+        root.addView(doneButton, fullWidthWithBottomMargin());
+
+        Button snoozeButton = createButton("Отладка: отложить первую задачу");
+        snoozeButton.setOnClickListener(view ->
+                runDebugAction(DebugReminderActions.snoozeFirstTask(this)));
+        root.addView(snoozeButton, fullWidthWithBottomMargin());
     }
 
     @SuppressWarnings("deprecation")
@@ -314,6 +346,15 @@ public final class SettingsActivity extends Activity {
                 sent ? "Тестовое уведомление отправлено" : "Нет разрешения на уведомления",
                 Toast.LENGTH_SHORT
         ).show();
+    }
+
+    private void runDebugAction(DebugActionResult result) {
+        Toast.makeText(
+                this,
+                result.getMessage(),
+                result.isSuccess() ? Toast.LENGTH_SHORT : Toast.LENGTH_LONG
+        ).show();
+        updateStatus();
     }
 
     private void updateStatus() {
