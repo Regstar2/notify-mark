@@ -113,9 +113,12 @@ public final class MainActivity extends Activity {
         }
 
         try {
-            int persistableFlags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            int persistableFlags = data.getFlags()
+                    & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             if (persistableFlags == 0) {
-                persistableFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION;
+                persistableFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
             }
             getContentResolver().takePersistableUriPermission(
                     selectedUri,
@@ -315,6 +318,7 @@ public final class MainActivity extends Activity {
                 "application/octet-stream"
         });
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent, REQUEST_OPEN_NOTE);
     }

@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -24,6 +25,8 @@ public final class SettingsActivity extends Activity {
     private EditText repeatUntilDoneKeywordInput;
     private EditText tagKeywordInput;
     private EditText priorityKeywordInput;
+    private EditText snoozeMinutesInput;
+    private CheckBox recordSnoozeCountCheckbox;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,6 +100,7 @@ public final class SettingsActivity extends Activity {
         root.addView(activeFilterButton, fullWidthWithBottomMargin());
 
         addFormatSettings(root);
+        addNotificationActionSettings(root);
 
         Button rescheduleButton = createButton("Перепланировать все уведомления");
         rescheduleButton.setOnClickListener(view -> rescheduleAll());
@@ -161,6 +165,32 @@ public final class SettingsActivity extends Activity {
         return input;
     }
 
+    private void addNotificationActionSettings(LinearLayout root) {
+        TextView actionTitle = new TextView(this);
+        actionTitle.setText("Действия из уведомления");
+        actionTitle.setTextSize(18);
+        actionTitle.setTextColor(getColor(R.color.text_primary));
+        actionTitle.setPadding(0, dp(12), 0, dp(6));
+        root.addView(actionTitle, fullWidth());
+
+        snoozeMinutesInput = addKeywordInput(
+                root,
+                "Отложить на минут",
+                String.valueOf(ActionPreferences.getSnoozeMinutes(this))
+        );
+        snoozeMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+
+        recordSnoozeCountCheckbox = new CheckBox(this);
+        recordSnoozeCountCheckbox.setText("Записывать количество отложений в заметку");
+        recordSnoozeCountCheckbox.setTextColor(getColor(R.color.text_secondary));
+        recordSnoozeCountCheckbox.setChecked(ActionPreferences.shouldRecordSnoozeCount(this));
+        root.addView(recordSnoozeCountCheckbox, fullWidthWithBottomMargin());
+
+        Button saveActionSettingsButton = createButton("Сохранить действия уведомления");
+        saveActionSettingsButton.setOnClickListener(view -> saveActionSettings());
+        root.addView(saveActionSettingsButton, fullWidthWithBottomMargin());
+    }
+
     @SuppressWarnings("deprecation")
     private void openNotePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -172,6 +202,7 @@ public final class SettingsActivity extends Activity {
                 "application/octet-stream"
         });
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent, REQUEST_OPEN_NOTE);
     }
@@ -180,6 +211,7 @@ public final class SettingsActivity extends Activity {
     private void openFolderPicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
         startActivityForResult(intent, REQUEST_OPEN_FOLDER);
@@ -187,9 +219,12 @@ public final class SettingsActivity extends Activity {
 
     private void persistReadPermission(Intent data, Uri selectedUri) {
         try {
-            int persistableFlags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            int persistableFlags = data.getFlags()
+                    & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             if (persistableFlags == 0) {
-                persistableFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION;
+                persistableFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
             }
             getContentResolver().takePersistableUriPermission(selectedUri, persistableFlags);
         } catch (SecurityException ignored) {
@@ -216,6 +251,21 @@ public final class SettingsActivity extends Activity {
                     Toast.LENGTH_LONG
             ).show();
         }
+        updateStatus();
+    }
+
+    private void saveActionSettings() {
+        int snoozeMinutes;
+        try {
+            snoozeMinutes = Integer.parseInt(snoozeMinutesInput.getText().toString().trim());
+        } catch (NumberFormatException exception) {
+            snoozeMinutes = ActionPreferences.getSnoozeMinutes(this);
+        }
+
+        ActionPreferences.setSnoozeMinutes(this, snoozeMinutes);
+        ActionPreferences.setRecordSnoozeCount(this, recordSnoozeCountCheckbox.isChecked());
+        snoozeMinutesInput.setText(String.valueOf(ActionPreferences.getSnoozeMinutes(this)));
+        Toast.makeText(this, "Действия уведомления сохранены", Toast.LENGTH_SHORT).show();
         updateStatus();
     }
 
@@ -274,6 +324,9 @@ public final class SettingsActivity extends Activity {
                 + "\nФильтр: " + (UserPreferences.isActiveOnly(this) ? "только активные" : "все задачи")
                 + "\nТочные напоминания: "
                 + (ReminderScheduler.canScheduleExactAlarms(this) ? "разрешены" : "не разрешены")
+                + "\nЗапись в заметку: " + (NoteStore.canWriteSavedSource(this) ? "разрешена" : "нужно выбрать источник заново")
+                + "\nОтложить: " + ActionPreferences.getSnoozeMinutes(this) + " мин."
+                + "\nСчетчик отложений: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "включен" : "выключен")
                 + "\nФормат: " + formatSettings.formatForStatus()
                 + "\nЛокальный кэш задач: " + TaskCache.getCachedTaskCount(this)
                 + (cachedAt == null ? "" : "\nКэш обновлен: " + cachedAt));

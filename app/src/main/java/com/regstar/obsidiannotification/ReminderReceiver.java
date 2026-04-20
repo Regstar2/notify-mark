@@ -67,7 +67,17 @@ public final class ReminderReceiver extends BroadcastReceiver {
         );
         notificationManager.notify(
                 displayNotificationId,
-                buildNotification(context, safeTitle(title), lineNumber, displayTimeMillis)
+                buildNotification(
+                        context,
+                        taskKey,
+                        notificationId,
+                        displayNotificationId,
+                        safeTitle(title),
+                        lineNumber,
+                        displayTimeMillis,
+                        repeatIntervalMillis,
+                        repeatMode
+                )
         );
 
         scheduleNextRepeat(
@@ -85,9 +95,14 @@ public final class ReminderReceiver extends BroadcastReceiver {
     @SuppressWarnings("deprecation")
     private Notification buildNotification(
             Context context,
+            String taskKey,
+            int notificationId,
+            int displayNotificationId,
             String title,
             int lineNumber,
-            long triggerAtMillis
+            long triggerAtMillis,
+            long repeatIntervalMillis,
+            RepeatMode repeatMode
     ) {
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(context, ReminderScheduler.CHANNEL_ID)
@@ -111,6 +126,54 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
         if (lineNumber > 0) {
             builder.setSubText("Строка " + lineNumber);
+        }
+
+        if (taskKey != null && !taskKey.trim().isEmpty()) {
+            builder.addAction(
+                    R.drawable.ic_notification,
+                    "Выполнено",
+                    ReminderActionReceiver.createActionPendingIntent(
+                            context,
+                            ReminderActionReceiver.ACTION_MARK_DONE,
+                            taskKey,
+                            notificationId,
+                            displayNotificationId,
+                            lineNumber,
+                            title,
+                            repeatIntervalMillis,
+                            repeatMode
+                    )
+            );
+            builder.addAction(
+                    R.drawable.ic_notification,
+                    "Отложить " + ActionPreferences.getSnoozeMinutes(context) + " мин",
+                    ReminderActionReceiver.createActionPendingIntent(
+                            context,
+                            ReminderActionReceiver.ACTION_SNOOZE,
+                            taskKey,
+                            notificationId,
+                            displayNotificationId,
+                            lineNumber,
+                            title,
+                            repeatIntervalMillis,
+                            repeatMode
+                    )
+            );
+            builder.addAction(
+                    R.drawable.ic_notification,
+                    "Открыть заметку",
+                    ReminderActionReceiver.createActionPendingIntent(
+                            context,
+                            ReminderActionReceiver.ACTION_OPEN_NOTE,
+                            taskKey,
+                            notificationId,
+                            displayNotificationId,
+                            lineNumber,
+                            title,
+                            repeatIntervalMillis,
+                            repeatMode
+                    )
+            );
         }
 
         return builder.build();

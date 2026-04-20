@@ -120,11 +120,14 @@ public final class ReminderScheduler {
 
         for (ObsidianTask task : tasks) {
             ScheduledReminder reminder = buildScheduledReminder(task, now, zoneId);
+            ScheduledState existing = existingState.get(task.getTaskKey());
             if (reminder == null) {
-                continue;
+                if (existing == null || existing.triggerAtMillis <= nowMillis) {
+                    continue;
+                }
+                reminder = buildScheduledReminderFromExisting(task, existing, zoneId);
             }
 
-            ScheduledState existing = existingState.get(task.getTaskKey());
             if (preserveExistingRepeats
                     && shouldKeepExistingReminder(task, reminder, existing, nowMillis)) {
                 reminder = copyWithExistingTrigger(reminder, existing, zoneId);
@@ -208,6 +211,45 @@ public final class ReminderScheduler {
         putScheduledState(context, reminder);
     }
 
+    public static void scheduleSnooze(
+            Context context,
+            String taskKey,
+            int notificationId,
+            int lineNumber,
+            String title,
+            Duration delay,
+            long repeatIntervalMillis,
+            RepeatMode repeatMode
+    ) {
+        if (taskKey == null || taskKey.trim().isEmpty() || !canPostNotifications(context)) {
+            return;
+        }
+
+        Duration safeDelay = delay == null || delay.isZero() || delay.isNegative()
+                ? Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(context))
+                : delay;
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) {
+            return;
+        }
+
+        ZoneId zoneId = ZoneId.systemDefault();
+        LocalDateTime nextTriggerAt = LocalDateTime.now().plus(safeDelay);
+        long nextTriggerAtMillis = nextTriggerAt.atZone(zoneId).toInstant().toEpochMilli();
+        ScheduledReminder reminder = new ScheduledReminder(
+                taskKey,
+                notificationId,
+                lineNumber,
+                title,
+                nextTriggerAt,
+                nextTriggerAtMillis,
+                repeatIntervalMillis,
+                repeatMode
+        );
+        setReminderAlarm(context, alarmManager, reminder);
+        putScheduledState(context, reminder);
+    }
+
     public static void cancelReminder(Context context, String taskKey) {
         Map<String, ScheduledState> state = loadScheduledState(context);
         ScheduledState existing = state.remove(taskKey);
@@ -271,6 +313,27 @@ public final class ReminderScheduler {
                 task.getTitle(),
                 triggerAt,
                 triggerAtMillis,
+                task.getRepeatIntervalMillis(),
+                task.getRepeatMode()
+        );
+    }
+
+    private static ScheduledReminder buildScheduledReminderFromExisting(
+            ObsidianTask task,
+            ScheduledState existing,
+            ZoneId zoneId
+    ) {
+        LocalDateTime triggerAt = LocalDateTime.ofInstant(
+                Instant.ofEpochMilli(existing.triggerAtMillis),
+                zoneId
+        );
+        return new ScheduledReminder(
+                task.getTaskKey(),
+                existing.notificationId,
+                task.getLineNumber(),
+                task.getTitle(),
+                triggerAt,
+                existing.triggerAtMillis,
                 task.getRepeatIntervalMillis(),
                 task.getRepeatMode()
         );

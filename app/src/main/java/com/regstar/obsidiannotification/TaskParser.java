@@ -48,6 +48,8 @@ public final class TaskParser {
             Pattern.compile("(?iu)^(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д)$");
     private static final Pattern HASH_TAG =
             Pattern.compile("(?<!\\S)#([\\p{L}\\p{N}_/-]+)");
+    private static final Pattern SNOOZED_COUNT =
+            Pattern.compile("(?iu)@snoozed\\(\\s*\\d+\\s*\\)");
 
     private static final DateTimeFormatter ISO_DATE =
             DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
@@ -465,6 +467,7 @@ public final class TaskParser {
         cleaned = removeFunctions(cleaned, format.repeatKeywords());
         cleaned = removeFunctions(cleaned, format.tagKeywords());
         cleaned = removeFunctions(cleaned, format.priorityKeywords());
+        cleaned = SNOOZED_COUNT.matcher(cleaned).replaceAll(" ");
         cleaned = ISO_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = RU_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = ISO_DATE_ONLY_REMINDER.matcher(cleaned).replaceAll(" ");
@@ -509,7 +512,8 @@ public final class TaskParser {
 
     private static boolean isKnownFunctionToken(String token, TaskFormatSettings format) {
         String normalized = token.toLowerCase(Locale.ROOT);
-        return startsWithFunction(normalized, format.dueKeywords())
+        return normalized.startsWith("@snoozed(")
+                || startsWithFunction(normalized, format.dueKeywords())
                 || startsWithFunction(normalized, format.repeatKeywords())
                 || startsWithFunction(normalized, format.repeatUntilDoneKeywords())
                 || startsWithFunction(normalized, format.tagKeywords())
