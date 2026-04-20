@@ -89,12 +89,16 @@ public final class TaskCache {
                 + "|"
                 + task.getRepeatIntervalMillis()
                 + "|"
-                + task.getRepeatMode().name();
+                + task.getRepeatMode().name()
+                + "|"
+                + encode(joinTags(task.getTags()))
+                + "|"
+                + task.getPriority().name();
     }
 
     private static ObsidianTask decodeTask(String encoded) {
         String[] parts = encoded.split("\\|", -1);
-        if (parts.length != 8) {
+        if (parts.length != 8 && parts.length != 10) {
             return null;
         }
 
@@ -111,6 +115,10 @@ public final class TaskCache {
             long repeatMillis = Long.parseLong(parts[6]);
             Duration repeatInterval = repeatMillis > 0 ? Duration.ofMillis(repeatMillis) : null;
             RepeatMode repeatMode = RepeatMode.fromName(parts[7]);
+            List<String> tags = parts.length >= 10 ? splitTags(decode(parts[8])) : new ArrayList<>();
+            TaskPriority priority = parts.length >= 10
+                    ? TaskPriority.fromName(parts[9])
+                    : TaskPriority.NONE;
             return new ObsidianTask(
                     taskKey,
                     sourceName,
@@ -120,11 +128,38 @@ public final class TaskCache {
                     reminderAt,
                     repeatInterval,
                     repeatMode,
-                    false
+                    false,
+                    tags,
+                    priority
             );
         } catch (RuntimeException exception) {
             return null;
         }
+    }
+
+    private static String joinTags(List<String> tags) {
+        StringBuilder builder = new StringBuilder();
+        for (String tag : tags) {
+            if (builder.length() > 0) {
+                builder.append(',');
+            }
+            builder.append(tag);
+        }
+        return builder.toString();
+    }
+
+    private static List<String> splitTags(String rawTags) {
+        List<String> tags = new ArrayList<>();
+        if (rawTags == null || rawTags.trim().isEmpty()) {
+            return tags;
+        }
+
+        for (String tag : rawTags.split(",")) {
+            if (!tag.trim().isEmpty()) {
+                tags.add(tag.trim());
+            }
+        }
+        return tags;
     }
 
     private static String encode(String value) {

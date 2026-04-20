@@ -121,10 +121,16 @@ public final class NoteStore {
         List<TaskParseResult> results = new ArrayList<>();
         int documentCount = 0;
         int totalCharacters = 0;
+        TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
         for (NoteDocument document : readDocuments(context)) {
             documentCount++;
             totalCharacters += document.getMarkdown().length();
-            results.add(TaskParser.parseDocument(document.getMarkdown(), document.getDisplayName()));
+            results.add(TaskParser.parseDocument(
+                    document.getMarkdown(),
+                    java.time.LocalDate.now(),
+                    document.getDisplayName(),
+                    formatSettings
+            ));
         }
         return new TaskSnapshot(TaskParseResult.merge(results), documentCount, totalCharacters);
     }

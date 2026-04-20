@@ -2,6 +2,9 @@ package com.regstar.obsidiannotification;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public final class ObsidianTask {
     private final String taskKey;
@@ -13,6 +16,8 @@ public final class ObsidianTask {
     private final Duration repeatInterval;
     private final RepeatMode repeatMode;
     private final boolean completed;
+    private final List<String> tags;
+    private final TaskPriority priority;
 
     public ObsidianTask(
             int lineNumber,
@@ -41,7 +46,9 @@ public final class ObsidianTask {
                 reminderAt,
                 repeatInterval,
                 repeatMode,
-                false
+                false,
+                Collections.emptyList(),
+                TaskPriority.NONE
         );
     }
 
@@ -56,6 +63,34 @@ public final class ObsidianTask {
             RepeatMode repeatMode,
             boolean completed
     ) {
+        this(
+                taskKey,
+                sourceName,
+                lineNumber,
+                title,
+                rawLine,
+                reminderAt,
+                repeatInterval,
+                repeatMode,
+                completed,
+                Collections.emptyList(),
+                TaskPriority.NONE
+        );
+    }
+
+    public ObsidianTask(
+            String taskKey,
+            String sourceName,
+            int lineNumber,
+            String title,
+            String rawLine,
+            LocalDateTime reminderAt,
+            Duration repeatInterval,
+            RepeatMode repeatMode,
+            boolean completed,
+            List<String> tags,
+            TaskPriority priority
+    ) {
         this.taskKey = taskKey;
         this.sourceName = sourceName == null ? "" : sourceName;
         this.lineNumber = lineNumber;
@@ -65,6 +100,10 @@ public final class ObsidianTask {
         this.repeatInterval = repeatInterval;
         this.repeatMode = repeatMode == null ? RepeatMode.NONE : repeatMode;
         this.completed = completed;
+        this.tags = Collections.unmodifiableList(new ArrayList<>(tags == null
+                ? Collections.emptyList()
+                : tags));
+        this.priority = priority == null ? TaskPriority.NONE : priority;
     }
 
     public String getTaskKey() {
@@ -101,6 +140,14 @@ public final class ObsidianTask {
 
     public boolean isCompleted() {
         return completed;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public TaskPriority getPriority() {
+        return priority;
     }
 
     public TaskStatus getStatus(LocalDateTime now) {

@@ -62,6 +62,88 @@ public final class TaskParserTest {
     }
 
     @Test
+    public void parse_supportsUnifiedDueTagsAndPriority() {
+        String markdown = "- [ ] Buy medicine @due(2026-04-20 19:00) "
+                + "@repeat(15m) @tag(health pharmacy) #today @priority(high)\n";
+
+        List<ObsidianTask> tasks = TaskParser.parse(markdown, LocalDate.of(2026, 4, 20));
+
+        assertEquals(1, tasks.size());
+        assertEquals("Buy medicine", tasks.get(0).getTitle());
+        assertEquals(LocalDateTime.of(2026, 4, 20, 19, 0), tasks.get(0).getReminderAt());
+        assertEquals(Duration.ofMinutes(15), tasks.get(0).getRepeatInterval());
+        assertEquals(RepeatMode.ALWAYS, tasks.get(0).getRepeatMode());
+        assertEquals(TaskPriority.HIGH, tasks.get(0).getPriority());
+        assertEquals(3, tasks.get(0).getTags().size());
+        assertEquals("health", tasks.get(0).getTags().get(0));
+        assertEquals("pharmacy", tasks.get(0).getTags().get(1));
+        assertEquals("today", tasks.get(0).getTags().get(2));
+    }
+
+    @Test
+    public void parse_supportsDateOnlyAndTimeOnlyDue() {
+        String markdown = ""
+                + "- [ ] Date only @due(2026-04-21)\n"
+                + "- [ ] Time only @due(19:45)\n"
+                + "- [ ] No repeat @due(2026-04-20 20:00)\n";
+
+        List<ObsidianTask> tasks = TaskParser.parse(markdown, LocalDate.of(2026, 4, 20));
+
+        assertEquals(3, tasks.size());
+        assertEquals(LocalDateTime.of(2026, 4, 21, 9, 0), tasks.get(0).getReminderAt());
+        assertEquals(LocalDateTime.of(2026, 4, 20, 19, 45), tasks.get(1).getReminderAt());
+        assertEquals(LocalDateTime.of(2026, 4, 20, 20, 0), tasks.get(2).getReminderAt());
+        assertNull(tasks.get(2).getRepeatInterval());
+        assertEquals(RepeatMode.NONE, tasks.get(2).getRepeatMode());
+    }
+
+    @Test
+    public void parse_reportsInvalidUnifiedFormat() {
+        String markdown = "- [ ] Broken @due(2026-02-30 25:00) "
+                + "@repeat(bad) @priority(nope)\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        assertEquals(1, result.getTasks().size());
+        assertEquals(3, result.getErrors().size());
+    }
+
+    @Test
+    public void parse_supportsCustomKeywords() {
+        TaskFormatSettings settings = TaskFormatSettings.fromValues(
+                "when",
+                "again",
+                "nag",
+                "labels",
+                "prio"
+        );
+        String markdown = "- [ ] Custom @when(2026-04-20 19:00) "
+                + "@nag(10m) @labels(home call) @prio(p1)\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md",
+                settings
+        );
+
+        ObsidianTask task = result.getTasks().get(0);
+        assertEquals("Custom", task.getTitle());
+        assertEquals(LocalDateTime.of(2026, 4, 20, 19, 0), task.getReminderAt());
+        assertEquals(Duration.ofMinutes(10), task.getRepeatInterval());
+        assertEquals(RepeatMode.UNTIL_DONE, task.getRepeatMode());
+        assertEquals(TaskPriority.URGENT, task.getPriority());
+        assertEquals(2, task.getTags().size());
+        assertEquals("home", task.getTags().get(0));
+        assertEquals("call", task.getTags().get(1));
+        assertEquals(0, result.getErrors().size());
+    }
+
+    @Test
     public void parseDocument_returnsCompletedTasksAndStatuses() {
         String markdown = ""
                 + "- [ ] Waiting task @2026-04-20 12:30\n"

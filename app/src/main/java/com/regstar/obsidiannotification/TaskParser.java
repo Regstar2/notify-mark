@@ -6,9 +6,12 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,25 +19,43 @@ public final class TaskParser {
     private static final Pattern TASK =
             Pattern.compile("^\\s*[-*+]\\s+\\[([ xX])\\]\\s+(.+)$");
     private static final Pattern ISO_REMINDER =
-            Pattern.compile("(?i)(?:^|\\s)@(\\d{4}-\\d{2}-\\d{2})(?:[ T])(\\d{1,2}:\\d{2})\\b");
+            Pattern.compile("(?i)(?:^|\\s)@(\\d{4}-\\d{2}-\\d{2})(?:[ T]+)(\\d{1,2}:\\d{2})\\b");
     private static final Pattern RU_REMINDER =
             Pattern.compile("(?i)(?:^|\\s)@(\\d{1,2}\\.\\d{1,2}\\.\\d{4})\\s+(\\d{1,2}:\\d{2})\\b");
+    private static final Pattern ISO_DATE_ONLY_REMINDER =
+            Pattern.compile("(?i)(?:^|\\s)@(\\d{4}-\\d{2}-\\d{2})\\b");
+    private static final Pattern RU_DATE_ONLY_REMINDER =
+            Pattern.compile("(?i)(?:^|\\s)@(\\d{1,2}\\.\\d{1,2}\\.\\d{4})\\b");
     private static final Pattern TIME_ONLY_REMINDER =
             Pattern.compile("(?i)(?:^|\\s)@(\\d{1,2}:\\d{2})\\b");
-    private static final Pattern REPEAT_UNTIL_DONE_FUNCTION =
-            Pattern.compile("(?iu)@(?:repeatUntilDone|repeat-until-done|repeat_until_done|untilDone)\\(\\s*(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д)\\s*\\)");
-    private static final Pattern REPEAT_FUNCTION =
-            Pattern.compile("(?iu)@repeat\\(\\s*(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д)\\s*\\)");
     private static final Pattern REPEAT =
             Pattern.compile("(?iu)(?:\\b(?:every|repeat|повтор|каждые)\\s*:?\\s*)(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д)\\b");
     private static final Pattern ANY_AT_TOKEN =
             Pattern.compile("@\\S+");
     private static final Pattern ANY_REPEAT_WORD =
-            Pattern.compile("(?iu)(@repeat\\([^)]*\\)|@repeatUntilDone\\([^)]*\\)|\\b(?:every|repeat|повтор|каждые)\\b\\s*:?\\s*\\S*)");
+            Pattern.compile("(?iu)\\b(?:every|repeat|повтор|каждые)\\b\\s*:?\\s*\\S*");
+    private static final Pattern ISO_DATE_TIME_VALUE =
+            Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})(?:[ T]+)(\\d{1,2}:\\d{2})$");
+    private static final Pattern RU_DATE_TIME_VALUE =
+            Pattern.compile("^(\\d{1,2}\\.\\d{1,2}\\.\\d{4})\\s+(\\d{1,2}:\\d{2})$");
+    private static final Pattern ISO_DATE_VALUE =
+            Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})$");
+    private static final Pattern RU_DATE_VALUE =
+            Pattern.compile("^(\\d{1,2}\\.\\d{1,2}\\.\\d{4})$");
+    private static final Pattern TIME_VALUE =
+            Pattern.compile("^(\\d{1,2}:\\d{2})$");
+    private static final Pattern DURATION_VALUE =
+            Pattern.compile("(?iu)^(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д)$");
+    private static final Pattern HASH_TAG =
+            Pattern.compile("(?<!\\S)#([\\p{L}\\p{N}_/-]+)");
 
-    private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
-    private static final DateTimeFormatter RU_DATE = DateTimeFormatter.ofPattern("d.M.uuuu");
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("H:mm");
+    private static final DateTimeFormatter ISO_DATE =
+            DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter RU_DATE =
+            DateTimeFormatter.ofPattern("d.M.uuuu").withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter TIME =
+            DateTimeFormatter.ofPattern("H:mm").withResolverStyle(ResolverStyle.STRICT);
+    private static final LocalTime DATE_ONLY_DEFAULT_TIME = LocalTime.of(9, 0);
 
     private TaskParser() {
     }
@@ -44,14 +65,27 @@ public final class TaskParser {
     }
 
     static List<ObsidianTask> parse(String markdown, LocalDate defaultDate) {
-        return parseDocument(markdown, defaultDate, "").getActiveTasks();
+        return parseDocument(markdown, defaultDate, "", TaskFormatSettings.defaults())
+                .getActiveTasks();
     }
 
     public static TaskParseResult parseDocument(String markdown, String sourceName) {
-        return parseDocument(markdown, LocalDate.now(), sourceName);
+        return parseDocument(markdown, LocalDate.now(), sourceName, TaskFormatSettings.defaults());
     }
 
     static TaskParseResult parseDocument(String markdown, LocalDate defaultDate, String sourceName) {
+        return parseDocument(markdown, defaultDate, sourceName, TaskFormatSettings.defaults());
+    }
+
+    static TaskParseResult parseDocument(
+            String markdown,
+            LocalDate defaultDate,
+            String sourceName,
+            TaskFormatSettings formatSettings
+    ) {
+        TaskFormatSettings format = formatSettings == null
+                ? TaskFormatSettings.defaults()
+                : formatSettings;
         List<ObsidianTask> tasks = new ArrayList<>();
         List<TaskParseError> errors = new ArrayList<>();
         String[] lines = markdown.split("\\R", -1);
@@ -65,38 +99,64 @@ public final class TaskParser {
             int lineNumber = i + 1;
             boolean completed = taskMatcher.group(1).equalsIgnoreCase("x");
             String body = taskMatcher.group(2).trim();
-            LocalDateTime reminderAt = parseReminder(body, defaultDate);
-            Duration repeatInterval = parseRepeat(body);
-            RepeatMode repeatMode = parseRepeatMode(body, repeatInterval);
-            String title = cleanTitle(body);
+            ParsedTaskFields fields = parseFields(body, defaultDate, format);
+            String title = cleanTitle(body, format);
             String displayTitle = title.isEmpty() ? body : title;
 
-            addParseWarnings(errors, sourceName, lineNumber, body, reminderAt, repeatInterval);
+            addParseWarnings(errors, sourceName, lineNumber, body, fields, format);
 
             tasks.add(new ObsidianTask(
                     ObsidianTask.createTaskKey(
                             sourceName,
                             lineNumber,
                             displayTitle,
-                            reminderAt,
-                            repeatInterval,
-                            repeatMode
+                            fields.reminderAt,
+                            fields.repeatInterval,
+                            fields.repeatMode
                     ),
                     sourceName,
                     lineNumber,
                     displayTitle,
                     lines[i],
-                    reminderAt,
-                    repeatInterval,
-                    repeatMode,
-                    completed
+                    fields.reminderAt,
+                    fields.repeatInterval,
+                    fields.repeatMode,
+                    completed,
+                    fields.tags,
+                    fields.priority
             ));
         }
 
         return new TaskParseResult(tasks, errors);
     }
 
-    private static LocalDateTime parseReminder(String body, LocalDate defaultDate) {
+    private static ParsedTaskFields parseFields(
+            String body,
+            LocalDate defaultDate,
+            TaskFormatSettings format
+    ) {
+        ParsedTaskFields fields = new ParsedTaskFields();
+        fields.reminderAt = parseReminder(body, defaultDate, format, fields);
+        fields.repeatInterval = parseRepeat(body, format, fields);
+        fields.repeatMode = parseRepeatMode(body, fields.repeatInterval, format);
+        fields.tags = parseTags(body, format);
+        fields.priority = parsePriority(body, format, fields);
+        return fields;
+    }
+
+    private static LocalDateTime parseReminder(
+            String body,
+            LocalDate defaultDate,
+            TaskFormatSettings format,
+            ParsedTaskFields fields
+    ) {
+        String dueValue = findFunctionValue(body, format.dueKeywords());
+        if (dueValue != null) {
+            LocalDateTime parsed = parseDueValue(dueValue, defaultDate);
+            fields.dueFunctionInvalid = parsed == null;
+            return parsed;
+        }
+
         Matcher isoMatcher = ISO_REMINDER.matcher(body);
         if (isoMatcher.find()) {
             return parseDateTime(isoMatcher.group(1), isoMatcher.group(2), ISO_DATE);
@@ -107,13 +167,49 @@ public final class TaskParser {
             return parseDateTime(ruMatcher.group(1), ruMatcher.group(2), RU_DATE);
         }
 
+        Matcher isoDateMatcher = ISO_DATE_ONLY_REMINDER.matcher(body);
+        if (isoDateMatcher.find()) {
+            return parseDateAtDefaultTime(isoDateMatcher.group(1), ISO_DATE);
+        }
+
+        Matcher ruDateMatcher = RU_DATE_ONLY_REMINDER.matcher(body);
+        if (ruDateMatcher.find()) {
+            return parseDateAtDefaultTime(ruDateMatcher.group(1), RU_DATE);
+        }
+
         Matcher timeMatcher = TIME_ONLY_REMINDER.matcher(body);
         if (timeMatcher.find()) {
-            try {
-                return LocalDateTime.of(defaultDate, LocalTime.parse(timeMatcher.group(1), TIME));
-            } catch (DateTimeParseException ignored) {
-                return null;
-            }
+            return parseTimeAtDate(timeMatcher.group(1), defaultDate);
+        }
+
+        return null;
+    }
+
+    private static LocalDateTime parseDueValue(String rawValue, LocalDate defaultDate) {
+        String value = rawValue == null ? "" : rawValue.trim();
+        Matcher isoDateTimeMatcher = ISO_DATE_TIME_VALUE.matcher(value);
+        if (isoDateTimeMatcher.find()) {
+            return parseDateTime(isoDateTimeMatcher.group(1), isoDateTimeMatcher.group(2), ISO_DATE);
+        }
+
+        Matcher ruDateTimeMatcher = RU_DATE_TIME_VALUE.matcher(value);
+        if (ruDateTimeMatcher.find()) {
+            return parseDateTime(ruDateTimeMatcher.group(1), ruDateTimeMatcher.group(2), RU_DATE);
+        }
+
+        Matcher isoDateMatcher = ISO_DATE_VALUE.matcher(value);
+        if (isoDateMatcher.find()) {
+            return parseDateAtDefaultTime(isoDateMatcher.group(1), ISO_DATE);
+        }
+
+        Matcher ruDateMatcher = RU_DATE_VALUE.matcher(value);
+        if (ruDateMatcher.find()) {
+            return parseDateAtDefaultTime(ruDateMatcher.group(1), RU_DATE);
+        }
+
+        Matcher timeMatcher = TIME_VALUE.matcher(value);
+        if (timeMatcher.find()) {
+            return parseTimeAtDate(timeMatcher.group(1), defaultDate);
         }
 
         return null;
@@ -134,18 +230,45 @@ public final class TaskParser {
         }
     }
 
-    private static Duration parseRepeat(String body) {
-        Matcher matcher = REPEAT_UNTIL_DONE_FUNCTION.matcher(body);
-        if (matcher.find()) {
-            return parseDuration(matcher.group(1), matcher.group(2));
+    private static LocalDateTime parseDateAtDefaultTime(
+            String date,
+            DateTimeFormatter dateFormatter
+    ) {
+        try {
+            return LocalDateTime.of(LocalDate.parse(date, dateFormatter), DATE_ONLY_DEFAULT_TIME);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private static LocalDateTime parseTimeAtDate(String time, LocalDate defaultDate) {
+        try {
+            return LocalDateTime.of(defaultDate, LocalTime.parse(time, TIME));
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private static Duration parseRepeat(
+            String body,
+            TaskFormatSettings format,
+            ParsedTaskFields fields
+    ) {
+        String repeatUntilDoneValue = findFunctionValue(body, format.repeatUntilDoneKeywords());
+        if (repeatUntilDoneValue != null) {
+            Duration repeatInterval = parseDurationValue(repeatUntilDoneValue);
+            fields.repeatFunctionInvalid = repeatInterval == null;
+            return repeatInterval;
         }
 
-        matcher = REPEAT_FUNCTION.matcher(body);
-        if (matcher.find()) {
-            return parseDuration(matcher.group(1), matcher.group(2));
+        String repeatValue = findFunctionValue(body, format.repeatKeywords());
+        if (repeatValue != null) {
+            Duration repeatInterval = parseDurationValue(repeatValue);
+            fields.repeatFunctionInvalid = repeatInterval == null;
+            return repeatInterval;
         }
 
-        matcher = REPEAT.matcher(body);
+        Matcher matcher = REPEAT.matcher(body);
         if (!matcher.find()) {
             return null;
         }
@@ -153,16 +276,29 @@ public final class TaskParser {
         return parseDuration(matcher.group(1), matcher.group(2));
     }
 
-    private static RepeatMode parseRepeatMode(String body, Duration repeatInterval) {
+    private static RepeatMode parseRepeatMode(
+            String body,
+            Duration repeatInterval,
+            TaskFormatSettings format
+    ) {
         if (repeatInterval == null) {
             return RepeatMode.NONE;
         }
 
-        if (REPEAT_UNTIL_DONE_FUNCTION.matcher(body).find()) {
+        if (findFunctionValue(body, format.repeatUntilDoneKeywords()) != null) {
             return RepeatMode.UNTIL_DONE;
         }
 
         return RepeatMode.ALWAYS;
+    }
+
+    private static Duration parseDurationValue(String rawValue) {
+        String value = rawValue == null ? "" : rawValue.trim();
+        Matcher matcher = DURATION_VALUE.matcher(value);
+        if (!matcher.find()) {
+            return null;
+        }
+        return parseDuration(matcher.group(1), matcher.group(2));
     }
 
     private static Duration parseDuration(String rawAmount, String rawUnit) {
@@ -191,57 +327,204 @@ public final class TaskParser {
         return null;
     }
 
+    private static List<String> parseTags(String body, TaskFormatSettings format) {
+        Set<String> tags = new LinkedHashSet<>();
+        String tagValue = findFunctionValue(body, format.tagKeywords());
+        if (tagValue != null) {
+            for (String rawTag : tagValue.split("[,;\\s]+")) {
+                addTag(tags, rawTag);
+            }
+        }
+
+        Matcher hashTagMatcher = HASH_TAG.matcher(body);
+        while (hashTagMatcher.find()) {
+            addTag(tags, hashTagMatcher.group(1));
+        }
+        return new ArrayList<>(tags);
+    }
+
+    private static void addTag(Set<String> tags, String rawTag) {
+        String tag = rawTag == null ? "" : rawTag.trim();
+        while (tag.startsWith("#")) {
+            tag = tag.substring(1);
+        }
+        tag = tag.replaceAll("[^\\p{L}\\p{N}_/-]", "");
+        if (!tag.isEmpty()) {
+            tags.add(tag);
+        }
+    }
+
+    private static TaskPriority parsePriority(
+            String body,
+            TaskFormatSettings format,
+            ParsedTaskFields fields
+    ) {
+        String priorityValue = findFunctionValue(body, format.priorityKeywords());
+        if (priorityValue == null) {
+            return TaskPriority.NONE;
+        }
+
+        fields.priorityFunctionInvalid = !TaskPriority.isRecognized(priorityValue);
+        return TaskPriority.fromName(priorityValue);
+    }
+
     private static void addParseWarnings(
             List<TaskParseError> errors,
             String sourceName,
             int lineNumber,
             String body,
-            LocalDateTime reminderAt,
-            Duration repeatInterval
+            ParsedTaskFields fields,
+            TaskFormatSettings format
     ) {
-        if (reminderAt == null && hasSuspiciousReminderToken(body)) {
+        if (fields.dueFunctionInvalid) {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "не удалось разобрать время. Используйте @2026-04-20 14:30, @20.04.2026 14:30 или @14:30"
+                    "не удалось разобрать @"
+                            + format.getDueKeyword()
+                            + "(...). Используйте дату-время, дату или время: @"
+                            + format.getDueKeyword()
+                            + "(2026-04-20 14:30), @"
+                            + format.getDueKeyword()
+                            + "(2026-04-20), @"
+                            + format.getDueKeyword()
+                            + "(14:30)"
+            ));
+        } else if (fields.reminderAt == null && hasSuspiciousReminderToken(body, format)) {
+            errors.add(new TaskParseError(
+                    sourceName,
+                    lineNumber,
+                    "не удалось разобрать время. Используйте @"
+                            + format.getDueKeyword()
+                            + "(2026-04-20 14:30), @"
+                            + format.getDueKeyword()
+                            + "(2026-04-20), @"
+                            + format.getDueKeyword()
+                            + "(14:30) или legacy @2026-04-20 14:30"
             ));
         }
 
-        if (repeatInterval == null && hasSuspiciousRepeatToken(body)) {
+        if (fields.repeatFunctionInvalid
+                || (fields.repeatInterval == null && hasSuspiciousRepeatToken(body, format))) {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "не удалось разобрать повтор. Используйте @repeat(15m) или @repeatUntilDone(15m)"
+                    "не удалось разобрать повтор. Используйте @"
+                            + format.getRepeatKeyword()
+                            + "(15m) или @"
+                            + format.getRepeatUntilDoneKeyword()
+                            + "(15m)"
+            ));
+        }
+
+        if (fields.priorityFunctionInvalid) {
+            errors.add(new TaskParseError(
+                    sourceName,
+                    lineNumber,
+                    "не удалось разобрать приоритет. Используйте @"
+                            + format.getPriorityKeyword()
+                            + "(low), @"
+                            + format.getPriorityKeyword()
+                            + "(medium), @"
+                            + format.getPriorityKeyword()
+                            + "(high) или @"
+                            + format.getPriorityKeyword()
+                            + "(urgent)"
             ));
         }
     }
 
-    private static boolean hasSuspiciousReminderToken(String body) {
+    private static boolean hasSuspiciousReminderToken(String body, TaskFormatSettings format) {
         Matcher matcher = ANY_AT_TOKEN.matcher(body);
         while (matcher.find()) {
             String token = matcher.group();
-            if (!token.startsWith("@repeat")
-                    && !token.startsWith("@repeatUntilDone")
-                    && !token.startsWith("@repeat-until-done")
-                    && !token.startsWith("@repeat_until_done")
-                    && !token.startsWith("@untilDone")) {
+            if (!isKnownFunctionToken(token, format)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean hasSuspiciousRepeatToken(String body) {
-        return ANY_REPEAT_WORD.matcher(body).find();
+    private static boolean hasSuspiciousRepeatToken(String body, TaskFormatSettings format) {
+        return ANY_REPEAT_WORD.matcher(body).find()
+                || findFunctionValue(body, format.repeatKeywords()) != null
+                || findFunctionValue(body, format.repeatUntilDoneKeywords()) != null;
     }
 
-    private static String cleanTitle(String body) {
-        String cleaned = ISO_REMINDER.matcher(body).replaceAll(" ");
+    private static String cleanTitle(String body, TaskFormatSettings format) {
+        String cleaned = removeFunctions(body, format.dueKeywords());
+        cleaned = removeFunctions(cleaned, format.repeatUntilDoneKeywords());
+        cleaned = removeFunctions(cleaned, format.repeatKeywords());
+        cleaned = removeFunctions(cleaned, format.tagKeywords());
+        cleaned = removeFunctions(cleaned, format.priorityKeywords());
+        cleaned = ISO_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = RU_REMINDER.matcher(cleaned).replaceAll(" ");
+        cleaned = ISO_DATE_ONLY_REMINDER.matcher(cleaned).replaceAll(" ");
+        cleaned = RU_DATE_ONLY_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = TIME_ONLY_REMINDER.matcher(cleaned).replaceAll(" ");
-        cleaned = REPEAT_UNTIL_DONE_FUNCTION.matcher(cleaned).replaceAll(" ");
-        cleaned = REPEAT_FUNCTION.matcher(cleaned).replaceAll(" ");
         cleaned = REPEAT.matcher(cleaned).replaceAll(" ");
+        cleaned = HASH_TAG.matcher(cleaned).replaceAll(" ");
         return cleaned.replaceAll("\\s{2,}", " ").trim();
+    }
+
+    private static String findFunctionValue(String body, List<String> keywords) {
+        Matcher matcher = functionPattern(keywords, "([^)]*)").matcher(body);
+        return matcher.find() ? matcher.group(1).trim() : null;
+    }
+
+    private static String removeFunctions(String body, List<String> keywords) {
+        return functionPattern(keywords, "[^)]*").matcher(body).replaceAll(" ");
+    }
+
+    private static Pattern functionPattern(List<String> keywords, String valuePattern) {
+        return Pattern.compile("(?iu)@(?:" + keywordAlternatives(keywords) + ")\\(\\s*"
+                + valuePattern
+                + "\\s*\\)");
+    }
+
+    private static String keywordAlternatives(List<String> keywords) {
+        StringBuilder builder = new StringBuilder();
+        for (String keyword : keywords) {
+            if (keyword == null || keyword.trim().isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append('|');
+            }
+            builder.append(Pattern.quote(keyword.trim()));
+        }
+        if (builder.length() == 0) {
+            builder.append(Pattern.quote(TaskFormatSettings.DEFAULT_DUE_KEYWORD));
+        }
+        return builder.toString();
+    }
+
+    private static boolean isKnownFunctionToken(String token, TaskFormatSettings format) {
+        String normalized = token.toLowerCase(Locale.ROOT);
+        return startsWithFunction(normalized, format.dueKeywords())
+                || startsWithFunction(normalized, format.repeatKeywords())
+                || startsWithFunction(normalized, format.repeatUntilDoneKeywords())
+                || startsWithFunction(normalized, format.tagKeywords())
+                || startsWithFunction(normalized, format.priorityKeywords());
+    }
+
+    private static boolean startsWithFunction(String token, List<String> keywords) {
+        for (String keyword : keywords) {
+            if (token.startsWith("@" + keyword.toLowerCase(Locale.ROOT) + "(")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final class ParsedTaskFields {
+        private LocalDateTime reminderAt;
+        private Duration repeatInterval;
+        private RepeatMode repeatMode = RepeatMode.NONE;
+        private List<String> tags = new ArrayList<>();
+        private TaskPriority priority = TaskPriority.NONE;
+        private boolean dueFunctionInvalid;
+        private boolean repeatFunctionInvalid;
+        private boolean priorityFunctionInvalid;
     }
 }

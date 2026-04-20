@@ -544,6 +544,14 @@ public final class MainActivity extends Activity {
             builder.append(" · ").append(formatRepeat(task));
         }
 
+        if (task.getPriority() != TaskPriority.NONE) {
+            builder.append(" · ").append(formatPriority(task.getPriority()));
+        }
+
+        if (!task.getTags().isEmpty()) {
+            builder.append(" · ").append(formatTags(task.getTags()));
+        }
+
         return builder.toString();
     }
 
@@ -563,6 +571,30 @@ public final class MainActivity extends Activity {
         }
 
         return "повтор " + formatDuration(task.getRepeatInterval());
+    }
+
+    private String formatPriority(TaskPriority priority) {
+        if (priority == TaskPriority.URGENT) {
+            return "приоритет: срочно";
+        }
+        if (priority == TaskPriority.HIGH) {
+            return "приоритет: высокий";
+        }
+        if (priority == TaskPriority.MEDIUM) {
+            return "приоритет: средний";
+        }
+        if (priority == TaskPriority.LOW) {
+            return "приоритет: низкий";
+        }
+        return "без приоритета";
+    }
+
+    private String formatTags(List<String> tags) {
+        StringBuilder builder = new StringBuilder("теги:");
+        for (String tag : tags) {
+            builder.append(" #").append(tag);
+        }
+        return builder.toString();
     }
 
     private String formatDuration(Duration duration) {
