@@ -39,6 +39,7 @@ public final class SettingsActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        ThemePreferences.apply(this);
         super.onCreate(savedInstanceState);
         buildUi();
         updateStatus();
@@ -129,6 +130,8 @@ public final class SettingsActivity extends Activity {
         updateActiveFilterButton();
         root.addView(activeFilterButton, fullWidthWithBottomMargin());
 
+        addEditingSettings(root);
+        addAppearanceSettings(root);
         addFormatSettings(root);
         addScanSettings(root);
         addNotificationActionSettings(root);
@@ -147,6 +150,62 @@ public final class SettingsActivity extends Activity {
         root.addView(closeButton, fullWidthWithBottomMargin());
 
         setContentView(scrollView);
+    }
+
+    private void addEditingSettings(LinearLayout root) {
+        TextView editTitle = new TextView(this);
+        editTitle.setText("Поведение");
+        editTitle.setTextSize(18);
+        editTitle.setTextColor(getColor(R.color.text_primary));
+        editTitle.setPadding(0, dp(12), 0, dp(6));
+        root.addView(editTitle, fullWidth());
+
+        TextView editDescription = new TextView(this);
+        editDescription.setText("Режим редактирования задач внутри приложения. В UI-режиме preview markdown-строки остается видимым.");
+        editDescription.setTextSize(14);
+        editDescription.setTextColor(getColor(R.color.text_secondary));
+        editDescription.setPadding(0, 0, 0, dp(8));
+        root.addView(editDescription, fullWidth());
+
+        Button uiModeButton = createButton(EditPreferences.MODE_UI.equals(EditPreferences.getEditMode(this))
+                ? "Режим: UI с записью в markdown"
+                : "Выбрать UI-редактирование");
+        uiModeButton.setOnClickListener(view -> setEditMode(EditPreferences.MODE_UI));
+        root.addView(uiModeButton, fullWidthWithBottomMargin());
+
+        Button markdownModeButton = createButton(EditPreferences.MODE_MARKDOWN.equals(EditPreferences.getEditMode(this))
+                ? "Режим: прямое редактирование markdown"
+                : "Выбрать markdown-редактирование");
+        markdownModeButton.setOnClickListener(view -> setEditMode(EditPreferences.MODE_MARKDOWN));
+        root.addView(markdownModeButton, fullWidthWithBottomMargin());
+    }
+
+    private void addAppearanceSettings(LinearLayout root) {
+        TextView appearanceTitle = new TextView(this);
+        appearanceTitle.setText("Внешний вид");
+        appearanceTitle.setTextSize(18);
+        appearanceTitle.setTextColor(getColor(R.color.text_primary));
+        appearanceTitle.setPadding(0, dp(12), 0, dp(6));
+        root.addView(appearanceTitle, fullWidth());
+
+        TextView appearanceDescription = new TextView(this);
+        appearanceDescription.setText("Тема приложения: системная, светлая или темная.");
+        appearanceDescription.setTextSize(14);
+        appearanceDescription.setTextColor(getColor(R.color.text_secondary));
+        appearanceDescription.setPadding(0, 0, 0, dp(8));
+        root.addView(appearanceDescription, fullWidth());
+
+        Button systemThemeButton = createButton(themeButtonText(ThemePreferences.MODE_SYSTEM, "Системная тема"));
+        systemThemeButton.setOnClickListener(view -> setThemeMode(ThemePreferences.MODE_SYSTEM));
+        root.addView(systemThemeButton, fullWidthWithBottomMargin());
+
+        Button lightThemeButton = createButton(themeButtonText(ThemePreferences.MODE_LIGHT, "Светлая тема"));
+        lightThemeButton.setOnClickListener(view -> setThemeMode(ThemePreferences.MODE_LIGHT));
+        root.addView(lightThemeButton, fullWidthWithBottomMargin());
+
+        Button darkThemeButton = createButton(themeButtonText(ThemePreferences.MODE_DARK, "Темная тема"));
+        darkThemeButton.setOnClickListener(view -> setThemeMode(ThemePreferences.MODE_DARK));
+        root.addView(darkThemeButton, fullWidthWithBottomMargin());
     }
 
     private void addFormatSettings(LinearLayout root) {
@@ -395,6 +454,27 @@ public final class SettingsActivity extends Activity {
         updateStatus();
     }
 
+    private void setEditMode(String mode) {
+        EditPreferences.setEditMode(this, mode);
+        Toast.makeText(this, "Режим редактирования сохранен", Toast.LENGTH_SHORT).show();
+        rebuild();
+    }
+
+    private void setThemeMode(String mode) {
+        ThemePreferences.setThemeMode(this, mode);
+        Toast.makeText(this, "Тема сохранена", Toast.LENGTH_SHORT).show();
+        recreate();
+    }
+
+    private String themeButtonText(String mode, String label) {
+        return mode.equals(ThemePreferences.getThemeMode(this)) ? label + " выбрана" : label;
+    }
+
+    private void rebuild() {
+        buildUi();
+        updateStatus();
+    }
+
     private void saveFormatSettings() {
         TaskFormatSettings settings = TaskFormatSettings.fromValues(
                 dueKeywordInput.getText().toString(),
@@ -483,6 +563,22 @@ public final class SettingsActivity extends Activity {
         updateStatus();
     }
 
+    private String formatEditMode(String mode) {
+        return EditPreferences.MODE_MARKDOWN.equals(mode)
+                ? "прямой markdown"
+                : "UI с preview markdown";
+    }
+
+    private String formatThemeMode(String mode) {
+        if (ThemePreferences.MODE_LIGHT.equals(mode)) {
+            return "светлая";
+        }
+        if (ThemePreferences.MODE_DARK.equals(mode)) {
+            return "темная";
+        }
+        return "системная";
+    }
+
     private void updateStatus() {
         String cachedAt = TaskCache.getSavedAt(this);
         String latestError = ErrorLog.latest(this);
@@ -496,6 +592,8 @@ public final class SettingsActivity extends Activity {
                 + "\nЗапись в заметку: " + (NoteStore.canWriteSavedSource(this) ? "разрешена" : "нужно выбрать источник заново")
                 + "\nОтложить: " + ActionPreferences.getSnoozeMinutes(this) + " мин."
                 + "\nСчетчик отложений: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "включен" : "выключен")
+                + "\nРежим редактирования: " + formatEditMode(EditPreferences.getEditMode(this))
+                + "\nТема: " + formatThemeMode(ThemePreferences.getThemeMode(this))
                 + "\nФормат: " + formatSettings.formatForStatus()
                 + "\nПоиск: " + scanSettings.formatForStatus()
                 + "\nЛокальный кэш задач: " + TaskCache.getCachedTaskCount(this)

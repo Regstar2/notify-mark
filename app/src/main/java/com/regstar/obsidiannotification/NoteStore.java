@@ -37,8 +37,6 @@ public final class NoteStore {
     private static final String KEY_SOURCES = "sources";
     private static final Pattern ACTIVE_TASK_MARKER =
             Pattern.compile("^(\\s*[-*+]\\s+\\[)[ xX](\\].*)$");
-    private static final Pattern CHECKBOX_TASK_MARKER =
-            Pattern.compile("(?m)^\\s*[-*+]\\s+\\[[ xX]\\]");
     private static final Pattern SNOOZED_COUNT =
             Pattern.compile("(?iu)@snoozed\\(\\s*(\\d+)\\s*\\)");
 
@@ -347,9 +345,6 @@ public final class NoteStore {
         for (NoteDocument document : readDocuments(context)) {
             documentCount++;
             totalCharacters += document.getMarkdown().length();
-            if (!looksLikeTaskDocument(document.getMarkdown())) {
-                continue;
-            }
             results.add(TaskParser.parseDocument(
                     document.getMarkdown(),
                     java.time.LocalDate.now(),
@@ -358,10 +353,6 @@ public final class NoteStore {
             ));
         }
         return new TaskSnapshot(TaskParseResult.merge(results), documentCount, totalCharacters);
-    }
-
-    private static boolean looksLikeTaskDocument(String markdown) {
-        return markdown != null && CHECKBOX_TASK_MARKER.matcher(markdown).find();
     }
 
     public static List<ObsidianTask> readTasks(Context context) throws IOException {
@@ -407,6 +398,56 @@ public final class NoteStore {
 
     public static TaskEditResult incrementSnoozeCount(Context context, String taskKey) {
         return editActiveTaskLine(context, taskKey, NoteStore::incrementSnoozedMarker);
+    }
+
+    public static NoteDocument findDefaultWriteDocument(Context context) throws IOException {
+        List<NoteDocument> documents = readDocuments(context);
+        if (documents.isEmpty()) {
+            throw new IOException("не найден markdown-файл для записи");
+        }
+        return documents.get(0);
+    }
+
+    public static TaskEditResult appendTaskLine(Context context, String rawLine) {
+        String safeLine = sanitizeSingleLine(rawLine);
+        if (safeLine.isEmpty()) {
+            return TaskEditResult.conflict("строка уведомления пустая");
+        }
+
+        try {
+            NoteDocument document = findDefaultWriteDocument(context);
+            String latestMarkdown = readMarkdown(context, document.getUri());
+            String separator = latestMarkdown.isEmpty() || latestMarkdown.endsWith("\n")
+                    ? ""
+                    : "\n";
+            writeMarkdown(context, document.getUri(), latestMarkdown + separator + safeLine + "\n");
+            return TaskEditResult.updated("уведомление добавлено");
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось добавить markdown-уведомление", exception);
+            return TaskEditResult.writeFailed(exception.getMessage());
+        }
+    }
+
+    public static TaskEditResult replaceTaskLine(Context context, String taskKey, String rawLine) {
+        String safeLine = sanitizeSingleLine(rawLine);
+        if (safeLine.isEmpty()) {
+            return TaskEditResult.conflict("строка уведомления пустая");
+        }
+        return editTaskLine(
+                context,
+                taskKey,
+                true,
+                line -> TaskLineMutation.replace(safeLine)
+        );
+    }
+
+    public static TaskEditResult deleteTaskLine(Context context, String taskKey) {
+        return editTaskLine(
+                context,
+                taskKey,
+                true,
+                line -> TaskLineMutation.delete()
+        );
     }
 
     public static String sourceLabel(Context context) {
@@ -488,6 +529,65 @@ public final class NoteStore {
         }
     }
 
+    private static TaskEditResult editTaskLine(
+            Context context,
+            String taskKey,
+            boolean allowCompleted,
+            TaskLineMutationEditor editor
+    ) {
+        if (taskKey == null || taskKey.trim().isEmpty()) {
+            return TaskEditResult.notFound("ключ задачи пустой");
+        }
+
+        try {
+            TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
+            for (NoteDocument document : readDocuments(context)) {
+                TaskParseResult result = TaskParser.parseDocument(
+                        document.getMarkdown(),
+                        LocalDate.now(),
+                        document.getDisplayName(),
+                        formatSettings
+                );
+                for (ObsidianTask task : result.getTasks()) {
+                    if (!task.getTaskKey().equals(taskKey)) {
+                        continue;
+                    }
+                    if (task.isCompleted() && !allowCompleted) {
+                        return TaskEditResult.alreadyDone("задача уже выполнена");
+                    }
+
+                    String[] lines = document.getMarkdown().split("\n", -1);
+                    int index = task.getLineNumber() - 1;
+                    if (index < 0 || index >= lines.length) {
+                        return TaskEditResult.conflict("строка задачи изменилась");
+                    }
+
+                    TaskLineMutation mutation = editor.edit(lines[index]);
+                    if (mutation == null) {
+                        return TaskEditResult.conflict("строка задачи больше не подходит для изменения");
+                    }
+
+                    String latestMarkdown = readMarkdown(context, document.getUri());
+                    if (!latestMarkdown.equals(document.getMarkdown())) {
+                        return TaskEditResult.conflict("файл изменился во время записи");
+                    }
+
+                    String updatedMarkdown = mutation.isDelete()
+                            ? removeLine(lines, index)
+                            : replaceLine(lines, index, mutation.getLine());
+                    writeMarkdown(context, document.getUri(), updatedMarkdown);
+                    return TaskEditResult.updated(mutation.isDelete()
+                            ? "уведомление удалено"
+                            : "уведомление обновлено");
+                }
+            }
+            return TaskEditResult.notFound("задача не найдена или уже изменилась");
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось изменить markdown-уведомление", exception);
+            return TaskEditResult.writeFailed(exception.getMessage());
+        }
+    }
+
     private static String incrementSnoozedMarker(String line) {
         Matcher matcher = SNOOZED_COUNT.matcher(line);
         if (matcher.find()) {
@@ -511,6 +611,31 @@ public final class NoteStore {
             builder.append(lines[i]);
         }
         return builder.toString();
+    }
+
+    private static String replaceLine(String[] lines, int index, String updatedLine) {
+        lines[index] = updatedLine;
+        return joinLines(lines);
+    }
+
+    private static String removeLine(String[] lines, int index) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i == index) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(lines[i]);
+        }
+        return builder.toString();
+    }
+
+    private static String sanitizeSingleLine(String rawLine) {
+        return rawLine == null
+                ? ""
+                : rawLine.replace('\r', ' ').replace('\n', ' ').trim();
     }
 
     private static List<NoteDocument> readFolderDocuments(
@@ -734,5 +859,35 @@ public final class NoteStore {
 
     private interface TaskLineEditor {
         String edit(String line);
+    }
+
+    private interface TaskLineMutationEditor {
+        TaskLineMutation edit(String line);
+    }
+
+    private static final class TaskLineMutation {
+        private final String line;
+        private final boolean delete;
+
+        private TaskLineMutation(String line, boolean delete) {
+            this.line = line;
+            this.delete = delete;
+        }
+
+        private static TaskLineMutation replace(String line) {
+            return new TaskLineMutation(line, false);
+        }
+
+        private static TaskLineMutation delete() {
+            return new TaskLineMutation(null, true);
+        }
+
+        private String getLine() {
+            return line;
+        }
+
+        private boolean isDelete() {
+            return delete;
+        }
     }
 }

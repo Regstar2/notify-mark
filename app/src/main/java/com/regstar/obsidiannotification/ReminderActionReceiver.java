@@ -141,6 +141,10 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
             openApp(context);
             return;
         }
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            openApp(context);
+            return;
+        }
 
         Intent openNoteIntent = new Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, "text/markdown")

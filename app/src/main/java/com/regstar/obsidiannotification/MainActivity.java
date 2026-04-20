@@ -2,6 +2,7 @@ package com.regstar.obsidiannotification;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -18,8 +19,10 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -27,10 +30,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 public final class MainActivity extends Activity {
     private static final int REQUEST_OPEN_NOTE = 1001;
     private static final int REQUEST_NOTIFICATIONS = 1002;
+    private static final int REQUEST_EDIT_TASK = 1003;
     private static final long FOREGROUND_REFRESH_INTERVAL_MS = 15_000L;
     private static final DateTimeFormatter DATE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
@@ -55,6 +60,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        ThemePreferences.apply(this);
         super.onCreate(savedInstanceState);
 
         ReminderScheduler.ensureNotificationChannel(this);
@@ -103,6 +109,13 @@ public final class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_EDIT_TASK) {
+            if (resultCode == RESULT_OK) {
+                readAndRenderNote();
+            }
+            return;
+        }
+
         if (requestCode != REQUEST_OPEN_NOTE || resultCode != RESULT_OK || data == null) {
             return;
         }
@@ -194,7 +207,7 @@ public final class MainActivity extends Activity {
         ));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Читает чекбоксы из markdown-заметки и планирует локальные напоминания.");
+        subtitle.setText("Читает markdown-уведомления из Obsidian и планирует локальные напоминания.");
         subtitle.setTextColor(getColor(R.color.text_secondary));
         subtitle.setTextSize(15);
         subtitle.setPadding(0, dp(8), 0, dp(16));
@@ -234,6 +247,17 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+
+        Button addTaskButton = new Button(this);
+        addTaskButton.setText("Добавить уведомление");
+        addTaskButton.setAllCaps(false);
+        addTaskButton.setOnClickListener(view -> openTaskEditor(null));
+        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        addParams.setMargins(0, 0, 0, dp(12));
+        root.addView(addTaskButton, addParams);
 
         activeFilterButton = new Button(this);
         activeFilterButton.setAllCaps(false);
@@ -470,7 +494,7 @@ public final class MainActivity extends Activity {
         taskList.removeAllViews();
         List<ObsidianTask> visibleTasks = filterVisibleTasks(tasks);
         if (visibleTasks.isEmpty()) {
-            renderEmptyState("В заметке нет активных строк вида - [ ].");
+            renderEmptyState("В выбранных markdown-файлах нет уведомлений с @due(...) для текущего фильтра.");
             return;
         }
 
@@ -529,12 +553,28 @@ public final class MainActivity extends Activity {
         item.setPadding(dp(14), dp(12), dp(14), dp(12));
         item.setBackground(createCardBackground());
 
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
         TextView title = new TextView(this);
         title.setText(task.getTitle());
         title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(17);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        item.addView(title, new LinearLayout.LayoutParams(
+        titleRow.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        Button menuButton = new Button(this);
+        menuButton.setText("⋮");
+        menuButton.setAllCaps(false);
+        menuButton.setOnClickListener(view -> showTaskMenu(menuButton, task));
+        titleRow.addView(menuButton, new LinearLayout.LayoutParams(dp(48), dp(42)));
+
+        item.addView(titleRow, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -560,10 +600,145 @@ public final class MainActivity extends Activity {
 
     private GradientDrawable createCardBackground() {
         GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(0xFFFFFFFF);
+        drawable.setColor(getColor(R.color.card_background));
         drawable.setCornerRadius(dp(8));
-        drawable.setStroke(dp(1), 0xFFE1E7E5);
+        drawable.setStroke(dp(1), getColor(R.color.card_stroke));
         return drawable;
+    }
+
+    private void showTaskMenu(Button anchor, ObsidianTask task) {
+        PopupMenu popupMenu = new PopupMenu(this, anchor);
+        popupMenu.getMenu().add(0, 1, 0, "Открыть заметку");
+        popupMenu.getMenu().add(0, 2, 1, "Отложить");
+        popupMenu.getMenu().add(0, 3, 2, "Отметить выполненной");
+        popupMenu.getMenu().add(0, 4, 3, "Редактировать");
+        popupMenu.getMenu().add(0, 5, 4, "Удалить");
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == 1) {
+                openNoteForTask(task);
+                return true;
+            }
+            if (id == 2) {
+                snoozeTask(task);
+                return true;
+            }
+            if (id == 3) {
+                markTaskDone(task);
+                return true;
+            }
+            if (id == 4) {
+                openTaskEditor(task);
+                return true;
+            }
+            if (id == 5) {
+                confirmDeleteTask(task);
+                return true;
+            }
+            return false;
+        });
+        popupMenu.show();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void openTaskEditor(ObsidianTask task) {
+        Intent intent = new Intent(this, TaskEditActivity.class);
+        if (task != null) {
+            intent.putExtra(TaskEditActivity.EXTRA_TASK_KEY, task.getTaskKey());
+        }
+        startActivityForResult(intent, REQUEST_EDIT_TASK);
+    }
+
+    private void markTaskDone(ObsidianTask task) {
+        TaskEditResult result = NoteStore.markTaskDone(this, task.getTaskKey());
+        if (result.shouldStopReminder()) {
+            ReminderScheduler.cancelReminder(this, task.getTaskKey());
+            NoteChangeMonitor.syncNow(this, true);
+            readAndRenderNote();
+        }
+        Toast.makeText(this, result.getMessage(), Toast.LENGTH_LONG).show();
+    }
+
+    private void snoozeTask(ObsidianTask task) {
+        ReminderScheduler.scheduleSnooze(
+                this,
+                task.getTaskKey(),
+                notificationIdFor(task),
+                task.getLineNumber(),
+                task.getTitle(),
+                Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(this)),
+                task.getRepeatIntervalMillis(),
+                task.getRepeatMode()
+        );
+        if (ActionPreferences.shouldRecordSnoozeCount(this)) {
+            NoteStore.incrementSnoozeCount(this, task.getTaskKey());
+        }
+        Toast.makeText(this, "Уведомление отложено", Toast.LENGTH_SHORT).show();
+        readAndRenderNote();
+    }
+
+    private void confirmDeleteTask(ObsidianTask task) {
+        new AlertDialog.Builder(this)
+                .setTitle("Удалить уведомление?")
+                .setMessage(task.getTitle())
+                .setPositiveButton("Удалить", (dialog, which) -> deleteTask(task))
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void deleteTask(ObsidianTask task) {
+        TaskEditResult result = NoteStore.deleteTaskLine(this, task.getTaskKey());
+        if (result.isUpdated()) {
+            ReminderScheduler.cancelReminder(this, task.getTaskKey());
+            NoteChangeMonitor.syncNow(this, true);
+            readAndRenderNote();
+        }
+        Toast.makeText(this, result.getMessage(), Toast.LENGTH_LONG).show();
+    }
+
+    private void openNoteForTask(ObsidianTask task) {
+        Uri uri = null;
+        try {
+            NoteStore.TaskDocumentMatch match = NoteStore.findTaskDocument(this, task.getTaskKey());
+            if (match != null) {
+                uri = match.getUri();
+            }
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(this, "Не удалось найти заметку для открытия", exception);
+        }
+
+        if (uri == null) {
+            uri = NoteStore.getSavedSourceUri(this);
+        }
+        if (uri == null) {
+            Toast.makeText(this, "Источник не выбран", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            Toast.makeText(this, "Прямое открытие доступно для файлов, выбранных через Android picker", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Intent openNoteIntent = new Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "text/markdown")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        try {
+            startActivity(openNoteIntent);
+        } catch (RuntimeException exception) {
+            ErrorLog.record(this, "Не удалось открыть заметку напрямую", exception);
+            Toast.makeText(this, "Не удалось открыть заметку напрямую", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private int notificationIdFor(ObsidianTask task) {
+        int hash = Objects.hash(task.getTaskKey());
+        if (hash == Integer.MIN_VALUE) {
+            hash = 0;
+        }
+
+        int id = Math.abs(hash);
+        return id == 0 ? task.getLineNumber() + 1 : id;
     }
 
     private String formatMeta(ObsidianTask task) {

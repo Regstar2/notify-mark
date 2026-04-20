@@ -1,6 +1,8 @@
 <resources>
     <color name="accent">#2F6F6D</color>
     <color name="background">#F8FAF9</color>
+    <color name="card_background">#FFFFFF</color>
+    <color name="card_stroke">#E1E7E5</color>
     <color name="text_primary">#17201F</color>
     <color name="text_secondary">#586463</color>
 </resources>

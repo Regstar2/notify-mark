@@ -81,6 +81,24 @@ public final class TaskParserTest {
     }
 
     @Test
+    public void parse_supportsNotificationsWithoutCheckboxes() {
+        String markdown = ""
+                + "Call doctor @due(2026-04-20 19:00) @repeatUntilDone(15m)\n"
+                + "- Stand up @due(19:10) @repeat(5m)\n"
+                + "Plain text without reminder\n";
+
+        List<ObsidianTask> tasks = TaskParser.parse(markdown, LocalDate.of(2026, 4, 20));
+
+        assertEquals(2, tasks.size());
+        assertEquals("Call doctor", tasks.get(0).getTitle());
+        assertEquals(LocalDateTime.of(2026, 4, 20, 19, 0), tasks.get(0).getReminderAt());
+        assertEquals(Duration.ofMinutes(15), tasks.get(0).getRepeatInterval());
+        assertEquals(RepeatMode.UNTIL_DONE, tasks.get(0).getRepeatMode());
+        assertEquals("Stand up", tasks.get(1).getTitle());
+        assertEquals(LocalDateTime.of(2026, 4, 20, 19, 10), tasks.get(1).getReminderAt());
+    }
+
+    @Test
     public void parse_supportsDateOnlyAndTimeOnlyDue() {
         String markdown = ""
                 + "- [ ] Date only @due(2026-04-21)\n"

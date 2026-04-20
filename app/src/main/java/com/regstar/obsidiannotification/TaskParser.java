@@ -18,6 +18,8 @@ import java.util.regex.Pattern;
 public final class TaskParser {
     private static final Pattern TASK =
             Pattern.compile("^\\s*[-*+]\\s+\\[([ xX])\\]\\s+(.+)$");
+    private static final Pattern NON_CHECKBOX_BULLET =
+            Pattern.compile("^\\s*[-*+]\\s+(?!\\[[ xX]\\]\\s+)(.+)$");
     private static final Pattern ISO_REMINDER =
             Pattern.compile("(?i)(?:^|\\s)@(\\d{4}-\\d{2}-\\d{2})(?:[ T]+)(\\d{1,2}:\\d{2})\\b");
     private static final Pattern RU_REMINDER =
@@ -95,14 +97,26 @@ public final class TaskParser {
         for (int i = 0; i < lines.length; i++) {
             String line = stripBom(lines[i]);
             Matcher taskMatcher = TASK.matcher(line);
-            if (!taskMatcher.find()) {
+            int lineNumber = i + 1;
+            boolean completed = false;
+            boolean checkboxTask = taskMatcher.find();
+            String body;
+            if (checkboxTask) {
+                completed = taskMatcher.group(1).equalsIgnoreCase("x");
+                body = taskMatcher.group(2).trim();
+            } else {
+                body = nonCheckboxReminderBody(line, format);
+                if (body == null) {
+                    continue;
+                }
+            }
+
+            ParsedTaskFields fields = parseFields(body, defaultDate, format);
+            if (!checkboxTask && fields.reminderAt == null) {
+                addParseWarnings(errors, sourceName, lineNumber, body, fields, format);
                 continue;
             }
 
-            int lineNumber = i + 1;
-            boolean completed = taskMatcher.group(1).equalsIgnoreCase("x");
-            String body = taskMatcher.group(2).trim();
-            ParsedTaskFields fields = parseFields(body, defaultDate, format);
             String title = cleanTitle(body, format);
             String displayTitle = title.isEmpty() ? body : title;
 
@@ -131,6 +145,21 @@ public final class TaskParser {
         }
 
         return new TaskParseResult(tasks, errors);
+    }
+
+    private static String nonCheckboxReminderBody(String line, TaskFormatSettings format) {
+        String trimmed = line == null ? "" : line.trim();
+        if (trimmed.isEmpty()
+                || trimmed.startsWith("#")
+                || trimmed.startsWith(">")
+                || trimmed.startsWith("|")
+                || trimmed.startsWith("```")) {
+            return null;
+        }
+
+        Matcher bulletMatcher = NON_CHECKBOX_BULLET.matcher(line);
+        String body = bulletMatcher.find() ? bulletMatcher.group(1).trim() : trimmed;
+        return hasReminderSyntax(body, format) ? body : null;
     }
 
     private static String stripBom(String line) {
@@ -453,6 +482,15 @@ public final class TaskParser {
             }
         }
         return false;
+    }
+
+    private static boolean hasReminderSyntax(String body, TaskFormatSettings format) {
+        return findFunctionValue(body, format.dueKeywords()) != null
+                || ISO_REMINDER.matcher(body).find()
+                || RU_REMINDER.matcher(body).find()
+                || ISO_DATE_ONLY_REMINDER.matcher(body).find()
+                || RU_DATE_ONLY_REMINDER.matcher(body).find()
+                || TIME_ONLY_REMINDER.matcher(body).find();
     }
 
     private static boolean hasSuspiciousRepeatToken(String body, TaskFormatSettings format) {
