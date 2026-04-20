@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">ObsidianNotification</string>
+    <string name="choose_note">Выбрать заметку</string>
+    <string name="refresh_note">Обновить</string>
+</resources>
