@@ -23,6 +23,14 @@ public final class NoteStore {
         return savedUri == null ? null : Uri.parse(savedUri);
     }
 
+    public static Uri requireSavedNoteUri(Context context) throws IOException {
+        Uri noteUri = getSavedNoteUri(context);
+        if (noteUri == null) {
+            throw new IOException("файл заметки не выбран");
+        }
+        return noteUri;
+    }
+
     public static void saveNoteUri(Context context, Uri uri) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
@@ -50,11 +58,7 @@ public final class NoteStore {
     }
 
     public static List<ObsidianTask> readTasks(Context context) throws IOException {
-        Uri noteUri = getSavedNoteUri(context);
-        if (noteUri == null) {
-            throw new IOException("файл заметки не выбран");
-        }
-        return TaskParser.parse(readMarkdown(context, noteUri));
+        return TaskParser.parse(readMarkdown(context, requireSavedNoteUri(context)));
     }
 
     public static ObsidianTask findActiveTask(Context context, String taskKey) throws IOException {

@@ -12,6 +12,9 @@
         <receiver
             android:name=".ReminderReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".NoteSyncReceiver"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

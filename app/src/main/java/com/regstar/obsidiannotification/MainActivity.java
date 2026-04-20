@@ -10,6 +10,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.view.View;
@@ -29,6 +31,7 @@ import java.util.Locale;
 public final class MainActivity extends Activity {
     private static final int REQUEST_OPEN_NOTE = 1001;
     private static final int REQUEST_NOTIFICATIONS = 1002;
+    private static final long FOREGROUND_REFRESH_INTERVAL_MS = 15_000L;
     private static final DateTimeFormatter DATE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
@@ -39,6 +42,15 @@ public final class MainActivity extends Activity {
     private Button notificationPermissionButton;
     private Button exactAlarmPermissionButton;
     private LinearLayout taskList;
+    private final Handler noteRefreshHandler = new Handler(Looper.getMainLooper());
+    private final Runnable noteRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshNoteIfChanged();
+            noteRefreshHandler.postDelayed(this, FOREGROUND_REFRESH_INTERVAL_MS);
+        }
+    };
+    private String renderedFingerprint;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,12 +66,14 @@ public final class MainActivity extends Activity {
         requestNotificationPermissionIfNeeded();
 
         if (noteUri == null) {
+            NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
             setStatus("Выберите markdown-файл с задачами Obsidian.");
             setNextReminder(null);
             renderEmptyState("Задачи появятся здесь после выбора заметки.");
         } else {
             readAndRenderNote();
+            NoteChangeMonitor.ensureScheduled(this);
         }
     }
 
@@ -69,6 +83,16 @@ public final class MainActivity extends Activity {
         if (exactAlarmPermissionButton != null) {
             updateExactAlarmPermissionUi();
         }
+        if (noteUri != null) {
+            readAndRenderNote();
+            startForegroundNotePolling();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopForegroundNotePolling();
     }
 
     @Override
@@ -100,6 +124,7 @@ public final class MainActivity extends Activity {
         noteUri = selectedUri;
         NoteStore.saveNoteUri(this, selectedUri);
         readAndRenderNote();
+        NoteChangeMonitor.ensureScheduled(this);
     }
 
     @Override
@@ -119,6 +144,7 @@ public final class MainActivity extends Activity {
                 setStatus("Уведомления разрешены. Выберите markdown-файл с задачами Obsidian.");
             } else {
                 readAndRenderNote();
+                NoteChangeMonitor.ensureScheduled(this);
             }
         } else {
             ReminderScheduler.cancelScheduled(this);
@@ -259,6 +285,7 @@ public final class MainActivity extends Activity {
 
     private void readAndRenderNote() {
         if (noteUri == null) {
+            NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
             setStatus("Файл не выбран.");
             setNextReminder(null);
@@ -270,18 +297,50 @@ public final class MainActivity extends Activity {
 
         try {
             String markdown = NoteStore.readMarkdown(this, noteUri);
-            List<ObsidianTask> tasks = TaskParser.parse(markdown);
-            ReminderSchedule schedule = ReminderScheduler.schedule(this, tasks);
-
-            renderTasks(tasks);
-            setNextReminder(schedule.getNextReminder());
-            setStatus(buildStatus(tasks.size(), schedule));
+            renderMarkdown(markdown);
+            NoteChangeMonitor.ensureScheduled(this);
         } catch (IOException | SecurityException exception) {
-            ReminderScheduler.cancelScheduled(this);
-            setStatus("Не удалось прочитать файл: " + exception.getMessage());
-            setNextReminder(null);
-            renderEmptyState("Проверьте доступ к заметке или выберите файл заново.");
+            NoteChangeMonitor.ensureScheduled(this);
+            setStatus("Файл временно недоступен: " + exception.getMessage()
+                    + "\nТекущие уведомления сохранены.");
         }
+    }
+
+    private void renderMarkdown(String markdown) {
+        List<ObsidianTask> tasks = TaskParser.parse(markdown);
+        ReminderSchedule schedule = ReminderScheduler.schedule(this, tasks);
+        renderedFingerprint = NoteChangeMonitor.fingerprintOf(markdown);
+        NoteChangeMonitor.recordSuccessfulSync(this, renderedFingerprint);
+
+        renderTasks(tasks);
+        setNextReminder(schedule.getNextReminder());
+        setStatus(buildStatus(tasks.size(), schedule));
+    }
+
+    private void refreshNoteIfChanged() {
+        if (noteUri == null) {
+            return;
+        }
+
+        try {
+            String markdown = NoteStore.readMarkdown(this, noteUri);
+            String fingerprint = NoteChangeMonitor.fingerprintOf(markdown);
+            if (!fingerprint.equals(renderedFingerprint)) {
+                renderMarkdown(markdown);
+            }
+        } catch (IOException | SecurityException exception) {
+            setStatus("Файл временно недоступен: " + exception.getMessage()
+                    + "\nТекущие уведомления сохранены.");
+        }
+    }
+
+    private void startForegroundNotePolling() {
+        stopForegroundNotePolling();
+        noteRefreshHandler.postDelayed(noteRefreshRunnable, FOREGROUND_REFRESH_INTERVAL_MS);
+    }
+
+    private void stopForegroundNotePolling() {
+        noteRefreshHandler.removeCallbacks(noteRefreshRunnable);
     }
 
     private String buildStatus(int taskCount, ReminderSchedule schedule) {
