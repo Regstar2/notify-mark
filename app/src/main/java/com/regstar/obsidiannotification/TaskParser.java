@@ -33,7 +33,7 @@ public final class TaskParser {
     private static final Pattern ANY_AT_TOKEN =
             Pattern.compile("@\\S+");
     private static final Pattern ANY_REPEAT_WORD =
-            Pattern.compile("(?iu)\\b(?:every|repeat|повтор|каждые)\\b\\s*:?\\s*\\S*");
+            Pattern.compile("(?iu)\\b(?:every|repeat|повтор|каждые)\\b\\s*:?\\s*\\d+\\S*");
     private static final Pattern ISO_DATE_TIME_VALUE =
             Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})(?:[ T]+)(\\d{1,2}:\\d{2})$");
     private static final Pattern RU_DATE_TIME_VALUE =
@@ -91,7 +91,8 @@ public final class TaskParser {
         String[] lines = markdown.split("\\R", -1);
 
         for (int i = 0; i < lines.length; i++) {
-            Matcher taskMatcher = TASK.matcher(lines[i]);
+            String line = stripBom(lines[i]);
+            Matcher taskMatcher = TASK.matcher(line);
             if (!taskMatcher.find()) {
                 continue;
             }
@@ -128,6 +129,13 @@ public final class TaskParser {
         }
 
         return new TaskParseResult(tasks, errors);
+    }
+
+    private static String stripBom(String line) {
+        if (line != null && !line.isEmpty() && line.charAt(0) == '\uFEFF') {
+            return line.substring(1);
+        }
+        return line;
     }
 
     private static ParsedTaskFields parseFields(

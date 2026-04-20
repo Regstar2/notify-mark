@@ -98,6 +98,21 @@ public final class TaskParserTest {
     }
 
     @Test
+    public void parse_ignoresBomAndRepeatWordInTitle() {
+        String markdown = "\uFEFF- [ ] No repeat needed @due(2026-04-20 20:00)\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        assertEquals(1, result.getTasks().size());
+        assertEquals("No repeat needed", result.getTasks().get(0).getTitle());
+        assertEquals(0, result.getErrors().size());
+    }
+
+    @Test
     public void parse_reportsInvalidUnifiedFormat() {
         String markdown = "- [ ] Broken @due(2026-02-30 25:00) "
                 + "@repeat(bad) @priority(nope)\n";
