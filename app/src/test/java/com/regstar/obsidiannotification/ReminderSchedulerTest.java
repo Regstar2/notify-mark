@@ -30,6 +30,7 @@ public final class ReminderSchedulerTest {
 
         assertEquals(LocalDateTime.of(2026, 4, 20, 12, 30), reminder.getTriggerAt());
         assertEquals("Future task", reminder.getTitle());
+        assertEquals(RepeatMode.NONE, reminder.getRepeatMode());
     }
 
     @Test
@@ -68,5 +69,6 @@ public final class ReminderSchedulerTest {
         );
 
         assertEquals(LocalDateTime.of(2026, 4, 20, 12, 15), reminder.getTriggerAt());
+        assertEquals(RepeatMode.ALWAYS, reminder.getRepeatMode());
     }
 }

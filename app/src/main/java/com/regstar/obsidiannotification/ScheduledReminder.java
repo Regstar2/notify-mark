@@ -3,11 +3,14 @@ package com.regstar.obsidiannotification;
 import java.time.LocalDateTime;
 
 public final class ScheduledReminder {
+    private final String taskKey;
     private final int notificationId;
     private final int lineNumber;
     private final String title;
     private final LocalDateTime triggerAt;
     private final long triggerAtMillis;
+    private final long repeatIntervalMillis;
+    private final RepeatMode repeatMode;
 
     public ScheduledReminder(
             int notificationId,
@@ -16,11 +19,31 @@ public final class ScheduledReminder {
             LocalDateTime triggerAt,
             long triggerAtMillis
     ) {
+        this("", notificationId, lineNumber, title, triggerAt, triggerAtMillis, 0L, RepeatMode.NONE);
+    }
+
+    public ScheduledReminder(
+            String taskKey,
+            int notificationId,
+            int lineNumber,
+            String title,
+            LocalDateTime triggerAt,
+            long triggerAtMillis,
+            long repeatIntervalMillis,
+            RepeatMode repeatMode
+    ) {
+        this.taskKey = taskKey;
         this.notificationId = notificationId;
         this.lineNumber = lineNumber;
         this.title = title;
         this.triggerAt = triggerAt;
         this.triggerAtMillis = triggerAtMillis;
+        this.repeatIntervalMillis = repeatIntervalMillis;
+        this.repeatMode = repeatMode == null ? RepeatMode.NONE : repeatMode;
+    }
+
+    public String getTaskKey() {
+        return taskKey;
     }
 
     public int getNotificationId() {
@@ -41,5 +64,13 @@ public final class ScheduledReminder {
 
     public long getTriggerAtMillis() {
         return triggerAtMillis;
+    }
+
+    public long getRepeatIntervalMillis() {
+        return repeatIntervalMillis;
+    }
+
+    public RepeatMode getRepeatMode() {
+        return repeatMode;
     }
 }

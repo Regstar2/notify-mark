@@ -8,6 +8,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 
+import java.io.IOException;
+
 public final class ReminderReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -16,6 +18,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             return;
         }
 
+        String taskKey = intent.getStringExtra(ReminderScheduler.EXTRA_TASK_KEY);
         int notificationId = intent.getIntExtra(
                 ReminderScheduler.EXTRA_NOTIFICATION_ID,
                 (int) System.currentTimeMillis()
@@ -26,6 +29,26 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 ReminderScheduler.EXTRA_TRIGGER_AT_MILLIS,
                 System.currentTimeMillis()
         );
+        long repeatIntervalMillis = intent.getLongExtra(
+                ReminderScheduler.EXTRA_REPEAT_INTERVAL_MILLIS,
+                0L
+        );
+        RepeatMode repeatMode = RepeatMode.fromName(
+                intent.getStringExtra(ReminderScheduler.EXTRA_REPEAT_MODE)
+        );
+
+        ObsidianTask activeTask = null;
+        if (repeatMode == RepeatMode.UNTIL_DONE) {
+            activeTask = findActiveTask(context, taskKey);
+            if (activeTask == null) {
+                ReminderScheduler.cancelReminder(context, taskKey);
+                return;
+            }
+
+            title = activeTask.getTitle();
+            lineNumber = activeTask.getLineNumber();
+            repeatIntervalMillis = activeTask.getRepeatIntervalMillis();
+        }
 
         NotificationManager notificationManager =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -36,6 +59,17 @@ public final class ReminderReceiver extends BroadcastReceiver {
         notificationManager.notify(
                 notificationId,
                 buildNotification(context, safeTitle(title), lineNumber, triggerAtMillis)
+        );
+
+        scheduleNextRepeat(
+                context,
+                taskKey,
+                notificationId,
+                lineNumber,
+                safeTitle(title),
+                repeatIntervalMillis,
+                repeatMode,
+                activeTask
         );
     }
 
@@ -84,5 +118,47 @@ public final class ReminderReceiver extends BroadcastReceiver {
             return "Задача без текста";
         }
         return title;
+    }
+
+    private ObsidianTask findActiveTask(Context context, String taskKey) {
+        if (taskKey == null || taskKey.isEmpty()) {
+            return null;
+        }
+
+        try {
+            return NoteStore.findActiveTask(context, taskKey);
+        } catch (IOException | SecurityException exception) {
+            return null;
+        }
+    }
+
+    private void scheduleNextRepeat(
+            Context context,
+            String taskKey,
+            int notificationId,
+            int lineNumber,
+            String title,
+            long repeatIntervalMillis,
+            RepeatMode repeatMode,
+            ObsidianTask activeTask
+    ) {
+        if (repeatMode == RepeatMode.UNTIL_DONE) {
+            if (activeTask != null) {
+                ReminderScheduler.scheduleNextRepeat(context, activeTask);
+            }
+            return;
+        }
+
+        if (repeatMode == RepeatMode.ALWAYS && repeatIntervalMillis > 0) {
+            ReminderScheduler.scheduleNextRepeat(
+                    context,
+                    taskKey,
+                    notificationId,
+                    lineNumber,
+                    title,
+                    repeatIntervalMillis,
+                    repeatMode
+            );
+        }
     }
 }

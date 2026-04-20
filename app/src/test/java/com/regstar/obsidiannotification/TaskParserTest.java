@@ -26,6 +26,7 @@ public final class TaskParserTest {
         assertEquals(1, tasks.get(0).getLineNumber());
         assertEquals(LocalDateTime.of(2026, 4, 20, 14, 30), tasks.get(0).getReminderAt());
         assertEquals(Duration.ofMinutes(15), tasks.get(0).getRepeatInterval());
+        assertEquals(RepeatMode.ALWAYS, tasks.get(0).getRepeatMode());
         assertEquals("Second task", tasks.get(1).getTitle());
         assertEquals(4, tasks.get(1).getLineNumber());
         assertEquals(Duration.ofMinutes(10), tasks.get(1).getRepeatInterval());
@@ -40,6 +41,24 @@ public final class TaskParserTest {
         assertEquals(1, tasks.size());
         assertEquals(LocalDateTime.of(2026, 4, 20, 9, 30), tasks.get(0).getReminderAt());
         assertEquals(Duration.ofHours(1), tasks.get(0).getRepeatInterval());
+        assertEquals(RepeatMode.ALWAYS, tasks.get(0).getRepeatMode());
+    }
+
+    @Test
+    public void parse_supportsRepeatFunctionModes() {
+        String markdown = ""
+                + "- [ ] Hydrate @09:30 @repeat(2h)\n"
+                + "- [ ] Inbox zero @10:00 @repeatUntilDone(15m)\n";
+
+        List<ObsidianTask> tasks = TaskParser.parse(markdown, LocalDate.of(2026, 4, 20));
+
+        assertEquals(2, tasks.size());
+        assertEquals("Hydrate", tasks.get(0).getTitle());
+        assertEquals(Duration.ofHours(2), tasks.get(0).getRepeatInterval());
+        assertEquals(RepeatMode.ALWAYS, tasks.get(0).getRepeatMode());
+        assertEquals("Inbox zero", tasks.get(1).getTitle());
+        assertEquals(Duration.ofMinutes(15), tasks.get(1).getRepeatInterval());
+        assertEquals(RepeatMode.UNTIL_DONE, tasks.get(1).getRepeatMode());
     }
 
     @Test
@@ -52,5 +71,6 @@ public final class TaskParserTest {
         assertEquals("Task without schedule", tasks.get(0).getTitle());
         assertNull(tasks.get(0).getReminderAt());
         assertNull(tasks.get(0).getRepeatInterval());
+        assertEquals(RepeatMode.NONE, tasks.get(0).getRepeatMode());
     }
 }

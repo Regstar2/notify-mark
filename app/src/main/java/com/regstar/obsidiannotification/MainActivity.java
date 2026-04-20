@@ -3,7 +3,6 @@ package com.regstar.obsidiannotification;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Typeface;
@@ -19,11 +18,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,12 +28,9 @@ import java.util.Locale;
 public final class MainActivity extends Activity {
     private static final int REQUEST_OPEN_NOTE = 1001;
     private static final int REQUEST_NOTIFICATIONS = 1002;
-    private static final String PREFS_NAME = "obsidian_notification_prefs";
-    private static final String KEY_NOTE_URI = "note_uri";
     private static final DateTimeFormatter DATE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
-    private SharedPreferences preferences;
     private Uri noteUri;
     private TextView statusText;
     private TextView nextReminderText;
@@ -52,11 +44,7 @@ public final class MainActivity extends Activity {
 
         ReminderScheduler.ensureNotificationChannel(this);
 
-        preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String savedUri = preferences.getString(KEY_NOTE_URI, null);
-        if (savedUri != null) {
-            noteUri = Uri.parse(savedUri);
-        }
+        noteUri = NoteStore.getSavedNoteUri(this);
 
         buildUi();
         updateNotificationPermissionUi();
@@ -95,7 +83,7 @@ public final class MainActivity extends Activity {
         }
 
         noteUri = selectedUri;
-        preferences.edit().putString(KEY_NOTE_URI, selectedUri.toString()).apply();
+        NoteStore.saveNoteUri(this, selectedUri);
         readAndRenderNote();
     }
 
@@ -255,7 +243,7 @@ public final class MainActivity extends Activity {
         refreshButton.setEnabled(true);
 
         try {
-            String markdown = readUriText(noteUri);
+            String markdown = NoteStore.readMarkdown(this, noteUri);
             List<ObsidianTask> tasks = TaskParser.parse(markdown);
             ReminderSchedule schedule = ReminderScheduler.schedule(this, tasks);
 
@@ -283,25 +271,6 @@ public final class MainActivity extends Activity {
                 permissionStatus,
                 DATE_TIME_FORMAT.format(LocalDateTime.now())
         );
-    }
-
-    private String readUriText(Uri uri) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        try (InputStream stream = getContentResolver().openInputStream(uri)) {
-            if (stream == null) {
-                throw new IOException("провайдер не вернул поток данных");
-            }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    stream,
-                    StandardCharsets.UTF_8
-            ))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    builder.append(line).append('\n');
-                }
-            }
-        }
-        return builder.toString();
     }
 
     private void renderTasks(List<ObsidianTask> tasks) {
@@ -370,10 +339,18 @@ public final class MainActivity extends Activity {
         }
 
         if (task.getRepeatInterval() != null) {
-            builder.append(" · повтор ").append(formatDuration(task.getRepeatInterval()));
+            builder.append(" · ").append(formatRepeat(task));
         }
 
         return builder.toString();
+    }
+
+    private String formatRepeat(ObsidianTask task) {
+        if (task.getRepeatMode() == RepeatMode.UNTIL_DONE) {
+            return "повтор до выполнения " + formatDuration(task.getRepeatInterval());
+        }
+
+        return "повтор " + formatDuration(task.getRepeatInterval());
     }
 
     private String formatDuration(Duration duration) {
