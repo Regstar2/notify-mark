@@ -62,6 +62,42 @@ public final class TaskParserTest {
     }
 
     @Test
+    public void parseDocument_returnsCompletedTasksAndStatuses() {
+        String markdown = ""
+                + "- [ ] Waiting task @2026-04-20 12:30\n"
+                + "- [x] Done task @2026-04-20 12:30\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        assertEquals(2, result.getTasks().size());
+        assertEquals(1, result.getActiveTasks().size());
+        assertEquals("tasks.md", result.getTasks().get(0).getSourceName());
+        assertEquals(TaskStatus.WAITING, result.getTasks().get(0)
+                .getStatus(LocalDateTime.of(2026, 4, 20, 12, 0)));
+        assertEquals(TaskStatus.COMPLETED, result.getTasks().get(1)
+                .getStatus(LocalDateTime.of(2026, 4, 20, 13, 0)));
+    }
+
+    @Test
+    public void parseDocument_reportsReadableParseErrors() {
+        String markdown = "- [ ] Broken task @tomorrow @repeat(bad)\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        assertEquals(1, result.getTasks().size());
+        assertEquals(2, result.getErrors().size());
+        assertEquals("tasks.md", result.getErrors().get(0).getSourceName());
+    }
+
+    @Test
     public void parse_keepsTaskWithoutReminder() {
         String markdown = "- [ ] Task without schedule\n";
 

@@ -4,7 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -12,11 +12,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.OpenableColumns;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -39,6 +39,7 @@ public final class MainActivity extends Activity {
     private TextView statusText;
     private TextView nextReminderText;
     private Button refreshButton;
+    private Button activeFilterButton;
     private Button notificationPermissionButton;
     private Button exactAlarmPermissionButton;
     private LinearLayout taskList;
@@ -58,7 +59,7 @@ public final class MainActivity extends Activity {
 
         ReminderScheduler.ensureNotificationChannel(this);
 
-        noteUri = NoteStore.getSavedNoteUri(this);
+        noteUri = NoteStore.getSavedSourceUri(this);
 
         buildUi();
         updateNotificationPermissionUi();
@@ -68,7 +69,7 @@ public final class MainActivity extends Activity {
         if (noteUri == null) {
             NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
-            setStatus("Выберите markdown-файл с задачами Obsidian.");
+            setStatus("Выберите markdown-файл или папку с задачами Obsidian.");
             setNextReminder(null);
             renderEmptyState("Задачи появятся здесь после выбора заметки.");
         } else {
@@ -83,7 +84,10 @@ public final class MainActivity extends Activity {
         if (exactAlarmPermissionButton != null) {
             updateExactAlarmPermissionUi();
         }
+        noteUri = NoteStore.getSavedSourceUri(this);
         if (noteUri != null) {
+            refreshButton.setEnabled(true);
+            updateActiveFilterButton();
             readAndRenderNote();
             startForegroundNotePolling();
         }
@@ -159,12 +163,29 @@ public final class MainActivity extends Activity {
         root.setPadding(dp(20), dp(20), dp(20), dp(20));
         root.setBackgroundColor(getColor(R.color.background));
 
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
         TextView title = new TextView(this);
         title.setText("ObsidianNotification");
         title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(24);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        root.addView(title, new LinearLayout.LayoutParams(
+        header.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+                , 1
+        ));
+
+        ImageButton settingsButton = new ImageButton(this);
+        settingsButton.setImageResource(R.drawable.ic_settings);
+        settingsButton.setContentDescription("Настройки");
+        settingsButton.setBackgroundColor(Color.TRANSPARENT);
+        settingsButton.setOnClickListener(view -> openSettings());
+        header.addView(settingsButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
+
+        root.addView(header, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
@@ -210,6 +231,21 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+
+        activeFilterButton = new Button(this);
+        activeFilterButton.setAllCaps(false);
+        activeFilterButton.setOnClickListener(view -> {
+            UserPreferences.setActiveOnly(this, !UserPreferences.isActiveOnly(this));
+            updateActiveFilterButton();
+            readAndRenderNote();
+        });
+        updateActiveFilterButton();
+        LinearLayout.LayoutParams filterParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        filterParams.setMargins(0, 0, 0, dp(12));
+        root.addView(activeFilterButton, filterParams);
 
         notificationPermissionButton = new Button(this);
         notificationPermissionButton.setText("Разрешить уведомления");
@@ -283,6 +319,10 @@ public final class MainActivity extends Activity {
         startActivityForResult(intent, REQUEST_OPEN_NOTE);
     }
 
+    private void openSettings() {
+        startActivity(new Intent(this, SettingsActivity.class));
+    }
+
     private void readAndRenderNote() {
         if (noteUri == null) {
             NoteChangeMonitor.cancel(this);
@@ -296,8 +336,8 @@ public final class MainActivity extends Activity {
         refreshButton.setEnabled(true);
 
         try {
-            String markdown = NoteStore.readMarkdown(this, noteUri);
-            renderMarkdown(markdown);
+            TaskParseResult parseResult = NoteStore.readTaskParseResult(this);
+            renderParseResult(parseResult);
             NoteChangeMonitor.ensureScheduled(this);
         } catch (IOException | SecurityException exception) {
             NoteChangeMonitor.ensureScheduled(this);
@@ -306,15 +346,15 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void renderMarkdown(String markdown) {
-        List<ObsidianTask> tasks = TaskParser.parse(markdown);
-        ReminderSchedule schedule = ReminderScheduler.schedule(this, tasks);
-        renderedFingerprint = NoteChangeMonitor.fingerprintOf(markdown);
+    private void renderParseResult(TaskParseResult parseResult) {
+        List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
+        ReminderSchedule schedule = ReminderScheduler.schedule(this, activeTasks);
+        renderedFingerprint = NoteChangeMonitor.fingerprintOf(parseResult);
         NoteChangeMonitor.recordSuccessfulSync(this, renderedFingerprint);
 
-        renderTasks(tasks);
+        renderTasks(parseResult.getTasks());
         setNextReminder(schedule.getNextReminder());
-        setStatus(buildStatus(tasks.size(), schedule));
+        setStatus(buildStatus(parseResult, schedule));
     }
 
     private void refreshNoteIfChanged() {
@@ -323,10 +363,10 @@ public final class MainActivity extends Activity {
         }
 
         try {
-            String markdown = NoteStore.readMarkdown(this, noteUri);
-            String fingerprint = NoteChangeMonitor.fingerprintOf(markdown);
+            TaskParseResult parseResult = NoteStore.readTaskParseResult(this);
+            String fingerprint = NoteChangeMonitor.fingerprintOf(parseResult);
             if (!fingerprint.equals(renderedFingerprint)) {
-                renderMarkdown(markdown);
+                renderParseResult(parseResult);
             }
         } catch (IOException | SecurityException exception) {
             setStatus("Файл временно недоступен: " + exception.getMessage()
@@ -343,35 +383,66 @@ public final class MainActivity extends Activity {
         noteRefreshHandler.removeCallbacks(noteRefreshRunnable);
     }
 
-    private String buildStatus(int taskCount, ReminderSchedule schedule) {
+    private String buildStatus(TaskParseResult parseResult, ReminderSchedule schedule) {
         String permissionStatus = schedule.isNotificationsAllowed()
                 ? "уведомления разрешены"
                 : "нет разрешения на уведомления";
         String exactAlarmStatus = ReminderScheduler.canScheduleExactAlarms(this)
                 ? "точные напоминания разрешены"
                 : "точные напоминания не разрешены, используется неточный fallback";
-        return String.format(
+        String status = String.format(
                 Locale.getDefault(),
-                "Файл: %s\nАктивных задач: %d\nЗапланировано уведомлений: %d\n%s\n%s\nОбновлено: %s",
-                getDisplayName(noteUri),
-                taskCount,
+                "Источник: %s\nВсего задач: %d\nАктивных задач: %d\nЗапланировано уведомлений: %d\n%s\n%s\nОбновлено: %s",
+                NoteStore.sourceLabel(this),
+                parseResult.getTasks().size(),
+                parseResult.getActiveTasks().size(),
                 schedule.getScheduledCount(),
                 permissionStatus,
                 exactAlarmStatus,
                 DATE_TIME_FORMAT.format(LocalDateTime.now())
         );
+
+        if (!parseResult.getErrors().isEmpty()) {
+            StringBuilder builder = new StringBuilder(status);
+            builder.append("\nОшибки разбора:");
+            int limit = Math.min(3, parseResult.getErrors().size());
+            for (int i = 0; i < limit; i++) {
+                builder.append("\n").append(parseResult.getErrors().get(i).format());
+            }
+            if (parseResult.getErrors().size() > limit) {
+                builder.append("\nЕще ошибок: ").append(parseResult.getErrors().size() - limit);
+            }
+            status = builder.toString();
+        }
+
+        return status;
     }
 
     private void renderTasks(List<ObsidianTask> tasks) {
         taskList.removeAllViews();
-        if (tasks.isEmpty()) {
+        List<ObsidianTask> visibleTasks = filterVisibleTasks(tasks);
+        if (visibleTasks.isEmpty()) {
             renderEmptyState("В заметке нет активных строк вида - [ ].");
             return;
         }
 
-        for (ObsidianTask task : tasks) {
+        for (ObsidianTask task : visibleTasks) {
             taskList.addView(createTaskView(task));
         }
+    }
+
+    private List<ObsidianTask> filterVisibleTasks(List<ObsidianTask> tasks) {
+        if (!UserPreferences.isActiveOnly(this)) {
+            return tasks;
+        }
+
+        java.util.ArrayList<ObsidianTask> activeTasks = new java.util.ArrayList<>();
+        for (ObsidianTask task : tasks) {
+            if (!task.isCompleted()) {
+                activeTasks.add(task);
+            }
+        }
+        return activeTasks;
     }
 
     private View createTaskView(ObsidianTask task) {
@@ -419,7 +490,11 @@ public final class MainActivity extends Activity {
 
     private String formatMeta(ObsidianTask task) {
         StringBuilder builder = new StringBuilder();
-        builder.append("Строка ").append(task.getLineNumber());
+        builder.append(formatStatus(task.getStatus(LocalDateTime.now())));
+        if (!task.getSourceName().isEmpty()) {
+            builder.append(" · ").append(task.getSourceName());
+        }
+        builder.append(" · строка ").append(task.getLineNumber());
 
         if (task.getReminderAt() != null) {
             builder.append(" · напомнить ").append(DATE_TIME_FORMAT.format(task.getReminderAt()));
@@ -432,6 +507,16 @@ public final class MainActivity extends Activity {
         }
 
         return builder.toString();
+    }
+
+    private String formatStatus(TaskStatus status) {
+        if (status == TaskStatus.COMPLETED) {
+            return "завершена";
+        }
+        if (status == TaskStatus.OVERDUE) {
+            return "просрочена";
+        }
+        return "ожидает";
     }
 
     private String formatRepeat(ObsidianTask task) {
@@ -488,26 +573,6 @@ public final class MainActivity extends Activity {
         ));
     }
 
-    private String getDisplayName(Uri uri) {
-        try (Cursor cursor = getContentResolver().query(
-                uri,
-                new String[]{OpenableColumns.DISPLAY_NAME},
-                null,
-                null,
-                null
-        )) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (index >= 0) {
-                    return cursor.getString(index);
-                }
-            }
-        } catch (SecurityException ignored) {
-            return uri.toString();
-        }
-        return uri.toString();
-    }
-
     private void requestNotificationPermissionIfNeeded() {
         if (!hasNotificationPermission() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission();
@@ -555,6 +620,16 @@ public final class MainActivity extends Activity {
         boolean needsPermissionButton = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 && !ReminderScheduler.canScheduleExactAlarms(this);
         exactAlarmPermissionButton.setVisibility(needsPermissionButton ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateActiveFilterButton() {
+        if (activeFilterButton == null) {
+            return;
+        }
+
+        activeFilterButton.setText(UserPreferences.isActiveOnly(this)
+                ? "Фильтр: только активные"
+                : "Фильтр: все задачи");
     }
 
     private void setStatus(String message) {

@@ -28,7 +28,7 @@ public final class NoteChangeMonitor {
     }
 
     public static void ensureScheduled(Context context) {
-        if (NoteStore.getSavedNoteUri(context) == null) {
+        if (NoteStore.getSavedSourceUri(context) == null) {
             cancel(context);
             return;
         }
@@ -59,15 +59,15 @@ public final class NoteChangeMonitor {
 
     public static NoteSyncResult syncNow(Context context) {
         try {
-            String markdown = NoteStore.readMarkdown(context, NoteStore.requireSavedNoteUri(context));
-            List<ObsidianTask> tasks = TaskParser.parse(markdown);
-            ReminderSchedule schedule = ReminderScheduler.schedule(context, tasks);
-            String fingerprint = fingerprintOf(markdown);
+            TaskParseResult parseResult = NoteStore.readTaskParseResult(context);
+            List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
+            ReminderSchedule schedule = ReminderScheduler.schedule(context, activeTasks);
+            String fingerprint = fingerprintOf(parseResult);
             String previousFingerprint = getLastFingerprint(context);
             recordSuccessfulSync(context, fingerprint);
             return NoteSyncResult.success(
                     previousFingerprint == null || !previousFingerprint.equals(fingerprint),
-                    tasks.size(),
+                    parseResult.getTasks().size(),
                     schedule
             );
         } catch (IOException | SecurityException exception) {
@@ -98,6 +98,22 @@ public final class NoteChangeMonitor {
         } catch (NoSuchAlgorithmException exception) {
             return String.valueOf(markdown.hashCode());
         }
+    }
+
+    public static String fingerprintOf(TaskParseResult parseResult) {
+        StringBuilder builder = new StringBuilder();
+        for (ObsidianTask task : parseResult.getTasks()) {
+            builder.append(task.getTaskKey())
+                    .append('|')
+                    .append(task.isCompleted())
+                    .append('|')
+                    .append(task.getRawLine())
+                    .append('\n');
+        }
+        for (TaskParseError error : parseResult.getErrors()) {
+            builder.append("error|").append(error.format()).append('\n');
+        }
+        return fingerprintOf(builder.toString());
     }
 
     private static void recordFailedSync(Context context, Exception exception) {
