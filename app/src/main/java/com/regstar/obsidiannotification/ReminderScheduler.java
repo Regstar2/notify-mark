@@ -221,6 +221,15 @@ public final class ReminderScheduler {
                 == PackageManager.PERMISSION_GRANTED;
     }
 
+    public static boolean canScheduleExactAlarms(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return true;
+        }
+
+        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        return alarmManager != null && alarmManager.canScheduleExactAlarms();
+    }
+
     static ScheduledReminder buildScheduledReminder(
             ObsidianTask task,
             LocalDateTime now,
@@ -320,13 +329,21 @@ public final class ReminderScheduler {
     ) {
         PendingIntent pendingIntent = createReminderPendingIntent(context, reminder);
         alarmManager.cancel(pendingIntent);
-        alarmManager.setAlarmClock(
-                new AlarmManager.AlarmClockInfo(
-                        reminder.getTriggerAtMillis(),
-                        createOpenAppPendingIntent(context, reminder.getNotificationId())
-                ),
-                pendingIntent
-        );
+        if (canScheduleExactAlarms(context)) {
+            alarmManager.setAlarmClock(
+                    new AlarmManager.AlarmClockInfo(
+                            reminder.getTriggerAtMillis(),
+                            createOpenAppPendingIntent(context, reminder.getNotificationId())
+                    ),
+                    pendingIntent
+            );
+        } else {
+            alarmManager.set(
+                    AlarmManager.RTC_WAKEUP,
+                    reminder.getTriggerAtMillis(),
+                    pendingIntent
+            );
+        }
     }
 
     private static void cancelScheduled(Context context, Map<String, ScheduledState> state) {

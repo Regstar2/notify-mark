@@ -11,6 +11,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
+import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -36,6 +37,7 @@ public final class MainActivity extends Activity {
     private TextView nextReminderText;
     private Button refreshButton;
     private Button notificationPermissionButton;
+    private Button exactAlarmPermissionButton;
     private LinearLayout taskList;
 
     @Override
@@ -48,6 +50,7 @@ public final class MainActivity extends Activity {
 
         buildUi();
         updateNotificationPermissionUi();
+        updateExactAlarmPermissionUi();
         requestNotificationPermissionIfNeeded();
 
         if (noteUri == null) {
@@ -57,6 +60,14 @@ public final class MainActivity extends Activity {
             renderEmptyState("Задачи появятся здесь после выбора заметки.");
         } else {
             readAndRenderNote();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (exactAlarmPermissionButton != null) {
+            updateExactAlarmPermissionUi();
         }
     }
 
@@ -185,6 +196,17 @@ public final class MainActivity extends Activity {
         permissionParams.setMargins(0, 0, 0, dp(12));
         root.addView(notificationPermissionButton, permissionParams);
 
+        exactAlarmPermissionButton = new Button(this);
+        exactAlarmPermissionButton.setText("Разрешить точные напоминания");
+        exactAlarmPermissionButton.setAllCaps(false);
+        exactAlarmPermissionButton.setOnClickListener(view -> requestExactAlarmPermission());
+        LinearLayout.LayoutParams exactAlarmParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        exactAlarmParams.setMargins(0, 0, 0, dp(12));
+        root.addView(exactAlarmPermissionButton, exactAlarmParams);
+
         statusText = new TextView(this);
         statusText.setTextColor(getColor(R.color.text_secondary));
         statusText.setTextSize(14);
@@ -266,13 +288,17 @@ public final class MainActivity extends Activity {
         String permissionStatus = schedule.isNotificationsAllowed()
                 ? "уведомления разрешены"
                 : "нет разрешения на уведомления";
+        String exactAlarmStatus = ReminderScheduler.canScheduleExactAlarms(this)
+                ? "точные напоминания разрешены"
+                : "точные напоминания не разрешены, используется неточный fallback";
         return String.format(
                 Locale.getDefault(),
-                "Файл: %s\nАктивных задач: %d\nЗапланировано уведомлений: %d\n%s\nОбновлено: %s",
+                "Файл: %s\nАктивных задач: %d\nЗапланировано уведомлений: %d\n%s\n%s\nОбновлено: %s",
                 getDisplayName(noteUri),
                 taskCount,
                 schedule.getScheduledCount(),
                 permissionStatus,
+                exactAlarmStatus,
                 DATE_TIME_FORMAT.format(LocalDateTime.now())
         );
     }
@@ -438,6 +464,20 @@ public final class MainActivity extends Activity {
         requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
     }
 
+    private void requestExactAlarmPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                || ReminderScheduler.canScheduleExactAlarms(this)) {
+            updateExactAlarmPermissionUi();
+            return;
+        }
+
+        Intent intent = new Intent(
+                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:" + getPackageName())
+        );
+        startActivity(intent);
+    }
+
     private boolean hasNotificationPermission() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return true;
@@ -450,6 +490,12 @@ public final class MainActivity extends Activity {
         boolean needsPermissionButton = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 && !hasNotificationPermission();
         notificationPermissionButton.setVisibility(needsPermissionButton ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateExactAlarmPermissionUi() {
+        boolean needsPermissionButton = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && !ReminderScheduler.canScheduleExactAlarms(this);
+        exactAlarmPermissionButton.setVisibility(needsPermissionButton ? View.VISIBLE : View.GONE);
     }
 
     private void setStatus(String message) {
