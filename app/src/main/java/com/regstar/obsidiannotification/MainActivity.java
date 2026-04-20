@@ -74,9 +74,13 @@ public final class MainActivity extends Activity {
         }
 
         try {
+            int persistableFlags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            if (persistableFlags == 0) {
+                persistableFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            }
             getContentResolver().takePersistableUriPermission(
                     selectedUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    persistableFlags
             );
         } catch (SecurityException ignored) {
             // Some providers grant temporary read access only. The current session can still read it.

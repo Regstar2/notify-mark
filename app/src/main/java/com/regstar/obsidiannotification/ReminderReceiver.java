@@ -37,17 +37,20 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 intent.getStringExtra(ReminderScheduler.EXTRA_REPEAT_MODE)
         );
 
-        ObsidianTask activeTask = null;
+        ActiveTaskLookup activeTaskLookup = ActiveTaskLookup.unknown();
         if (repeatMode == RepeatMode.UNTIL_DONE) {
-            activeTask = findActiveTask(context, taskKey);
-            if (activeTask == null) {
+            activeTaskLookup = findActiveTask(context, taskKey);
+            if (activeTaskLookup.isMissing()) {
                 ReminderScheduler.cancelReminder(context, taskKey);
                 return;
             }
 
-            title = activeTask.getTitle();
-            lineNumber = activeTask.getLineNumber();
-            repeatIntervalMillis = activeTask.getRepeatIntervalMillis();
+            if (activeTaskLookup.isFound()) {
+                ObsidianTask activeTask = activeTaskLookup.getTask();
+                title = activeTask.getTitle();
+                lineNumber = activeTask.getLineNumber();
+                repeatIntervalMillis = activeTask.getRepeatIntervalMillis();
+            }
         }
 
         NotificationManager notificationManager =
@@ -69,7 +72,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 safeTitle(title),
                 repeatIntervalMillis,
                 repeatMode,
-                activeTask
+                activeTaskLookup.getTask()
         );
     }
 
@@ -120,15 +123,16 @@ public final class ReminderReceiver extends BroadcastReceiver {
         return title;
     }
 
-    private ObsidianTask findActiveTask(Context context, String taskKey) {
+    private ActiveTaskLookup findActiveTask(Context context, String taskKey) {
         if (taskKey == null || taskKey.isEmpty()) {
-            return null;
+            return ActiveTaskLookup.unknown();
         }
 
         try {
-            return NoteStore.findActiveTask(context, taskKey);
+            ObsidianTask task = NoteStore.findActiveTask(context, taskKey);
+            return task == null ? ActiveTaskLookup.missing() : ActiveTaskLookup.found(task);
         } catch (IOException | SecurityException exception) {
-            return null;
+            return ActiveTaskLookup.unknown();
         }
     }
 
@@ -145,6 +149,16 @@ public final class ReminderReceiver extends BroadcastReceiver {
         if (repeatMode == RepeatMode.UNTIL_DONE) {
             if (activeTask != null) {
                 ReminderScheduler.scheduleNextRepeat(context, activeTask);
+            } else if (repeatIntervalMillis > 0) {
+                ReminderScheduler.scheduleNextRepeat(
+                        context,
+                        taskKey,
+                        notificationId,
+                        lineNumber,
+                        title,
+                        repeatIntervalMillis,
+                        repeatMode
+                );
             }
             return;
         }
@@ -159,6 +173,40 @@ public final class ReminderReceiver extends BroadcastReceiver {
                     repeatIntervalMillis,
                     repeatMode
             );
+        }
+    }
+
+    private static final class ActiveTaskLookup {
+        private final ObsidianTask task;
+        private final boolean checked;
+
+        private ActiveTaskLookup(ObsidianTask task, boolean checked) {
+            this.task = task;
+            this.checked = checked;
+        }
+
+        private static ActiveTaskLookup found(ObsidianTask task) {
+            return new ActiveTaskLookup(task, true);
+        }
+
+        private static ActiveTaskLookup missing() {
+            return new ActiveTaskLookup(null, true);
+        }
+
+        private static ActiveTaskLookup unknown() {
+            return new ActiveTaskLookup(null, false);
+        }
+
+        private boolean isFound() {
+            return task != null;
+        }
+
+        private boolean isMissing() {
+            return checked && task == null;
+        }
+
+        private ObsidianTask getTask() {
+            return task;
         }
     }
 }
