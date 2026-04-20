@@ -9,8 +9,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
+import android.provider.Settings;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -26,7 +28,7 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class ReminderScheduler {
-    public static final String CHANNEL_ID = "task_reminders";
+    public static final String CHANNEL_ID = "task_reminders_loud";
     public static final String ACTION_SHOW_REMINDER =
             "com.regstar.obsidiannotification.action.SHOW_REMINDER";
     public static final String EXTRA_TASK_KEY = "task_key";
@@ -53,9 +55,20 @@ public final class ReminderScheduler {
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
                 "Напоминания задач",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
         );
-        channel.setDescription("Локальные напоминания из markdown-задач Obsidian.");
+        channel.setDescription("Настойчивые локальные напоминания из markdown-задач Obsidian.");
+        channel.enableLights(true);
+        channel.enableVibration(true);
+        channel.setVibrationPattern(new long[]{0L, 500L, 200L, 500L});
+        channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+        channel.setSound(
+                Settings.System.DEFAULT_NOTIFICATION_URI,
+                new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+        );
 
         NotificationManager notificationManager =
                 context.getSystemService(NotificationManager.class);

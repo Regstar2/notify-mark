@@ -59,8 +59,13 @@ public final class ReminderReceiver extends BroadcastReceiver {
             return;
         }
 
-        notificationManager.notify(
+        int displayNotificationId = notificationIdForDisplay(
                 notificationId,
+                triggerAtMillis,
+                repeatMode
+        );
+        notificationManager.notify(
+                displayNotificationId,
                 buildNotification(context, safeTitle(title), lineNumber, triggerAtMillis)
         );
 
@@ -95,7 +100,13 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 .setAutoCancel(true)
                 .setWhen(triggerAtMillis)
                 .setShowWhen(true)
-                .setPriority(Notification.PRIORITY_DEFAULT);
+                .setOnlyAlertOnce(false)
+                .setCategory(Notification.CATEGORY_REMINDER)
+                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setDefaults(Notification.DEFAULT_SOUND
+                        | Notification.DEFAULT_VIBRATE
+                        | Notification.DEFAULT_LIGHTS)
+                .setPriority(Notification.PRIORITY_MAX);
 
         if (lineNumber > 0) {
             builder.setSubText("Строка " + lineNumber);
@@ -121,6 +132,25 @@ public final class ReminderReceiver extends BroadcastReceiver {
             return "Задача без текста";
         }
         return title;
+    }
+
+    private int notificationIdForDisplay(
+            int scheduledNotificationId,
+            long triggerAtMillis,
+            RepeatMode repeatMode
+    ) {
+        if (repeatMode == RepeatMode.NONE) {
+            return scheduledNotificationId;
+        }
+
+        long mixed = 31L * scheduledNotificationId + triggerAtMillis;
+        int id = (int) (mixed ^ (mixed >>> 32));
+        if (id == Integer.MIN_VALUE) {
+            id = 0;
+        }
+
+        id = Math.abs(id);
+        return id == 0 ? scheduledNotificationId : id;
     }
 
     private ActiveTaskLookup findActiveTask(Context context, String taskKey) {
