@@ -14,9 +14,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
@@ -43,8 +45,18 @@ public final class MainActivity extends Activity {
     private Uri noteUri;
     private TextView statusText;
     private TextView nextReminderText;
+    private TextView sourceTitleText;
+    private TextView sourceMetaText;
+    private TextView sourceStatsText;
+    private TextView sourceErrorText;
+    private TextView nextReminderTimeText;
+    private TextView nextReminderTitleText;
+    private TextView nextReminderMetaText;
     private Button refreshButton;
     private Button activeFilterButton;
+    private Button allFilterButton;
+    private Button overdueFilterButton;
+    private Button completedFilterButton;
     private Button notificationPermissionButton;
     private Button exactAlarmPermissionButton;
     private LinearLayout taskList;
@@ -173,7 +185,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void buildUi() {
+    private void buildLegacyUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(20), dp(20), dp(20), dp(20));
@@ -315,20 +327,236 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        ScrollView scrollView = new ScrollView(this);
         taskList = new LinearLayout(this);
         taskList.setOrientation(LinearLayout.VERTICAL);
-        scrollView.addView(taskList, new ScrollView.LayoutParams(
+        root.addView(taskList, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-        root.addView(scrollView, new LinearLayout.LayoutParams(
+
+        ScrollView screenScroll = new ScrollView(this);
+        screenScroll.setFillViewport(true);
+        screenScroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        setContentView(screenScroll);
+    }
+
+    private void buildUi() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(16), dp(14), dp(16), dp(16));
+        root.setBackgroundColor(getColor(R.color.background));
+
+        LinearLayout appBar = new LinearLayout(this);
+        appBar.setOrientation(LinearLayout.HORIZONTAL);
+        appBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        appBar.setPadding(0, 0, 0, dp(12));
+
+        LinearLayout titleColumn = new LinearLayout(this);
+        titleColumn.setOrientation(LinearLayout.VERTICAL);
+        titleColumn.addView(createText("ObsidianNotification", 22, R.color.text_primary, true), fullWidth());
+
+        TextView subtitle = createText(
+                "Напоминания из markdown-заметок Obsidian",
+                13,
+                R.color.text_secondary,
+                false
+        );
+        subtitle.setSingleLine(true);
+        subtitle.setEllipsize(TextUtils.TruncateAt.END);
+        titleColumn.addView(subtitle, fullWidth());
+
+        appBar.addView(titleColumn, new LinearLayout.LayoutParams(
                 0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
 
-        setContentView(root);
+        ImageButton settingsButton = new ImageButton(this);
+        settingsButton.setImageResource(R.drawable.ic_settings);
+        settingsButton.setContentDescription("Настройки");
+        settingsButton.setBackground(createCircleBackground(getColor(R.color.icon_button_background)));
+        settingsButton.setOnClickListener(view -> openSettings());
+        appBar.addView(settingsButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        root.addView(appBar, fullWidth());
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(0, 0, 0, dp(10));
+
+        Button chooseButton = createActionButton("Источник", true);
+        chooseButton.setOnClickListener(view -> openNotePicker());
+        actions.addView(chooseButton, new LinearLayout.LayoutParams(
+                0,
+                dp(44),
+                1
+        ));
+
+        refreshButton = createActionButton("Обновить", false);
+        refreshButton.setEnabled(noteUri != null);
+        refreshButton.setOnClickListener(view -> readAndRenderNote());
+        LinearLayout.LayoutParams refreshParams = new LinearLayout.LayoutParams(dp(112), dp(44));
+        refreshParams.setMargins(dp(8), 0, 0, 0);
+        actions.addView(refreshButton, refreshParams);
+
+        Button addTaskButton = createActionButton("Добавить", false);
+        addTaskButton.setOnClickListener(view -> openTaskEditor(null));
+        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(dp(112), dp(44));
+        addParams.setMargins(dp(8), 0, 0, 0);
+        actions.addView(addTaskButton, addParams);
+        root.addView(actions, fullWidth());
+
+        HorizontalScrollView filterScroll = new HorizontalScrollView(this);
+        filterScroll.setHorizontalScrollBarEnabled(false);
+        filterScroll.setVerticalScrollBarEnabled(false);
+        filterScroll.setPadding(0, 0, 0, dp(12));
+        LinearLayout filterRow = new LinearLayout(this);
+        filterRow.setOrientation(LinearLayout.HORIZONTAL);
+        allFilterButton = createFilterChip("Все", UserPreferences.FILTER_ALL);
+        activeFilterButton = createFilterChip("Активные", UserPreferences.FILTER_ACTIVE);
+        overdueFilterButton = createFilterChip("Просроченные", UserPreferences.FILTER_OVERDUE);
+        completedFilterButton = createFilterChip("Завершенные", UserPreferences.FILTER_COMPLETED);
+        addChip(filterRow, allFilterButton, 0);
+        addChip(filterRow, activeFilterButton, dp(6));
+        addChip(filterRow, overdueFilterButton, dp(6));
+        addChip(filterRow, completedFilterButton, dp(6));
+        updateActiveFilterButton();
+        filterScroll.addView(filterRow, new HorizontalScrollView.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        root.addView(filterScroll, fullWidth());
+
+        notificationPermissionButton = createActionButton("Разрешить уведомления", true);
+        notificationPermissionButton.setOnClickListener(view -> requestNotificationPermission());
+        LinearLayout.LayoutParams permissionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        permissionParams.setMargins(0, 0, 0, dp(10));
+        root.addView(notificationPermissionButton, permissionParams);
+
+        exactAlarmPermissionButton = createActionButton("Разрешить точные напоминания", false);
+        exactAlarmPermissionButton.setOnClickListener(view -> requestExactAlarmPermission());
+        LinearLayout.LayoutParams exactAlarmParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(44)
+        );
+        exactAlarmParams.setMargins(0, 0, 0, dp(10));
+        root.addView(exactAlarmPermissionButton, exactAlarmParams);
+
+        LinearLayout sourceCard = createCardContainer();
+        sourceTitleText = createText("Источник", 15, R.color.text_primary, true);
+        sourceMetaText = createText("Источник не выбран", 13, R.color.text_secondary, false);
+        sourceStatsText = createText("", 13, R.color.text_secondary, false);
+        sourceErrorText = createText("", 13, R.color.error_text, false);
+        sourceCard.addView(sourceTitleText, fullWidth());
+        sourceCard.addView(sourceMetaText, fullWidthWithTopMargin(dp(4)));
+        sourceCard.addView(sourceStatsText, fullWidthWithTopMargin(dp(10)));
+        sourceCard.addView(sourceErrorText, fullWidthWithTopMargin(dp(8)));
+        statusText = sourceMetaText;
+        LinearLayout.LayoutParams sourceParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        sourceParams.setMargins(0, 0, 0, dp(12));
+        root.addView(sourceCard, sourceParams);
+
+        LinearLayout reminderCard = createCardContainer();
+        reminderCard.addView(createText("Ближайшее напоминание", 13, R.color.text_secondary, false), fullWidth());
+        nextReminderTimeText = createText("Нет будущих напоминаний", 20, R.color.text_primary, true);
+        nextReminderTitleText = createText("", 15, R.color.text_primary, false);
+        nextReminderMetaText = createText("", 13, R.color.text_secondary, false);
+        nextReminderText = nextReminderTitleText;
+        reminderCard.addView(nextReminderTimeText, fullWidthWithTopMargin(dp(6)));
+        reminderCard.addView(nextReminderTitleText, fullWidthWithTopMargin(dp(4)));
+        reminderCard.addView(nextReminderMetaText, fullWidthWithTopMargin(dp(4)));
+        LinearLayout.LayoutParams reminderParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        reminderParams.setMargins(0, 0, 0, dp(14));
+        root.addView(reminderCard, reminderParams);
+
+        taskList = new LinearLayout(this);
+        taskList.setOrientation(LinearLayout.VERTICAL);
+        root.addView(taskList, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        ScrollView screenScroll = new ScrollView(this);
+        screenScroll.setFillViewport(true);
+        screenScroll.addView(root, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        setContentView(screenScroll);
+    }
+
+    private Button createActionButton(String text, boolean primary) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setAllCaps(false);
+        button.setTextSize(14);
+        button.setTypeface(Typeface.DEFAULT, primary ? Typeface.BOLD : Typeface.NORMAL);
+        button.setTextColor(getColor(primary
+                ? R.color.primary_button_text
+                : R.color.secondary_button_text));
+        button.setBackground(createRoundedBackground(
+                getColor(primary ? R.color.primary_button_background : R.color.secondary_button_background),
+                primary ? 0 : getColor(R.color.card_stroke),
+                8
+        ));
+        return button;
+    }
+
+    private Button createFilterChip(String text, String filter) {
+        Button chip = new Button(this);
+        chip.setText(text);
+        chip.setAllCaps(false);
+        chip.setTextSize(12);
+        chip.setSingleLine(true);
+        chip.setMinHeight(0);
+        chip.setMinWidth(0);
+        chip.setMinimumWidth(0);
+        chip.setPadding(dp(14), 0, dp(14), 0);
+        chip.setOnClickListener(view -> {
+            UserPreferences.setTaskFilter(this, filter);
+            updateActiveFilterButton();
+            readAndRenderNote();
+        });
+        return chip;
+    }
+
+    private void addChip(LinearLayout row, Button chip, int leftMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(38)
+        );
+        params.setMargins(leftMargin, 0, 0, 0);
+        row.addView(chip, params);
+    }
+
+    private LinearLayout createCardContainer() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(createCardBackground());
+        return card;
+    }
+
+    private TextView createText(String text, int sizeSp, int colorRes, boolean bold) {
+        TextView textView = new TextView(this);
+        textView.setText(text);
+        textView.setTextSize(sizeSp);
+        textView.setTextColor(getColor(colorRes));
+        textView.setTypeface(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL);
+        return textView;
     }
 
     @SuppressWarnings("deprecation")
@@ -391,7 +619,7 @@ public final class MainActivity extends Activity {
 
         renderTasks(parseResult.getTasks());
         setNextReminder(schedule.getNextReminder());
-        setStatus(buildStatus(parseResult, schedule, snapshot));
+        updateStatusCard(parseResult, schedule, snapshot);
     }
 
     private void refreshNoteIfChanged() {
@@ -448,6 +676,53 @@ public final class MainActivity extends Activity {
 
     private void stopForegroundNotePolling() {
         noteRefreshHandler.removeCallbacks(noteRefreshRunnable);
+    }
+
+    private void updateStatusCard(
+            TaskParseResult parseResult,
+            ReminderSchedule schedule,
+            NoteStore.TaskSnapshot snapshot
+    ) {
+        if (sourceTitleText == null) {
+            setStatus(buildStatus(parseResult, schedule, snapshot));
+            return;
+        }
+
+        sourceTitleText.setText("Источник: " + compactSourceName(parseResult));
+        sourceMetaText.setText(String.format(
+                Locale.getDefault(),
+                "Файлов: %d · обновлено %s",
+                snapshot.getDocumentCount(),
+                DateTimeFormatter.ofPattern("HH:mm").format(LocalDateTime.now())
+        ));
+        sourceStatsText.setText(String.format(
+                Locale.getDefault(),
+                "Всего: %d · Активных: %d\nПлан: %d · Уведомления: %s",
+                parseResult.getTasks().size(),
+                parseResult.getActiveTasks().size(),
+                schedule.getScheduledCount(),
+                schedule.isNotificationsAllowed() ? "вкл." : "выкл."
+        ));
+
+        if (parseResult.getErrors().isEmpty()) {
+            sourceErrorText.setVisibility(View.GONE);
+            sourceErrorText.setText("");
+            return;
+        }
+
+        StringBuilder errors = new StringBuilder("Ошибки разбора: ");
+        int limit = Math.min(2, parseResult.getErrors().size());
+        for (int i = 0; i < limit; i++) {
+            if (i > 0) {
+                errors.append("\n");
+            }
+            errors.append(parseResult.getErrors().get(i).format());
+        }
+        if (parseResult.getErrors().size() > limit) {
+            errors.append("\nЕще ошибок: ").append(parseResult.getErrors().size() - limit);
+        }
+        sourceErrorText.setVisibility(View.VISIBLE);
+        sourceErrorText.setText(errors.toString());
     }
 
     private String buildStatus(
@@ -511,17 +786,24 @@ public final class MainActivity extends Activity {
     }
 
     private List<ObsidianTask> filterVisibleTasks(List<ObsidianTask> tasks) {
-        if (!UserPreferences.isActiveOnly(this)) {
+        String filter = UserPreferences.getTaskFilter(this);
+        if (UserPreferences.FILTER_ALL.equals(filter)) {
             return tasks;
         }
 
-        java.util.ArrayList<ObsidianTask> activeTasks = new java.util.ArrayList<>();
+        java.util.ArrayList<ObsidianTask> visibleTasks = new java.util.ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
         for (ObsidianTask task : tasks) {
-            if (!task.isCompleted()) {
-                activeTasks.add(task);
+            TaskStatus status = task.getStatus(now);
+            if (UserPreferences.FILTER_ACTIVE.equals(filter) && status != TaskStatus.COMPLETED) {
+                visibleTasks.add(task);
+            } else if (UserPreferences.FILTER_OVERDUE.equals(filter) && status == TaskStatus.OVERDUE) {
+                visibleTasks.add(task);
+            } else if (UserPreferences.FILTER_COMPLETED.equals(filter) && status == TaskStatus.COMPLETED) {
+                visibleTasks.add(task);
             }
         }
-        return activeTasks;
+        return visibleTasks;
     }
 
     private boolean hasMultipleSources(List<ObsidianTask> tasks) {
@@ -541,13 +823,16 @@ public final class MainActivity extends Activity {
         TextView header = new TextView(this);
         header.setText(sourceName == null || sourceName.isEmpty() ? "Без имени файла" : sourceName);
         header.setTextColor(getColor(R.color.text_primary));
+        header.setText(sourceName == null || sourceName.isEmpty()
+                ? "Без имени файла"
+                : compactName(sourceName));
         header.setTextSize(16);
         header.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         header.setPadding(0, dp(14), 0, dp(8));
         return header;
     }
 
-    private View createTaskView(ObsidianTask task) {
+    private View createLegacyTaskView(ObsidianTask task) {
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setPadding(dp(14), dp(12), dp(14), dp(12));
@@ -606,7 +891,99 @@ public final class MainActivity extends Activity {
         return drawable;
     }
 
-    private void showTaskMenu(Button anchor, ObsidianTask task) {
+    private View createTaskView(ObsidianTask task) {
+        LinearLayout item = createCardContainer();
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView title = createText(task.getTitle(), 16, R.color.text_primary, true);
+        title.setMaxLines(2);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        titleRow.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        TextView statusChip = createStatusChip(task.getStatus(LocalDateTime.now()));
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(30)
+        );
+        statusParams.setMargins(dp(8), 0, dp(4), 0);
+        titleRow.addView(statusChip, statusParams);
+
+        TextView menuButton = new TextView(this);
+        menuButton.setText("⋮");
+        menuButton.setTextSize(24);
+        menuButton.setTextColor(getColor(R.color.text_secondary));
+        menuButton.setGravity(android.view.Gravity.CENTER);
+        menuButton.setOnClickListener(view -> showTaskMenu(menuButton, task));
+        titleRow.addView(menuButton, new LinearLayout.LayoutParams(dp(36), dp(36)));
+
+        item.addView(titleRow, fullWidth());
+        item.addView(createMetaLine("Время", task.getReminderAt() == null
+                ? "не указано"
+                : DATE_TIME_FORMAT.format(task.getReminderAt())), fullWidthWithTopMargin(dp(10)));
+
+        if (task.getRepeatInterval() != null) {
+            item.addView(createMetaLine("Повтор", formatRepeat(task)), fullWidthWithTopMargin(dp(6)));
+        }
+
+        item.addView(createMetaLine("Файл", compactName(task.getSourceName())), fullWidthWithTopMargin(dp(6)));
+
+        String secondary = formatSecondaryTaskMeta(task);
+        if (!secondary.isEmpty()) {
+            TextView secondaryMeta = createText(secondary, 12, R.color.text_secondary, false);
+            secondaryMeta.setMaxLines(2);
+            secondaryMeta.setEllipsize(TextUtils.TruncateAt.END);
+            item.addView(secondaryMeta, fullWidthWithTopMargin(dp(8)));
+        }
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, 0, 0, dp(10));
+        item.setLayoutParams(params);
+        return item;
+    }
+
+    private TextView createStatusChip(TaskStatus status) {
+        int background;
+        int textColor;
+        String label;
+        if (status == TaskStatus.COMPLETED) {
+            background = R.color.status_completed_background;
+            textColor = R.color.status_completed_text;
+            label = "Завершена";
+        } else if (status == TaskStatus.OVERDUE) {
+            background = R.color.status_overdue_background;
+            textColor = R.color.status_overdue_text;
+            label = "Просрочена";
+        } else {
+            background = R.color.status_waiting_background;
+            textColor = R.color.status_waiting_text;
+            label = "Ожидает";
+        }
+
+        TextView chip = createText(label, 12, textColor, true);
+        chip.setGravity(android.view.Gravity.CENTER);
+        chip.setPadding(dp(10), 0, dp(10), 0);
+        chip.setBackground(createRoundedBackground(getColor(background), 0, 8));
+        return chip;
+    }
+
+    private TextView createMetaLine(String label, String value) {
+        TextView textView = createText(label + ": " + value, 13, R.color.text_secondary, false);
+        textView.setSingleLine(true);
+        textView.setEllipsize(TextUtils.TruncateAt.END);
+        return textView;
+    }
+
+    private void showTaskMenu(View anchor, ObsidianTask task) {
         PopupMenu popupMenu = new PopupMenu(this, anchor);
         popupMenu.getMenu().add(0, 1, 0, "Открыть заметку");
         popupMenu.getMenu().add(0, 2, 1, "Отложить");
@@ -826,6 +1203,27 @@ public final class MainActivity extends Activity {
     }
 
     private void setNextReminder(ScheduledReminder reminder) {
+        if (nextReminderTimeText != null) {
+            if (!hasNotificationPermission()) {
+                nextReminderTimeText.setText("Уведомления выключены");
+                nextReminderTitleText.setText("Разрешение нужно выдать в системе");
+                nextReminderMetaText.setText("");
+                return;
+            }
+
+            if (reminder == null) {
+                nextReminderTimeText.setText("Нет будущих напоминаний");
+                nextReminderTitleText.setText("");
+                nextReminderMetaText.setText("");
+                return;
+            }
+
+            nextReminderTimeText.setText(DateTimeFormatter.ofPattern("HH:mm").format(reminder.getTriggerAt()));
+            nextReminderTitleText.setText(reminder.getTitle());
+            nextReminderMetaText.setText(DATE_TIME_FORMAT.format(reminder.getTriggerAt()));
+            return;
+        }
+
         if (!hasNotificationPermission()) {
             nextReminderText.setText("Ближайшее напоминание: уведомления не разрешены.");
             return;
@@ -908,6 +1306,15 @@ public final class MainActivity extends Activity {
     }
 
     private void updateActiveFilterButton() {
+        if (allFilterButton != null) {
+            String filter = UserPreferences.getTaskFilter(this);
+            styleFilterChip(allFilterButton, UserPreferences.FILTER_ALL.equals(filter));
+            styleFilterChip(activeFilterButton, UserPreferences.FILTER_ACTIVE.equals(filter));
+            styleFilterChip(overdueFilterButton, UserPreferences.FILTER_OVERDUE.equals(filter));
+            styleFilterChip(completedFilterButton, UserPreferences.FILTER_COMPLETED.equals(filter));
+            return;
+        }
+
         if (activeFilterButton == null) {
             return;
         }
@@ -917,7 +1324,108 @@ public final class MainActivity extends Activity {
                 : "Фильтр: все задачи");
     }
 
+    private void styleFilterChip(Button chip, boolean selected) {
+        if (chip == null) {
+            return;
+        }
+        chip.setTextColor(getColor(selected ? R.color.chip_selected_text : R.color.chip_text));
+        chip.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+        chip.setBackground(createRoundedBackground(
+                getColor(selected ? R.color.chip_selected_background : R.color.chip_background),
+                getColor(selected ? R.color.chip_selected_stroke : R.color.chip_stroke),
+                8
+        ));
+    }
+
+    private LinearLayout.LayoutParams fullWidth() {
+        return new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    private LinearLayout.LayoutParams fullWidthWithTopMargin(int topMargin) {
+        LinearLayout.LayoutParams params = fullWidth();
+        params.setMargins(0, topMargin, 0, 0);
+        return params;
+    }
+
+    private GradientDrawable createRoundedBackground(int color, int strokeColor, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(radiusDp));
+        if (strokeColor != 0) {
+            drawable.setStroke(dp(1), strokeColor);
+        }
+        return drawable;
+    }
+
+    private GradientDrawable createCircleBackground(int color) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.OVAL);
+        drawable.setColor(color);
+        return drawable;
+    }
+
+    private String compactSourceName(TaskParseResult parseResult) {
+        if (parseResult != null && !parseResult.getTasks().isEmpty()) {
+            return compactName(parseResult.getTasks().get(0).getSourceName());
+        }
+        return compactName(noteUri == null ? "" : noteUri.toString());
+    }
+
+    private String compactName(String rawName) {
+        if (rawName == null || rawName.trim().isEmpty()) {
+            return "Без имени файла";
+        }
+
+        String value = rawName.trim();
+        int queryIndex = value.indexOf('?');
+        if (queryIndex >= 0) {
+            value = value.substring(0, queryIndex);
+        }
+        int encodedSlash = Math.max(value.lastIndexOf("%2F"), value.lastIndexOf("%2f"));
+        if (encodedSlash >= 0 && encodedSlash + 3 < value.length()) {
+            value = value.substring(encodedSlash + 3);
+        }
+        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        if (slash >= 0 && slash + 1 < value.length()) {
+            value = value.substring(slash + 1);
+        }
+        int colon = value.lastIndexOf(':');
+        if (colon >= 0 && colon + 1 < value.length()) {
+            value = value.substring(colon + 1);
+        }
+        return value.isEmpty() ? rawName : value;
+    }
+
+    private String formatSecondaryTaskMeta(ObsidianTask task) {
+        StringBuilder builder = new StringBuilder();
+        if (task.getPriority() != TaskPriority.NONE) {
+            builder.append(formatPriority(task.getPriority()));
+        }
+        if (!task.getTags().isEmpty()) {
+            if (builder.length() > 0) {
+                builder.append(" · ");
+            }
+            builder.append(formatTags(task.getTags()));
+        }
+        if (builder.length() > 0) {
+            builder.append(" · ");
+        }
+        builder.append("строка ").append(task.getLineNumber());
+        return builder.toString();
+    }
+
     private void setStatus(String message) {
+        if (sourceTitleText != null) {
+            sourceTitleText.setText(noteUri == null ? "Источник не выбран" : "Источник: " + compactName(noteUri.toString()));
+            sourceMetaText.setText(message == null ? "" : message);
+            sourceStatsText.setText("");
+            sourceErrorText.setText("");
+            sourceErrorText.setVisibility(View.GONE);
+            return;
+        }
         statusText.setText(message);
     }
 

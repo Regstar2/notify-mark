@@ -3,6 +3,24 @@
     <color name="background">#1E1F23</color>
     <color name="card_background">#2A2C31</color>
     <color name="card_stroke">#3A3D44</color>
+    <color name="icon_button_background">#343740</color>
+    <color name="primary_button_background">#8B7CF6</color>
+    <color name="primary_button_text">#17151F</color>
+    <color name="secondary_button_background">#343740</color>
+    <color name="secondary_button_text">#F0F1F4</color>
+    <color name="chip_background">#292C33</color>
+    <color name="chip_stroke">#3A3D44</color>
+    <color name="chip_text">#B8BBC4</color>
+    <color name="chip_selected_background">#3A3555</color>
+    <color name="chip_selected_stroke">#8B7CF6</color>
+    <color name="chip_selected_text">#E4DFFF</color>
+    <color name="status_waiting_background">#373451</color>
+    <color name="status_waiting_text">#D7D0FF</color>
+    <color name="status_overdue_background">#4A2F35</color>
+    <color name="status_overdue_text">#FFC8D0</color>
+    <color name="status_completed_background">#2F443A</color>
+    <color name="status_completed_text">#BDE7CE</color>
+    <color name="error_text">#FFB4BF</color>
     <color name="text_primary">#F0F1F4</color>
     <color name="text_secondary">#B8BBC4</color>
 </resources>

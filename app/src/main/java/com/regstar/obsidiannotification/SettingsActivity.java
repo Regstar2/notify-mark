@@ -586,7 +586,7 @@ public final class SettingsActivity extends Activity {
         NoteScanSettings scanSettings = NoteScanSettings.load(this);
         StringBuilder status = new StringBuilder("Источник: " + NoteStore.sourceLabel(this)
                 + "\nИсточников: " + NoteStore.getSavedSourceCount(this)
-                + "\nФильтр: " + (UserPreferences.isActiveOnly(this) ? "только активные" : "все задачи")
+                + "\nФильтр: " + UserPreferences.getTaskFilterLabel(this)
                 + "\nТочные напоминания: "
                 + (ReminderScheduler.canScheduleExactAlarms(this) ? "разрешены" : "не разрешены")
                 + "\nЗапись в заметку: " + (NoteStore.canWriteSavedSource(this) ? "разрешена" : "нужно выбрать источник заново")
