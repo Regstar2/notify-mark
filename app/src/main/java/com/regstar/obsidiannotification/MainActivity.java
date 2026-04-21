@@ -43,6 +43,7 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_OPEN_NOTE = 1001;
     private static final int REQUEST_NOTIFICATIONS = 1002;
     private static final int REQUEST_EDIT_TASK = 1003;
+    private static final int REQUEST_SOURCE_MANAGEMENT = 1004;
     private static final long FOREGROUND_REFRESH_INTERVAL_MS = 15_000L;
     private static final DateTimeFormatter DATE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
@@ -59,6 +60,8 @@ public final class MainActivity extends Activity {
     private TextView nextReminderTimeText;
     private TextView nextReminderTitleText;
     private TextView nextReminderMetaText;
+    private TextView taskSectionTitleText;
+    private TextView taskSectionCountText;
     private View refreshButton;
     private Button activeFilterButton;
     private Button allFilterButton;
@@ -112,7 +115,9 @@ public final class MainActivity extends Activity {
         }
         noteUri = NoteStore.getSavedSourceUri(this);
         if (noteUri != null) {
-            refreshButton.setEnabled(true);
+            if (refreshButton != null) {
+                refreshButton.setEnabled(true);
+            }
             updateActiveFilterButton();
             readAndRenderNote();
             startForegroundNotePolling();
@@ -132,6 +137,21 @@ public final class MainActivity extends Activity {
         if (requestCode == REQUEST_EDIT_TASK) {
             if (resultCode == RESULT_OK) {
                 readAndRenderNote();
+            }
+            return;
+        }
+
+        if (requestCode == REQUEST_SOURCE_MANAGEMENT) {
+            noteUri = NoteStore.getSavedSourceUri(this);
+            if (noteUri == null) {
+                NoteChangeMonitor.cancel(this);
+                ReminderScheduler.cancelScheduled(this);
+                setStatus("Источник не выбран.");
+                setNextReminder(null);
+                renderEmptyState("Задачи появятся здесь после выбора источника.");
+            } else {
+                readAndRenderNote();
+                NoteChangeMonitor.ensureScheduled(this);
             }
             return;
         }
@@ -362,40 +382,21 @@ public final class MainActivity extends Activity {
         LinearLayout appBar = new LinearLayout(this);
         appBar.setOrientation(LinearLayout.HORIZONTAL);
         appBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        appBar.setPadding(0, 0, 0, dp(12));
+        appBar.setPadding(0, 0, 0, dp(10));
 
-        LinearLayout titleColumn = new LinearLayout(this);
-        titleColumn.setOrientation(LinearLayout.VERTICAL);
-        titleColumn.addView(createText("ObsidianNotification", 21, R.color.text_primary, true), fullWidth());
-
-        TextView subtitle = createText(
-                "Напоминания из markdown-заметок Obsidian",
-                13,
-                R.color.text_secondary,
-                false
-        );
-        subtitle.setSingleLine(true);
-        subtitle.setEllipsize(TextUtils.TruncateAt.END);
-        titleColumn.addView(subtitle, fullWidth());
-
-        appBar.addView(titleColumn, new LinearLayout.LayoutParams(
+        TextView title = createText("ObsidianNotification", 21, R.color.text_primary, true);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        appBar.addView(title, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
 
-        ImageButton refreshAction = createIconButton(R.drawable.ic_refresh, "Обновить");
-        refreshAction.setEnabled(noteUri != null);
-        refreshAction.setOnClickListener(view -> readAndRenderNote());
-        refreshButton = refreshAction;
-        appBar.addView(refreshAction, new LinearLayout.LayoutParams(dp(40), dp(40)));
-
-        ImageButton settingsButton = createIconButton(R.drawable.ic_settings, "Настройки");
-        settingsButton.setImageResource(R.drawable.ic_settings);
-        settingsButton.setOnClickListener(view -> openSettings());
-        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(dp(40), dp(40));
-        settingsParams.setMargins(dp(6), 0, 0, 0);
-        appBar.addView(settingsButton, settingsParams);
+        TextView overflowButton = createOverflowButton("Главное меню");
+        overflowButton.setOnClickListener(view -> showMainMenu(overflowButton));
+        refreshButton = overflowButton;
+        appBar.addView(overflowButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
         root.addView(appBar, fullWidth());
 
         LinearLayout sourceCard = createSourceCard();
@@ -406,31 +407,10 @@ public final class MainActivity extends Activity {
         sourceParams.setMargins(0, 0, 0, dp(12));
         root.addView(sourceCard, sourceParams);
 
-        HorizontalScrollView filterScroll = new HorizontalScrollView(this);
-        filterScroll.setHorizontalScrollBarEnabled(false);
-        filterScroll.setVerticalScrollBarEnabled(false);
-        filterScroll.setPadding(0, 0, 0, dp(12));
-        LinearLayout filterRow = new LinearLayout(this);
-        filterRow.setOrientation(LinearLayout.HORIZONTAL);
-        allFilterButton = createFilterChip("Все", UserPreferences.FILTER_ALL);
-        activeFilterButton = createFilterChip("Активные", UserPreferences.FILTER_ACTIVE);
-        overdueFilterButton = createFilterChip("Просроченные", UserPreferences.FILTER_OVERDUE);
-        completedFilterButton = createFilterChip("Завершенные", UserPreferences.FILTER_COMPLETED);
-        addChip(filterRow, allFilterButton, 0);
-        addChip(filterRow, activeFilterButton, dp(6));
-        addChip(filterRow, overdueFilterButton, dp(6));
-        addChip(filterRow, completedFilterButton, dp(6));
-        updateActiveFilterButton();
-        filterScroll.addView(filterRow, new HorizontalScrollView.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        root.addView(filterScroll, fullWidth());
-
         HorizontalScrollView groupScroll = new HorizontalScrollView(this);
         groupScroll.setHorizontalScrollBarEnabled(false);
         groupScroll.setVerticalScrollBarEnabled(false);
-        groupScroll.setPadding(0, 0, 0, dp(12));
+        groupScroll.setPadding(0, 0, 0, dp(10));
         groupFilterRow = new LinearLayout(this);
         groupFilterRow.setOrientation(LinearLayout.HORIZONTAL);
         groupScroll.addView(groupFilterRow, new HorizontalScrollView.LayoutParams(
@@ -472,6 +452,8 @@ public final class MainActivity extends Activity {
         );
         reminderParams.setMargins(0, 0, 0, dp(14));
         root.addView(reminderCard, reminderParams);
+
+        root.addView(createTaskSectionHeader(), fullWidthWithBottomMargin());
 
         taskList = new LinearLayout(this);
         taskList.setOrientation(LinearLayout.VERTICAL);
@@ -540,6 +522,55 @@ public final class MainActivity extends Activity {
         return button;
     }
 
+    private ImageButton createPlainIconButton(int iconRes, String description) {
+        ImageButton button = new ImageButton(this);
+        button.setImageResource(iconRes);
+        button.setContentDescription(description);
+        button.setColorFilter(getColor(R.color.text_secondary));
+        button.setPadding(dp(9), dp(9), dp(9), dp(9));
+        button.setBackground(createRoundedBackground(Color.TRANSPARENT, 0, 18));
+        return button;
+    }
+
+    private TextView createOverflowButton(String description) {
+        TextView button = new TextView(this);
+        button.setText("⋮");
+        button.setTextSize(22);
+        button.setTextColor(getColor(R.color.text_primary));
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setContentDescription(description);
+        button.setBackground(createRoundedBackground(
+                getColor(R.color.icon_button_background),
+                0,
+                18
+        ));
+        return button;
+    }
+
+    private void showMainMenu(View anchor) {
+        PopupMenu popupMenu = new PopupMenu(this, anchor);
+        popupMenu.getMenu().add(0, 1, 0, "Обновить");
+        popupMenu.getMenu().add(0, 2, 1, "Источники");
+        popupMenu.getMenu().add(0, 3, 2, "Настройки");
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == 1) {
+                readAndRenderNote();
+                return true;
+            }
+            if (id == 2) {
+                openSourceManagement();
+                return true;
+            }
+            if (id == 3) {
+                openSettings();
+                return true;
+            }
+            return false;
+        });
+        popupMenu.show();
+    }
+
     private Button createFabButton() {
         Button button = createActionButton("+ Добавить", true);
         button.setPadding(dp(18), 0, dp(18), 0);
@@ -548,7 +579,8 @@ public final class MainActivity extends Activity {
 
     private LinearLayout createSourceCard() {
         LinearLayout card = createCardContainer();
-        card.setOnClickListener(view -> openNotePicker());
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setOnClickListener(view -> openSourceManagement());
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -563,6 +595,10 @@ public final class MainActivity extends Activity {
         textColumn.setOrientation(LinearLayout.VERTICAL);
         sourceTitleText = createText("Источник", 15, R.color.text_primary, true);
         sourceMetaText = createText("Источник не выбран", 13, R.color.text_secondary, false);
+        sourceTitleText.setSingleLine(true);
+        sourceTitleText.setEllipsize(TextUtils.TruncateAt.END);
+        sourceMetaText.setSingleLine(true);
+        sourceMetaText.setEllipsize(TextUtils.TruncateAt.END);
         textColumn.addView(sourceTitleText, fullWidth());
         textColumn.addView(sourceMetaText, fullWidthWithTopMargin(dp(2)));
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
@@ -573,28 +609,21 @@ public final class MainActivity extends Activity {
         textParams.setMargins(dp(12), 0, dp(8), 0);
         row.addView(textColumn, textParams);
 
+        ImageButton manageButton = createPlainIconButton(R.drawable.ic_settings, "Управлять источниками");
+        manageButton.setOnClickListener(view -> openSourceManagement());
+        row.addView(manageButton, new LinearLayout.LayoutParams(dp(36), dp(36)));
+
         ImageView chevron = new ImageView(this);
         chevron.setImageResource(R.drawable.ic_chevron_right);
         chevron.setColorFilter(getColor(R.color.text_secondary));
-        row.addView(chevron, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        row.addView(chevron, new LinearLayout.LayoutParams(dp(24), dp(24)));
         card.addView(row, fullWidth());
 
-        HorizontalScrollView statsScroll = new HorizontalScrollView(this);
-        statsScroll.setHorizontalScrollBarEnabled(false);
-        statsScroll.setVerticalScrollBarEnabled(false);
         sourceStatsRow = new LinearLayout(this);
-        sourceStatsRow.setOrientation(LinearLayout.HORIZONTAL);
-        statsScroll.addView(sourceStatsRow, new HorizontalScrollView.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-        card.addView(statsScroll, fullWidthWithTopMargin(dp(12)));
-
         sourceStatsText = createText("", 13, R.color.text_secondary, false);
         sourceStatsText.setVisibility(View.GONE);
-        card.addView(sourceStatsText, fullWidthWithTopMargin(dp(8)));
-
         sourceErrorText = createText("", 13, R.color.error_text, false);
+        sourceErrorText.setVisibility(View.GONE);
         card.addView(sourceErrorText, fullWidthWithTopMargin(dp(8)));
         statusText = sourceMetaText;
         return card;
@@ -616,6 +645,65 @@ public final class MainActivity extends Activity {
             readAndRenderNote();
         });
         return chip;
+    }
+
+    private LinearLayout createTaskSectionHeader() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(2), 0, 0);
+
+        LinearLayout titleColumn = new LinearLayout(this);
+        titleColumn.setOrientation(LinearLayout.VERTICAL);
+        taskSectionTitleText = createText("Задачи", 18, R.color.text_primary, true);
+        taskSectionCountText = createText("", 13, R.color.text_secondary, false);
+        titleColumn.addView(taskSectionTitleText, fullWidth());
+        titleColumn.addView(taskSectionCountText, fullWidthWithTopMargin(dp(2)));
+        row.addView(titleColumn, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        ImageButton filterButton = createPlainIconButton(R.drawable.ic_filter_list, "Фильтр задач");
+        filterButton.setOnClickListener(view -> showTaskFilterMenu(filterButton));
+        row.addView(filterButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        return row;
+    }
+
+    private void showTaskFilterMenu(View anchor) {
+        PopupMenu popupMenu = new PopupMenu(this, anchor);
+        popupMenu.getMenu().add(0, 1, 0, "Все");
+        popupMenu.getMenu().add(0, 2, 1, "Активные");
+        popupMenu.getMenu().add(0, 3, 2, "Просроченные");
+        popupMenu.getMenu().add(0, 4, 3, "Завершенные");
+        popupMenu.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == 1) {
+                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_ALL);
+            } else if (id == 2) {
+                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_ACTIVE);
+            } else if (id == 3) {
+                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_OVERDUE);
+            } else if (id == 4) {
+                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_COMPLETED);
+            }
+            updateActiveFilterButton();
+            readAndRenderNote();
+            return true;
+        });
+        popupMenu.show();
+    }
+
+    private void updateTaskSectionHeader(int visibleCount) {
+        if (taskSectionTitleText == null || taskSectionCountText == null) {
+            return;
+        }
+        String filterLabel = UserPreferences.getTaskFilterLabel(this);
+        taskSectionTitleText.setText(UserPreferences.FILTER_ALL.equals(UserPreferences.getTaskFilter(this))
+                ? "Задачи"
+                : "Задачи · " + capitalize(filterLabel));
+        taskSectionCountText.setText(visibleCount + " в списке");
     }
 
     private void addChip(LinearLayout row, Button chip, int leftMargin) {
@@ -687,6 +775,11 @@ public final class MainActivity extends Activity {
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
+    @SuppressWarnings("deprecation")
+    private void openSourceManagement() {
+        startActivityForResult(new Intent(this, SourceManagementActivity.class), REQUEST_SOURCE_MANAGEMENT);
+    }
+
     private void readAndRenderNote() {
         if (noteUri == null) {
             NoteChangeMonitor.cancel(this);
@@ -697,7 +790,9 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        refreshButton.setEnabled(true);
+        if (refreshButton != null) {
+            refreshButton.setEnabled(true);
+        }
 
         try {
             NoteStore.TaskSnapshot snapshot = NoteStore.readTaskSnapshot(this);
@@ -796,20 +891,15 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        sourceTitleText.setText("Источник");
+        sourceTitleText.setText(compactSourceName(parseResult));
         sourceMetaText.setText(String.format(
                 Locale.getDefault(),
-                "%s · файлов: %d · обновлено %s",
-                compactSourceName(parseResult),
+                "%d файл. · обновлено %s",
                 snapshot.getDocumentCount(),
                 DateTimeFormatter.ofPattern("HH:mm").format(LocalDateTime.now())
         ));
         sourceStatsText.setVisibility(View.GONE);
         sourceStatsRow.removeAllViews();
-        addInfoChip(sourceStatsRow, parseResult.getTasks().size() + " задач", 0);
-        addInfoChip(sourceStatsRow, parseResult.getActiveTasks().size() + " активных", dp(6));
-        addInfoChip(sourceStatsRow, schedule.getScheduledCount() + " план", dp(6));
-        addInfoChip(sourceStatsRow, schedule.isNotificationsAllowed() ? "уведомления вкл." : "уведомления выкл.", dp(6));
 
         if (parseResult.getErrors().isEmpty()) {
             sourceErrorText.setVisibility(View.GONE);
@@ -877,6 +967,7 @@ public final class MainActivity extends Activity {
         updateGroupFilterRow(tasks);
         showTaskSourceNames = hasMultipleSources(tasks);
         List<ObsidianTask> visibleTasks = filterVisibleTasks(tasks);
+        updateTaskSectionHeader(visibleTasks.size());
         if (visibleTasks.isEmpty()) {
             renderEmptyState("В выбранных markdown-файлах нет уведомлений с @due(...) для текущего фильтра.");
             return;
@@ -902,7 +993,7 @@ public final class MainActivity extends Activity {
         for (ObsidianTask task : tasks) {
             if (selectedGroup != null
                     && !selectedGroup.isEmpty()
-                    && !selectedGroup.equals(task.getGroup())) {
+                    && !selectedGroup.equals(taskGroupLabel(task))) {
                 continue;
             }
             if (UserPreferences.FILTER_ALL.equals(filter)) {
@@ -928,7 +1019,7 @@ public final class MainActivity extends Activity {
 
         Set<String> groups = new LinkedHashSet<>();
         for (ObsidianTask task : tasks) {
-            groups.add(task.getGroup());
+            groups.add(taskGroupLabel(task));
         }
 
         groupFilterRow.removeAllViews();
@@ -976,6 +1067,46 @@ public final class MainActivity extends Activity {
             }
         }
         return false;
+    }
+
+    private String taskGroupLabel(ObsidianTask task) {
+        String mode = UserPreferences.getGroupingMode(this);
+        if (UserPreferences.GROUPING_GROUP.equals(mode)) {
+            return emptyFallback(task.getGroup(), ObsidianTask.DEFAULT_GROUP);
+        }
+        if (UserPreferences.GROUPING_TAG.equals(mode)) {
+            return task.getTags().isEmpty() ? "без тегов" : task.getTags().get(0);
+        }
+        if (UserPreferences.GROUPING_FILE.equals(mode)) {
+            return compactName(task.getSourceName());
+        }
+
+        String group = task.getGroup();
+        if (group != null && !group.trim().isEmpty() && !ObsidianTask.DEFAULT_GROUP.equals(group)) {
+            return group;
+        }
+        if (!task.getTags().isEmpty()) {
+            return task.getTags().get(0);
+        }
+        return compactName(task.getSourceName());
+    }
+
+    private String formatGroupMeta(ObsidianTask task) {
+        String mode = UserPreferences.getGroupingMode(this);
+        if (UserPreferences.GROUPING_TAG.equals(mode)) {
+            return "тег: " + taskGroupLabel(task);
+        }
+        if (UserPreferences.GROUPING_FILE.equals(mode)) {
+            return "файл: " + taskGroupLabel(task);
+        }
+        if (UserPreferences.GROUPING_SMART.equals(mode)) {
+            return "контекст: " + taskGroupLabel(task);
+        }
+        return "группа: " + taskGroupLabel(task);
+    }
+
+    private String emptyFallback(String value, String fallback) {
+        return value == null || value.trim().isEmpty() ? fallback : value.trim();
     }
 
     private View createSourceHeader(String sourceName) {
@@ -1067,6 +1198,14 @@ public final class MainActivity extends Activity {
                 1
         ));
 
+        if (!task.isCompleted()) {
+            ImageButton doneButton = createPlainIconButton(R.drawable.ic_check, "Выполнить");
+            doneButton.setOnClickListener(view -> markTaskDone(task));
+            LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(dp(36), dp(36));
+            doneParams.setMargins(dp(8), 0, 0, 0);
+            titleRow.addView(doneButton, doneParams);
+        }
+
         TextView statusChip = createStatusChip(task.getStatus(LocalDateTime.now()));
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -1095,7 +1234,7 @@ public final class MainActivity extends Activity {
         if (showTaskSourceNames) {
             item.addView(createMetaLine(R.drawable.ic_file, compactName(task.getSourceName())), fullWidthWithTopMargin(dp(6)));
         }
-        item.addView(createMetaLine(R.drawable.ic_label, "группа: " + task.getGroup()), fullWidthWithTopMargin(dp(6)));
+        item.addView(createMetaLine(R.drawable.ic_label, formatGroupMeta(task)), fullWidthWithTopMargin(dp(6)));
 
         String secondary = formatSecondaryTaskMeta(task);
         if (!secondary.isEmpty()) {
@@ -1146,9 +1285,9 @@ public final class MainActivity extends Activity {
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconRes);
         icon.setColorFilter(getColor(R.color.text_secondary));
-        row.addView(icon, new LinearLayout.LayoutParams(dp(16), dp(16)));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(15), dp(15)));
 
-        TextView textView = createText(value, 13, R.color.text_secondary, false);
+        TextView textView = createText(value, 12, R.color.text_secondary, false);
         textView.setSingleLine(true);
         textView.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
@@ -1539,10 +1678,23 @@ public final class MainActivity extends Activity {
         );
     }
 
+    private LinearLayout.LayoutParams fullWidthWithBottomMargin() {
+        LinearLayout.LayoutParams params = fullWidth();
+        params.setMargins(0, 0, 0, dp(12));
+        return params;
+    }
+
     private LinearLayout.LayoutParams fullWidthWithTopMargin(int topMargin) {
         LinearLayout.LayoutParams params = fullWidth();
         params.setMargins(0, topMargin, 0, 0);
         return params;
+    }
+
+    private String capitalize(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        return text.substring(0, 1).toUpperCase(Locale.getDefault()) + text.substring(1);
     }
 
     private GradientDrawable createRoundedBackground(int color, int strokeColor, int radiusDp) {

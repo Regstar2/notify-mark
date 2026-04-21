@@ -7,11 +7,16 @@ public final class UserPreferences {
     public static final String FILTER_ACTIVE = "active";
     public static final String FILTER_OVERDUE = "overdue";
     public static final String FILTER_COMPLETED = "completed";
+    public static final String GROUPING_SMART = "smart";
+    public static final String GROUPING_GROUP = "group";
+    public static final String GROUPING_TAG = "tag";
+    public static final String GROUPING_FILE = "file";
 
     private static final String PREFS_NAME = "obsidian_notification_user_preferences";
     private static final String KEY_ACTIVE_ONLY = "active_only";
     private static final String KEY_TASK_FILTER = "task_filter";
     private static final String KEY_TASK_GROUP = "task_group";
+    private static final String KEY_GROUPING_MODE = "grouping_mode";
 
     private UserPreferences() {
     }
@@ -71,10 +76,45 @@ public final class UserPreferences {
                 .apply();
     }
 
+    public static String getGroupingMode(Context context) {
+        String mode = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_GROUPING_MODE, GROUPING_SMART);
+        return isKnownGroupingMode(mode) ? mode : GROUPING_SMART;
+    }
+
+    public static void setGroupingMode(Context context, String mode) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_GROUPING_MODE, isKnownGroupingMode(mode) ? mode : GROUPING_SMART)
+                .putString(KEY_TASK_GROUP, "")
+                .apply();
+    }
+
+    public static String getGroupingModeLabel(Context context) {
+        String mode = getGroupingMode(context);
+        if (GROUPING_GROUP.equals(mode)) {
+            return "@group";
+        }
+        if (GROUPING_TAG.equals(mode)) {
+            return "теги";
+        }
+        if (GROUPING_FILE.equals(mode)) {
+            return "файлы";
+        }
+        return "смешанная";
+    }
+
     private static boolean isKnownFilter(String filter) {
         return FILTER_ALL.equals(filter)
                 || FILTER_ACTIVE.equals(filter)
                 || FILTER_OVERDUE.equals(filter)
                 || FILTER_COMPLETED.equals(filter);
+    }
+
+    private static boolean isKnownGroupingMode(String mode) {
+        return GROUPING_SMART.equals(mode)
+                || GROUPING_GROUP.equals(mode)
+                || GROUPING_TAG.equals(mode)
+                || GROUPING_FILE.equals(mode);
     }
 }

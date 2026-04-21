@@ -43,6 +43,9 @@
         <activity
             android:name=".MarkdownFileEditActivity"
             android:exported="false" />
+        <activity
+            android:name=".SourceManagementActivity"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

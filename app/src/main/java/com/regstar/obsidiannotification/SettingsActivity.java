@@ -25,6 +25,7 @@ public final class SettingsActivity extends Activity {
     private static final int REQUEST_REPLACE_FOLDER = 3002;
     private static final int REQUEST_ADD_NOTES = 3003;
     private static final int REQUEST_ADD_FOLDER = 3004;
+    private static final int REQUEST_SOURCE_MANAGEMENT = 3005;
 
     private TextView statusText;
     private Button activeFilterButton;
@@ -52,6 +53,11 @@ public final class SettingsActivity extends Activity {
     @SuppressWarnings("deprecation")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_SOURCE_MANAGEMENT) {
+            updateStatus();
+            return;
+        }
+
         if (resultCode != RESULT_OK || data == null) {
             return;
         }
@@ -115,39 +121,10 @@ public final class SettingsActivity extends Activity {
 
         addSectionTitle(root, "Источник данных");
         root.addView(createActionCard(
-                "Выбрать заметки",
-                "Заменить текущий набор одной или несколькими markdown-заметками.",
-                () -> openNotePicker(REQUEST_REPLACE_NOTES)
+                "Управление источниками",
+                "Выбрать заметки, папки, добавить источник или очистить список.",
+                this::openSourceManagement
         ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Выбрать папку",
-                "Сканировать markdown-файлы внутри выбранной папки.",
-                () -> openFolderPicker(REQUEST_REPLACE_FOLDER)
-        ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Добавить заметку",
-                "Добавить еще один markdown-файл к текущим источникам.",
-                () -> openNotePicker(REQUEST_ADD_NOTES)
-        ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Добавить папку",
-                "Добавить еще одну папку к текущим источникам.",
-                () -> openFolderPicker(REQUEST_ADD_FOLDER)
-        ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Очистить источники",
-                "Сбросить выбранные заметки и папки.",
-                this::clearSources
-        ), fullWidthWithBottomMargin());
-
-        activeFilterButton = createButton("");
-        activeFilterButton.setOnClickListener(view -> {
-            UserPreferences.setActiveOnly(this, !UserPreferences.isActiveOnly(this));
-            updateActiveFilterButton();
-            updateStatus();
-        });
-        updateActiveFilterButton();
-        root.addView(activeFilterButton, fullWidthWithBottomMargin());
 
         addEditingSettings(root);
         addAppearanceSettings(root);
@@ -165,19 +142,20 @@ public final class SettingsActivity extends Activity {
 
     private void addEditingSettings(LinearLayout root) {
         TextView editTitle = new TextView(this);
-        editTitle.setText("Редактирование");
+        editTitle.setText("Поведение");
         editTitle.setTextSize(18);
         editTitle.setTextColor(getColor(R.color.text_primary));
         editTitle.setPadding(0, dp(12), 0, dp(6));
         root.addView(editTitle, fullWidth());
 
         TextView editDescription = new TextView(this);
-        editDescription.setText("Основной способ открытия задачи из списка. UI открывает форму одной задачи, Markdown открывает весь исходный файл на строке задачи.");
+        editDescription.setText("Основной способ открытия задачи из списка и базовое поведение главного экрана.");
         editDescription.setTextSize(14);
         editDescription.setTextColor(getColor(R.color.text_secondary));
         editDescription.setPadding(0, 0, 0, dp(8));
         root.addView(editDescription, fullWidth());
 
+        root.addView(createSubsectionLabel("Основной способ редактирования"), fullWidth());
         String mode = EditPreferences.getEditMode(this);
         root.addView(createChoiceCard(
                 "Через UI",
@@ -190,6 +168,42 @@ public final class SettingsActivity extends Activity {
                 "Полный исходный файл с переходом к строке выбранной задачи.",
                 EditPreferences.MODE_MARKDOWN.equals(mode),
                 () -> setEditMode(EditPreferences.MODE_MARKDOWN)
+        ), fullWidthWithBottomMargin());
+
+        activeFilterButton = createButton("");
+        activeFilterButton.setOnClickListener(view -> {
+            UserPreferences.setActiveOnly(this, !UserPreferences.isActiveOnly(this));
+            updateActiveFilterButton();
+            updateStatus();
+        });
+        updateActiveFilterButton();
+        root.addView(activeFilterButton, fullWidthWithBottomMargin());
+
+        root.addView(createSubsectionLabel("Группировка на главном экране"), fullWidth());
+        String groupingMode = UserPreferences.getGroupingMode(this);
+        root.addView(createChoiceCard(
+                "Смешанная",
+                "Использовать @group, иначе первый тег или имя файла.",
+                UserPreferences.GROUPING_SMART.equals(groupingMode),
+                () -> setGroupingMode(UserPreferences.GROUPING_SMART)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "По @group",
+                "Показывать группы только из @group(...).",
+                UserPreferences.GROUPING_GROUP.equals(groupingMode),
+                () -> setGroupingMode(UserPreferences.GROUPING_GROUP)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "По тегам",
+                "Использовать первый тег задачи как группу.",
+                UserPreferences.GROUPING_TAG.equals(groupingMode),
+                () -> setGroupingMode(UserPreferences.GROUPING_TAG)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "По файлам",
+                "Группировать задачи по имени markdown-файла.",
+                UserPreferences.GROUPING_FILE.equals(groupingMode),
+                () -> setGroupingMode(UserPreferences.GROUPING_FILE)
         ), fullWidthWithBottomMargin());
     }
 
@@ -208,17 +222,25 @@ public final class SettingsActivity extends Activity {
         appearanceDescription.setPadding(0, 0, 0, dp(8));
         root.addView(appearanceDescription, fullWidth());
 
-        Button systemThemeButton = createButton(themeButtonText(ThemePreferences.MODE_SYSTEM, "Системная тема"));
-        systemThemeButton.setOnClickListener(view -> setThemeMode(ThemePreferences.MODE_SYSTEM));
-        root.addView(systemThemeButton, fullWidthWithBottomMargin());
-
-        Button lightThemeButton = createButton(themeButtonText(ThemePreferences.MODE_LIGHT, "Светлая тема"));
-        lightThemeButton.setOnClickListener(view -> setThemeMode(ThemePreferences.MODE_LIGHT));
-        root.addView(lightThemeButton, fullWidthWithBottomMargin());
-
-        Button darkThemeButton = createButton(themeButtonText(ThemePreferences.MODE_DARK, "Темная тема"));
-        darkThemeButton.setOnClickListener(view -> setThemeMode(ThemePreferences.MODE_DARK));
-        root.addView(darkThemeButton, fullWidthWithBottomMargin());
+        String themeMode = ThemePreferences.getThemeMode(this);
+        root.addView(createChoiceCard(
+                "Системная",
+                "Следовать настройке темы Android.",
+                ThemePreferences.MODE_SYSTEM.equals(themeMode),
+                () -> setThemeMode(ThemePreferences.MODE_SYSTEM)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Светлая",
+                "Всегда использовать светлую тему.",
+                ThemePreferences.MODE_LIGHT.equals(themeMode),
+                () -> setThemeMode(ThemePreferences.MODE_LIGHT)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Темная",
+                "Всегда использовать темную тему.",
+                ThemePreferences.MODE_DARK.equals(themeMode),
+                () -> setThemeMode(ThemePreferences.MODE_DARK)
+        ), fullWidthWithBottomMargin());
     }
 
     private void addFormatSettings(LinearLayout root) {
@@ -378,6 +400,11 @@ public final class SettingsActivity extends Activity {
     }
 
     @SuppressWarnings("deprecation")
+    private void openSourceManagement() {
+        startActivityForResult(new Intent(this, SourceManagementActivity.class), REQUEST_SOURCE_MANAGEMENT);
+    }
+
+    @SuppressWarnings("deprecation")
     private void openNotePicker(int requestCode) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -486,6 +513,12 @@ public final class SettingsActivity extends Activity {
     private void setEditMode(String mode) {
         EditPreferences.setEditMode(this, mode);
         Toast.makeText(this, "Режим редактирования сохранен", Toast.LENGTH_SHORT).show();
+        rebuild();
+    }
+
+    private void setGroupingMode(String mode) {
+        UserPreferences.setGroupingMode(this, mode);
+        Toast.makeText(this, "Группировка сохранена", Toast.LENGTH_SHORT).show();
         rebuild();
     }
 
@@ -623,6 +656,7 @@ public final class SettingsActivity extends Activity {
                 + " · счетчик: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "вкл." : "выкл.")
                 + "\nРедактирование: " + formatEditMode(EditPreferences.getEditMode(this))
                 + " · тема: " + formatThemeMode(ThemePreferences.getThemeMode(this))
+                + "\nГруппировка: " + UserPreferences.getGroupingModeLabel(this)
                 + "\nКэш задач: " + TaskCache.getCachedTaskCount(this)
                 + (cachedAt == null ? "" : " · " + cachedAt));
         if (latestError != null) {
@@ -633,8 +667,8 @@ public final class SettingsActivity extends Activity {
 
     private void updateActiveFilterButton() {
         activeFilterButton.setText(UserPreferences.isActiveOnly(this)
-                ? "Показать все задачи"
-                : "Показывать только активные");
+                ? "Главный экран: только активные"
+                : "Главный экран: все задачи");
     }
 
     private void addSectionTitle(LinearLayout root, String text) {
@@ -645,6 +679,15 @@ public final class SettingsActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setPadding(0, dp(12), 0, dp(6));
         root.addView(title, fullWidth());
+    }
+
+    private TextView createSubsectionLabel(String text) {
+        TextView label = new TextView(this);
+        label.setText(text);
+        label.setTextSize(14);
+        label.setTextColor(getColor(R.color.text_secondary));
+        label.setPadding(0, 0, 0, dp(6));
+        return label;
     }
 
     private LinearLayout createSettingsCard() {

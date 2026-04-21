@@ -162,6 +162,10 @@ public final class NoteStore {
         return true;
     }
 
+    public static String sourceDisplayName(Context context, Uri uri) {
+        return displayName(context, uri);
+    }
+
     public static boolean canWriteUri(Context context, Uri uri) {
         if (uri == null) {
             return false;
