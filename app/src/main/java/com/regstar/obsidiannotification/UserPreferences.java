@@ -11,6 +11,7 @@ public final class UserPreferences {
     private static final String PREFS_NAME = "obsidian_notification_user_preferences";
     private static final String KEY_ACTIVE_ONLY = "active_only";
     private static final String KEY_TASK_FILTER = "task_filter";
+    private static final String KEY_TASK_GROUP = "task_group";
 
     private UserPreferences() {
     }
@@ -56,6 +57,18 @@ public final class UserPreferences {
             return "завершенные";
         }
         return "все";
+    }
+
+    public static String getTaskGroup(Context context) {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_TASK_GROUP, "");
+    }
+
+    public static void setTaskGroup(Context context, String group) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_TASK_GROUP, group == null ? "" : group.trim())
+                .apply();
     }
 
     private static boolean isKnownFilter(String filter) {

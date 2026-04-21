@@ -13,6 +13,7 @@ public final class TaskFormatSettings {
     public static final String DEFAULT_REPEAT_UNTIL_DONE_KEYWORD = "repeatUntilDone";
     public static final String DEFAULT_TAG_KEYWORD = "tag";
     public static final String DEFAULT_PRIORITY_KEYWORD = "priority";
+    public static final String DEFAULT_GROUP_KEYWORD = "group";
 
     private static final String PREFS_NAME = "obsidian_notification_task_format";
     private static final String KEY_DUE = "due_keyword";
@@ -20,25 +21,29 @@ public final class TaskFormatSettings {
     private static final String KEY_REPEAT_UNTIL_DONE = "repeat_until_done_keyword";
     private static final String KEY_TAG = "tag_keyword";
     private static final String KEY_PRIORITY = "priority_keyword";
+    private static final String KEY_GROUP = "group_keyword";
 
     private final String dueKeyword;
     private final String repeatKeyword;
     private final String repeatUntilDoneKeyword;
     private final String tagKeyword;
     private final String priorityKeyword;
+    private final String groupKeyword;
 
     private TaskFormatSettings(
             String dueKeyword,
             String repeatKeyword,
             String repeatUntilDoneKeyword,
             String tagKeyword,
-            String priorityKeyword
+            String priorityKeyword,
+            String groupKeyword
     ) {
         this.dueKeyword = dueKeyword;
         this.repeatKeyword = repeatKeyword;
         this.repeatUntilDoneKeyword = repeatUntilDoneKeyword;
         this.tagKeyword = tagKeyword;
         this.priorityKeyword = priorityKeyword;
+        this.groupKeyword = groupKeyword;
     }
 
     public static TaskFormatSettings defaults() {
@@ -47,7 +52,8 @@ public final class TaskFormatSettings {
                 DEFAULT_REPEAT_KEYWORD,
                 DEFAULT_REPEAT_UNTIL_DONE_KEYWORD,
                 DEFAULT_TAG_KEYWORD,
-                DEFAULT_PRIORITY_KEYWORD
+                DEFAULT_PRIORITY_KEYWORD,
+                DEFAULT_GROUP_KEYWORD
         );
     }
 
@@ -56,14 +62,16 @@ public final class TaskFormatSettings {
             String repeatKeyword,
             String repeatUntilDoneKeyword,
             String tagKeyword,
-            String priorityKeyword
+            String priorityKeyword,
+            String groupKeyword
     ) {
         return new TaskFormatSettings(
                 normalizeKeyword(dueKeyword, DEFAULT_DUE_KEYWORD),
                 normalizeKeyword(repeatKeyword, DEFAULT_REPEAT_KEYWORD),
                 normalizeKeyword(repeatUntilDoneKeyword, DEFAULT_REPEAT_UNTIL_DONE_KEYWORD),
                 normalizeKeyword(tagKeyword, DEFAULT_TAG_KEYWORD),
-                normalizeKeyword(priorityKeyword, DEFAULT_PRIORITY_KEYWORD)
+                normalizeKeyword(priorityKeyword, DEFAULT_PRIORITY_KEYWORD),
+                normalizeKeyword(groupKeyword, DEFAULT_GROUP_KEYWORD)
         );
     }
 
@@ -73,7 +81,8 @@ public final class TaskFormatSettings {
                 get(context, KEY_REPEAT, DEFAULT_REPEAT_KEYWORD),
                 get(context, KEY_REPEAT_UNTIL_DONE, DEFAULT_REPEAT_UNTIL_DONE_KEYWORD),
                 get(context, KEY_TAG, DEFAULT_TAG_KEYWORD),
-                get(context, KEY_PRIORITY, DEFAULT_PRIORITY_KEYWORD)
+                get(context, KEY_PRIORITY, DEFAULT_PRIORITY_KEYWORD),
+                get(context, KEY_GROUP, DEFAULT_GROUP_KEYWORD)
         );
     }
 
@@ -85,6 +94,7 @@ public final class TaskFormatSettings {
                 .putString(KEY_REPEAT_UNTIL_DONE, settings.getRepeatUntilDoneKeyword())
                 .putString(KEY_TAG, settings.getTagKeyword())
                 .putString(KEY_PRIORITY, settings.getPriorityKeyword())
+                .putString(KEY_GROUP, settings.getGroupKeyword())
                 .apply();
     }
 
@@ -115,6 +125,10 @@ public final class TaskFormatSettings {
         return priorityKeyword;
     }
 
+    public String getGroupKeyword() {
+        return groupKeyword;
+    }
+
     public List<String> dueKeywords() {
         return keywords(dueKeyword, DEFAULT_DUE_KEYWORD);
     }
@@ -141,6 +155,10 @@ public final class TaskFormatSettings {
         return keywords(priorityKeyword, DEFAULT_PRIORITY_KEYWORD, "prio", "p");
     }
 
+    public List<String> groupKeywords() {
+        return keywords(groupKeyword, DEFAULT_GROUP_KEYWORD, "grp", "category");
+    }
+
     public boolean hasDuplicateKeywords() {
         Set<String> seen = new HashSet<>();
         List<String> allKeywords = new ArrayList<>();
@@ -149,6 +167,7 @@ public final class TaskFormatSettings {
         allKeywords.addAll(repeatUntilDoneKeywords());
         allKeywords.addAll(tagKeywords());
         allKeywords.addAll(priorityKeywords());
+        allKeywords.addAll(groupKeywords());
         for (String keyword : allKeywords) {
             String normalized = keyword.toLowerCase(java.util.Locale.ROOT);
             if (seen.contains(normalized)) {
@@ -170,6 +189,8 @@ public final class TaskFormatSettings {
                 + tagKeyword
                 + "(...) @"
                 + priorityKeyword
+                + "(...) @"
+                + groupKeyword
                 + "(...)";
     }
 

@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.List;
 
 public final class ObsidianTask {
+    public static final String DEFAULT_GROUP = "Общее";
+
     private final String taskKey;
     private final String sourceName;
     private final int lineNumber;
@@ -18,6 +20,7 @@ public final class ObsidianTask {
     private final boolean completed;
     private final List<String> tags;
     private final TaskPriority priority;
+    private final String group;
 
     public ObsidianTask(
             int lineNumber,
@@ -48,7 +51,8 @@ public final class ObsidianTask {
                 repeatMode,
                 false,
                 Collections.emptyList(),
-                TaskPriority.NONE
+                TaskPriority.NONE,
+                DEFAULT_GROUP
         );
     }
 
@@ -74,7 +78,8 @@ public final class ObsidianTask {
                 repeatMode,
                 completed,
                 Collections.emptyList(),
-                TaskPriority.NONE
+                TaskPriority.NONE,
+                DEFAULT_GROUP
         );
     }
 
@@ -91,6 +96,36 @@ public final class ObsidianTask {
             List<String> tags,
             TaskPriority priority
     ) {
+        this(
+                taskKey,
+                sourceName,
+                lineNumber,
+                title,
+                rawLine,
+                reminderAt,
+                repeatInterval,
+                repeatMode,
+                completed,
+                tags,
+                priority,
+                DEFAULT_GROUP
+        );
+    }
+
+    public ObsidianTask(
+            String taskKey,
+            String sourceName,
+            int lineNumber,
+            String title,
+            String rawLine,
+            LocalDateTime reminderAt,
+            Duration repeatInterval,
+            RepeatMode repeatMode,
+            boolean completed,
+            List<String> tags,
+            TaskPriority priority,
+            String group
+    ) {
         this.taskKey = taskKey;
         this.sourceName = sourceName == null ? "" : sourceName;
         this.lineNumber = lineNumber;
@@ -104,6 +139,7 @@ public final class ObsidianTask {
                 ? Collections.emptyList()
                 : tags));
         this.priority = priority == null ? TaskPriority.NONE : priority;
+        this.group = normalizeGroup(group);
     }
 
     public String getTaskKey() {
@@ -150,6 +186,10 @@ public final class ObsidianTask {
         return priority;
     }
 
+    public String getGroup() {
+        return group;
+    }
+
     public TaskStatus getStatus(LocalDateTime now) {
         return TaskStatus.forTask(this, now);
     }
@@ -175,6 +215,14 @@ public final class ObsidianTask {
         String sourcePart = sourceName == null ? "" : sourceName.trim();
         return sourcePart + "|" + lineNumber + "|" + normalizedTitle + "|"
                 + reminderPart + "|" + repeatPart + "|" + modePart;
+    }
+
+    public static String normalizeGroup(String value) {
+        if (value == null) {
+            return DEFAULT_GROUP;
+        }
+        String normalized = value.replaceAll("\\s{2,}", " ").trim();
+        return normalized.isEmpty() ? DEFAULT_GROUP : normalized;
     }
 
     private static RepeatMode defaultRepeatMode(Duration repeatInterval) {

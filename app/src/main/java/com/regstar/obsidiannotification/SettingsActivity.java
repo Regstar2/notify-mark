@@ -3,6 +3,8 @@ package com.regstar.obsidiannotification;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.Intent;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
@@ -31,6 +33,7 @@ public final class SettingsActivity extends Activity {
     private EditText repeatUntilDoneKeywordInput;
     private EditText tagKeywordInput;
     private EditText priorityKeywordInput;
+    private EditText groupKeywordInput;
     private EditText snoozeMinutesInput;
     private EditText includePatternsInput;
     private EditText excludePatternsInput;
@@ -137,14 +140,6 @@ public final class SettingsActivity extends Activity {
         addNotificationActionSettings(root);
         addDebugSettings(root);
 
-        Button rescheduleButton = createButton("Перепланировать все уведомления");
-        rescheduleButton.setOnClickListener(view -> rescheduleAll());
-        root.addView(rescheduleButton, fullWidthWithBottomMargin());
-
-        Button testNotificationButton = createButton("Отправить тестовое уведомление");
-        testNotificationButton.setOnClickListener(view -> sendTestNotification());
-        root.addView(testNotificationButton, fullWidthWithBottomMargin());
-
         Button closeButton = createButton("Закрыть");
         closeButton.setOnClickListener(view -> finish());
         root.addView(closeButton, fullWidthWithBottomMargin());
@@ -230,12 +225,13 @@ public final class SettingsActivity extends Activity {
                 "Ключ приоритета",
                 settings.getPriorityKeyword()
         );
+        groupKeywordInput = addKeywordInput(root, "Ключ группы", settings.getGroupKeyword());
 
-        Button saveFormatButton = createButton("Сохранить ключевые слова");
+        Button saveFormatButton = createButton("Сохранить");
         saveFormatButton.setOnClickListener(view -> saveFormatSettings());
         root.addView(saveFormatButton, fullWidthWithBottomMargin());
 
-        Button resetFormatButton = createButton("Сбросить ключевые слова");
+        Button resetFormatButton = createButton("Сбросить");
         resetFormatButton.setOnClickListener(view -> resetFormatSettings());
         root.addView(resetFormatButton, fullWidthWithBottomMargin());
     }
@@ -332,20 +328,35 @@ public final class SettingsActivity extends Activity {
         debugDescription.setPadding(0, 0, 0, dp(8));
         root.addView(debugDescription, fullWidth());
 
-        Button immediateReminderButton = createButton("Отладка: уведомление сейчас");
-        immediateReminderButton.setOnClickListener(view ->
-                runDebugAction(DebugReminderActions.showImmediateReminder(this)));
-        root.addView(immediateReminderButton, fullWidthWithBottomMargin());
+        Button debugActionsButton = createButton("Открыть отладочные действия");
+        debugActionsButton.setOnClickListener(view -> showDebugActions());
+        root.addView(debugActionsButton, fullWidthWithBottomMargin());
+    }
 
-        Button doneButton = createButton("Отладка: выполнить первую задачу");
-        doneButton.setOnClickListener(view ->
-                runDebugAction(DebugReminderActions.markFirstTaskDone(this)));
-        root.addView(doneButton, fullWidthWithBottomMargin());
-
-        Button snoozeButton = createButton("Отладка: отложить первую задачу");
-        snoozeButton.setOnClickListener(view ->
-                runDebugAction(DebugReminderActions.snoozeFirstTask(this)));
-        root.addView(snoozeButton, fullWidthWithBottomMargin());
+    private void showDebugActions() {
+        String[] actions = new String[]{
+                "Уведомление сейчас",
+                "Выполнить первую задачу",
+                "Отложить первую задачу",
+                "Перепланировать все",
+                "Тестовое уведомление"
+        };
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Отладка")
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) {
+                        runDebugAction(DebugReminderActions.showImmediateReminder(this));
+                    } else if (which == 1) {
+                        runDebugAction(DebugReminderActions.markFirstTaskDone(this));
+                    } else if (which == 2) {
+                        runDebugAction(DebugReminderActions.snoozeFirstTask(this));
+                    } else if (which == 3) {
+                        rescheduleAll();
+                    } else if (which == 4) {
+                        sendTestNotification();
+                    }
+                })
+                .show();
     }
 
     @SuppressWarnings("deprecation")
@@ -481,7 +492,8 @@ public final class SettingsActivity extends Activity {
                 repeatKeywordInput.getText().toString(),
                 repeatUntilDoneKeywordInput.getText().toString(),
                 tagKeywordInput.getText().toString(),
-                priorityKeywordInput.getText().toString()
+                priorityKeywordInput.getText().toString(),
+                groupKeywordInput.getText().toString()
         );
         if (settings.hasDuplicateKeywords()) {
             Toast.makeText(
@@ -537,6 +549,7 @@ public final class SettingsActivity extends Activity {
         repeatUntilDoneKeywordInput.setText(settings.getRepeatUntilDoneKeyword());
         tagKeywordInput.setText(settings.getTagKeyword());
         priorityKeywordInput.setText(settings.getPriorityKeyword());
+        groupKeywordInput.setText(settings.getGroupKeyword());
     }
 
     private void populateScanInputs(NoteScanSettings settings) {
@@ -584,22 +597,22 @@ public final class SettingsActivity extends Activity {
         String latestError = ErrorLog.latest(this);
         TaskFormatSettings formatSettings = TaskFormatSettings.load(this);
         NoteScanSettings scanSettings = NoteScanSettings.load(this);
-        StringBuilder status = new StringBuilder("Источник: " + NoteStore.sourceLabel(this)
+        StringBuilder status = new StringBuilder("Источник: " + compactName(NoteStore.sourceLabel(this))
                 + "\nИсточников: " + NoteStore.getSavedSourceCount(this)
-                + "\nФильтр: " + UserPreferences.getTaskFilterLabel(this)
+                + " · фильтр: " + UserPreferences.getTaskFilterLabel(this)
                 + "\nТочные напоминания: "
-                + (ReminderScheduler.canScheduleExactAlarms(this) ? "разрешены" : "не разрешены")
-                + "\nЗапись в заметку: " + (NoteStore.canWriteSavedSource(this) ? "разрешена" : "нужно выбрать источник заново")
+                + (ReminderScheduler.canScheduleExactAlarms(this) ? "да" : "нет")
+                + " · запись: " + (NoteStore.canWriteSavedSource(this) ? "да" : "нужно выбрать источник")
                 + "\nОтложить: " + ActionPreferences.getSnoozeMinutes(this) + " мин."
-                + "\nСчетчик отложений: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "включен" : "выключен")
-                + "\nРежим редактирования: " + formatEditMode(EditPreferences.getEditMode(this))
-                + "\nТема: " + formatThemeMode(ThemePreferences.getThemeMode(this))
+                + " · счетчик: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "вкл." : "выкл.")
+                + "\nРедактирование: " + formatEditMode(EditPreferences.getEditMode(this))
+                + " · тема: " + formatThemeMode(ThemePreferences.getThemeMode(this))
                 + "\nФормат: " + formatSettings.formatForStatus()
                 + "\nПоиск: " + scanSettings.formatForStatus()
-                + "\nЛокальный кэш задач: " + TaskCache.getCachedTaskCount(this)
-                + (cachedAt == null ? "" : "\nКэш обновлен: " + cachedAt));
+                + "\nКэш задач: " + TaskCache.getCachedTaskCount(this)
+                + (cachedAt == null ? "" : " · " + cachedAt));
         if (latestError != null) {
-            status.append("\nПоследняя ошибка: ").append(latestError);
+            status.append("\nПоследняя ошибка записана в лог.");
         }
         statusText.setText(status.toString());
     }
@@ -614,7 +627,48 @@ public final class SettingsActivity extends Activity {
         Button button = new Button(this);
         button.setText(text);
         button.setAllCaps(false);
+        button.setTextColor(getColor(R.color.secondary_button_text));
+        button.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
+        button.setBackground(createRoundedBackground(
+                getColor(R.color.secondary_button_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
         return button;
+    }
+
+    private GradientDrawable createRoundedBackground(int color, int strokeColor, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(radiusDp));
+        if (strokeColor != 0) {
+            drawable.setStroke(dp(1), strokeColor);
+        }
+        return drawable;
+    }
+
+    private String compactName(String rawName) {
+        if (rawName == null || rawName.trim().isEmpty()) {
+            return "не выбран";
+        }
+        String value = rawName.trim();
+        int queryIndex = value.indexOf('?');
+        if (queryIndex >= 0) {
+            value = value.substring(0, queryIndex);
+        }
+        int encodedSlash = Math.max(value.lastIndexOf("%2F"), value.lastIndexOf("%2f"));
+        if (encodedSlash >= 0 && encodedSlash + 3 < value.length()) {
+            value = value.substring(encodedSlash + 3);
+        }
+        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        if (slash >= 0 && slash + 1 < value.length()) {
+            value = value.substring(slash + 1);
+        }
+        int colon = value.lastIndexOf(':');
+        if (colon >= 0 && colon + 1 < value.length()) {
+            value = value.substring(colon + 1);
+        }
+        return value.isEmpty() ? rawName : value;
     }
 
     private LinearLayout.LayoutParams fullWidth() {

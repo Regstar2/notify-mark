@@ -140,7 +140,8 @@ public final class TaskParser {
                     fields.repeatMode,
                     completed,
                     fields.tags,
-                    fields.priority
+                    fields.priority,
+                    fields.group
             ));
         }
 
@@ -180,6 +181,7 @@ public final class TaskParser {
         fields.repeatMode = parseRepeatMode(body, fields.repeatInterval, format);
         fields.tags = parseTags(body, format);
         fields.priority = parsePriority(body, format, fields);
+        fields.group = parseGroup(body, format);
         return fields;
     }
 
@@ -407,6 +409,11 @@ public final class TaskParser {
         return TaskPriority.fromName(priorityValue);
     }
 
+    private static String parseGroup(String body, TaskFormatSettings format) {
+        String groupValue = findFunctionValue(body, format.groupKeywords());
+        return ObsidianTask.normalizeGroup(groupValue);
+    }
+
     private static void addParseWarnings(
             List<TaskParseError> errors,
             String sourceName,
@@ -505,6 +512,7 @@ public final class TaskParser {
         cleaned = removeFunctions(cleaned, format.repeatKeywords());
         cleaned = removeFunctions(cleaned, format.tagKeywords());
         cleaned = removeFunctions(cleaned, format.priorityKeywords());
+        cleaned = removeFunctions(cleaned, format.groupKeywords());
         cleaned = SNOOZED_COUNT.matcher(cleaned).replaceAll(" ");
         cleaned = ISO_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = RU_REMINDER.matcher(cleaned).replaceAll(" ");
@@ -555,7 +563,8 @@ public final class TaskParser {
                 || startsWithFunction(normalized, format.repeatKeywords())
                 || startsWithFunction(normalized, format.repeatUntilDoneKeywords())
                 || startsWithFunction(normalized, format.tagKeywords())
-                || startsWithFunction(normalized, format.priorityKeywords());
+                || startsWithFunction(normalized, format.priorityKeywords())
+                || startsWithFunction(normalized, format.groupKeywords());
     }
 
     private static boolean startsWithFunction(String token, List<String> keywords) {
@@ -573,6 +582,7 @@ public final class TaskParser {
         private RepeatMode repeatMode = RepeatMode.NONE;
         private List<String> tags = new ArrayList<>();
         private TaskPriority priority = TaskPriority.NONE;
+        private String group = ObsidianTask.DEFAULT_GROUP;
         private boolean dueFunctionInvalid;
         private boolean repeatFunctionInvalid;
         private boolean priorityFunctionInvalid;

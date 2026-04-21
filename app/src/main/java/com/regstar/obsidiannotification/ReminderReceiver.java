@@ -36,6 +36,9 @@ public final class ReminderReceiver extends BroadcastReceiver {
         RepeatMode repeatMode = RepeatMode.fromName(
                 intent.getStringExtra(ReminderScheduler.EXTRA_REPEAT_MODE)
         );
+        String group = ObsidianTask.normalizeGroup(
+                intent.getStringExtra(ReminderScheduler.EXTRA_GROUP)
+        );
 
         ActiveTaskLookup activeTaskLookup = ActiveTaskLookup.unknown();
         if (repeatMode == RepeatMode.UNTIL_DONE) {
@@ -50,6 +53,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 title = activeTask.getTitle();
                 lineNumber = activeTask.getLineNumber();
                 repeatIntervalMillis = activeTask.getRepeatIntervalMillis();
+                group = activeTask.getGroup();
             }
         }
 
@@ -76,7 +80,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
                         lineNumber,
                         displayTimeMillis,
                         repeatIntervalMillis,
-                        repeatMode
+                        repeatMode,
+                        group
                 )
         );
 
@@ -102,7 +107,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
             int lineNumber,
             long triggerAtMillis,
             long repeatIntervalMillis,
-            RepeatMode repeatMode
+            RepeatMode repeatMode,
+            String group
     ) {
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(context, ReminderScheduler.CHANNEL_ID)
@@ -117,6 +123,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 .setWhen(triggerAtMillis)
                 .setShowWhen(true)
                 .setOnlyAlertOnce(false)
+                .setGroup("obsidian_notification_" + ObsidianTask.normalizeGroup(group))
                 .setCategory(Notification.CATEGORY_REMINDER)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setDefaults(Notification.DEFAULT_SOUND
@@ -125,7 +132,9 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 .setPriority(Notification.PRIORITY_MAX);
 
         if (lineNumber > 0) {
-            builder.setSubText("Строка " + lineNumber);
+            builder.setSubText(ObsidianTask.normalizeGroup(group) + " · строка " + lineNumber);
+        } else {
+            builder.setSubText(ObsidianTask.normalizeGroup(group));
         }
 
         if (taskKey != null && !taskKey.trim().isEmpty()) {

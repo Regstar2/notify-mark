@@ -38,6 +38,7 @@ public final class ReminderScheduler {
     public static final String EXTRA_TRIGGER_AT_MILLIS = "trigger_at_millis";
     public static final String EXTRA_REPEAT_INTERVAL_MILLIS = "repeat_interval_millis";
     public static final String EXTRA_REPEAT_MODE = "repeat_mode";
+    public static final String EXTRA_GROUP = "group";
 
     private static final String PREFS_NAME = "obsidian_notification_scheduled_reminders";
     private static final String KEY_SCHEDULED_REMINDERS = "scheduled_reminders";
@@ -205,7 +206,8 @@ public final class ReminderScheduler {
                 nextTriggerAt,
                 nextTriggerAtMillis,
                 repeatIntervalMillis,
-                repeatMode
+                repeatMode,
+                ObsidianTask.DEFAULT_GROUP
         );
         setReminderAlarm(context, alarmManager, reminder);
         putScheduledState(context, reminder);
@@ -244,7 +246,8 @@ public final class ReminderScheduler {
                 nextTriggerAt,
                 nextTriggerAtMillis,
                 repeatIntervalMillis,
-                repeatMode
+                repeatMode,
+                ObsidianTask.DEFAULT_GROUP
         );
         setReminderAlarm(context, alarmManager, reminder);
         putScheduledState(context, reminder);
@@ -314,7 +317,8 @@ public final class ReminderScheduler {
                 triggerAt,
                 triggerAtMillis,
                 task.getRepeatIntervalMillis(),
-                task.getRepeatMode()
+                task.getRepeatMode(),
+                task.getGroup()
         );
     }
 
@@ -335,7 +339,8 @@ public final class ReminderScheduler {
                 triggerAt,
                 existing.triggerAtMillis,
                 task.getRepeatIntervalMillis(),
-                task.getRepeatMode()
+                task.getRepeatMode(),
+                task.getGroup()
         );
     }
 
@@ -396,7 +401,8 @@ public final class ReminderScheduler {
                 triggerAt,
                 existing.triggerAtMillis,
                 reminder.getRepeatIntervalMillis(),
-                reminder.getRepeatMode()
+                reminder.getRepeatMode(),
+                reminder.getGroup()
         );
     }
 
@@ -459,6 +465,7 @@ public final class ReminderScheduler {
         intent.putExtra(EXTRA_TRIGGER_AT_MILLIS, reminder.getTriggerAtMillis());
         intent.putExtra(EXTRA_REPEAT_INTERVAL_MILLIS, reminder.getRepeatIntervalMillis());
         intent.putExtra(EXTRA_REPEAT_MODE, reminder.getRepeatMode().name());
+        intent.putExtra(EXTRA_GROUP, reminder.getGroup());
 
         return PendingIntent.getBroadcast(
                 context,

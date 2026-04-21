@@ -167,7 +167,8 @@ public final class TaskParserTest {
                 "again",
                 "nag",
                 "labels",
-                "prio"
+                "prio",
+                "bucket"
         );
         String markdown = "- [ ] Custom @when(2026-04-20 19:00) "
                 + "@nag(10m) @labels(home call) @prio(p1)\n";
@@ -189,6 +190,21 @@ public final class TaskParserTest {
         assertEquals("home", task.getTags().get(0));
         assertEquals("call", task.getTags().get(1));
         assertEquals(0, result.getErrors().size());
+    }
+
+    @Test
+    public void parse_supportsGroupFunction() {
+        String markdown = "- [ ] Pay bills @due(2026-04-20 19:00) @group(home)\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        ObsidianTask task = result.getTasks().get(0);
+        assertEquals("Pay bills", task.getTitle());
+        assertEquals("home", task.getGroup());
     }
 
     @Test

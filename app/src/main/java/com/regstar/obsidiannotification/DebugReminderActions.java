@@ -36,6 +36,7 @@ public final class DebugReminderActions {
         intent.putExtra(ReminderScheduler.EXTRA_TRIGGER_AT_MILLIS, System.currentTimeMillis());
         intent.putExtra(ReminderScheduler.EXTRA_REPEAT_INTERVAL_MILLIS, 0L);
         intent.putExtra(ReminderScheduler.EXTRA_REPEAT_MODE, RepeatMode.NONE.name());
+        intent.putExtra(ReminderScheduler.EXTRA_GROUP, task.getGroup());
         context.sendBroadcast(intent);
         return DebugActionResult.success("Отправлено отладочное уведомление: " + task.getTitle());
     }

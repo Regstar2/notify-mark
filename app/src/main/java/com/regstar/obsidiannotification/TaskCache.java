@@ -93,12 +93,14 @@ public final class TaskCache {
                 + "|"
                 + encode(joinTags(task.getTags()))
                 + "|"
-                + task.getPriority().name();
+                + task.getPriority().name()
+                + "|"
+                + encode(task.getGroup());
     }
 
     private static ObsidianTask decodeTask(String encoded) {
         String[] parts = encoded.split("\\|", -1);
-        if (parts.length != 8 && parts.length != 10) {
+        if (parts.length != 8 && parts.length != 10 && parts.length != 11) {
             return null;
         }
 
@@ -119,6 +121,9 @@ public final class TaskCache {
             TaskPriority priority = parts.length >= 10
                     ? TaskPriority.fromName(parts[9])
                     : TaskPriority.NONE;
+            String group = parts.length >= 11
+                    ? ObsidianTask.normalizeGroup(decode(parts[10]))
+                    : ObsidianTask.DEFAULT_GROUP;
             return new ObsidianTask(
                     taskKey,
                     sourceName,
@@ -130,7 +135,8 @@ public final class TaskCache {
                     repeatMode,
                     false,
                     tags,
-                    priority
+                    priority,
+                    group
             );
         } catch (RuntimeException exception) {
             return null;

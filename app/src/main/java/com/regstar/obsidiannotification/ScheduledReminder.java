@@ -11,6 +11,7 @@ public final class ScheduledReminder {
     private final long triggerAtMillis;
     private final long repeatIntervalMillis;
     private final RepeatMode repeatMode;
+    private final String group;
 
     public ScheduledReminder(
             int notificationId,
@@ -19,7 +20,7 @@ public final class ScheduledReminder {
             LocalDateTime triggerAt,
             long triggerAtMillis
     ) {
-        this("", notificationId, lineNumber, title, triggerAt, triggerAtMillis, 0L, RepeatMode.NONE);
+        this("", notificationId, lineNumber, title, triggerAt, triggerAtMillis, 0L, RepeatMode.NONE, ObsidianTask.DEFAULT_GROUP);
     }
 
     public ScheduledReminder(
@@ -32,6 +33,30 @@ public final class ScheduledReminder {
             long repeatIntervalMillis,
             RepeatMode repeatMode
     ) {
+        this(
+                taskKey,
+                notificationId,
+                lineNumber,
+                title,
+                triggerAt,
+                triggerAtMillis,
+                repeatIntervalMillis,
+                repeatMode,
+                ObsidianTask.DEFAULT_GROUP
+        );
+    }
+
+    public ScheduledReminder(
+            String taskKey,
+            int notificationId,
+            int lineNumber,
+            String title,
+            LocalDateTime triggerAt,
+            long triggerAtMillis,
+            long repeatIntervalMillis,
+            RepeatMode repeatMode,
+            String group
+    ) {
         this.taskKey = taskKey;
         this.notificationId = notificationId;
         this.lineNumber = lineNumber;
@@ -40,6 +65,7 @@ public final class ScheduledReminder {
         this.triggerAtMillis = triggerAtMillis;
         this.repeatIntervalMillis = repeatIntervalMillis;
         this.repeatMode = repeatMode == null ? RepeatMode.NONE : repeatMode;
+        this.group = ObsidianTask.normalizeGroup(group);
     }
 
     public String getTaskKey() {
@@ -72,5 +98,9 @@ public final class ScheduledReminder {
 
     public RepeatMode getRepeatMode() {
         return repeatMode;
+    }
+
+    public String getGroup() {
+        return group;
     }
 }

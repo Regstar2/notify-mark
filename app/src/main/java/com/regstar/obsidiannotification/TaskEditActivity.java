@@ -2,6 +2,10 @@ package com.regstar.obsidiannotification;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputType;
@@ -10,6 +14,8 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -46,8 +52,11 @@ public final class TaskEditActivity extends Activity {
     private EditText repeatInput;
     private EditText priorityInput;
     private EditText tagsInput;
+    private EditText groupInput;
     private CheckBox checkboxTaskInput;
     private CheckBox repeatUntilDoneInput;
+    private Button saveBottomButton;
+    private ImageButton saveTopButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,25 +92,15 @@ public final class TaskEditActivity extends Activity {
         ScrollView scrollView = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(20), dp(20), dp(20), dp(20));
+        root.setPadding(dp(16), dp(14), dp(16), dp(20));
         root.setBackgroundColor(getColor(R.color.background));
         scrollView.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        TextView title = new TextView(this);
-        title.setText(task == null ? "Новое уведомление" : "Редактирование уведомления");
-        title.setTextSize(24);
-        title.setTextColor(getColor(R.color.text_primary));
-        root.addView(title, fullWidthWithBottomMargin());
-
-        TextView source = new TextView(this);
-        source.setText("Источник: " + sourceLabel());
-        source.setTextSize(14);
-        source.setTextColor(getColor(R.color.text_secondary));
-        source.setPadding(0, 0, 0, dp(10));
-        root.addView(source, fullWidth());
+        root.addView(createTopBar(), fullWidthWithBottomMargin());
+        root.addView(createSourceCard(), fullWidthWithBottomMargin());
 
         addModeSwitch(root);
 
@@ -111,12 +110,7 @@ public final class TaskEditActivity extends Activity {
             addUiEditor(root);
         }
 
-        previewText = new TextView(this);
-        previewText.setTextSize(14);
-        previewText.setTextColor(getColor(R.color.text_primary));
-        previewText.setTypeface(android.graphics.Typeface.MONOSPACE);
-        previewText.setPadding(0, dp(10), 0, dp(10));
-        root.addView(previewText, fullWidth());
+        root.addView(createPreviewCard(), fullWidthWithBottomMargin());
 
         statusText = new TextView(this);
         statusText.setTextSize(14);
@@ -124,63 +118,133 @@ public final class TaskEditActivity extends Activity {
         statusText.setPadding(0, 0, 0, dp(10));
         root.addView(statusText, fullWidth());
 
-        Button checkButton = createButton("Проверить");
+        Button checkButton = createSecondaryButton("Проверить");
         checkButton.setOnClickListener(view -> validateCandidate(currentMarkdownLine(), true));
         root.addView(checkButton, fullWidthWithBottomMargin());
 
-        Button saveButton = createButton("Сохранить");
-        saveButton.setOnClickListener(view -> saveTask());
-        root.addView(saveButton, fullWidthWithBottomMargin());
+        LinearLayout bottomActions = new LinearLayout(this);
+        bottomActions.setOrientation(LinearLayout.HORIZONTAL);
+        Button cancelButton = createSecondaryButton("Отмена");
+        cancelButton.setOnClickListener(view -> finish());
+        bottomActions.addView(cancelButton, new LinearLayout.LayoutParams(
+                0,
+                dp(48),
+                1
+        ));
+
+        saveBottomButton = createPrimaryButton("Сохранить");
+        saveBottomButton.setOnClickListener(view -> saveTask());
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(
+                0,
+                dp(48),
+                1
+        );
+        saveParams.setMargins(dp(10), 0, 0, 0);
+        bottomActions.addView(saveBottomButton, saveParams);
+        root.addView(bottomActions, fullWidthWithBottomMargin());
 
         if (task != null) {
-            Button deleteButton = createButton("Удалить уведомление");
+            Button deleteButton = createSecondaryButton("Удалить уведомление");
             deleteButton.setOnClickListener(view -> confirmDelete());
             root.addView(deleteButton, fullWidthWithBottomMargin());
         }
 
-        Button cancelButton = createButton("Отмена");
-        cancelButton.setOnClickListener(view -> finish());
-        root.addView(cancelButton, fullWidthWithBottomMargin());
-
         setContentView(scrollView);
     }
 
-    private void addModeSwitch(LinearLayout root) {
-        TextView modeTitle = new TextView(this);
-        modeTitle.setText("Режим редактирования");
-        modeTitle.setTextSize(16);
-        modeTitle.setTextColor(getColor(R.color.text_primary));
-        root.addView(modeTitle, fullWidth());
+    private LinearLayout createTopBar() {
+        LinearLayout appBar = new LinearLayout(this);
+        appBar.setOrientation(LinearLayout.HORIZONTAL);
+        appBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        LinearLayout modeRow = new LinearLayout(this);
-        modeRow.setOrientation(LinearLayout.HORIZONTAL);
+        ImageButton back = createIconButton(R.drawable.ic_arrow_back, "Назад");
+        back.setOnClickListener(view -> finish());
+        appBar.addView(back, new LinearLayout.LayoutParams(dp(44), dp(44)));
 
-        Button uiButton = createButton(EditPreferences.MODE_UI.equals(editMode)
-                ? "UI-режим выбран"
-                : "UI-режим");
-        uiButton.setOnClickListener(view -> switchMode(EditPreferences.MODE_UI));
-        modeRow.addView(uiButton, new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1
-        ));
-
-        Button markdownButton = createButton(EditPreferences.MODE_MARKDOWN.equals(editMode)
-                ? "Markdown выбран"
-                : "Markdown");
-        markdownButton.setOnClickListener(view -> switchMode(EditPreferences.MODE_MARKDOWN));
-        LinearLayout.LayoutParams markdownParams = new LinearLayout.LayoutParams(
+        TextView title = createText(task == null ? "Новое уведомление" : "Редактирование", 22, R.color.text_primary, true);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         );
-        markdownParams.setMargins(dp(10), 0, 0, 0);
+        titleParams.setMargins(dp(8), 0, dp(8), 0);
+        appBar.addView(title, titleParams);
+
+        saveTopButton = createIconButton(R.drawable.ic_check, "Сохранить");
+        saveTopButton.setOnClickListener(view -> saveTask());
+        appBar.addView(saveTopButton, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        return appBar;
+    }
+
+    private LinearLayout createSourceCard() {
+        LinearLayout card = createCardContainer();
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_file);
+        icon.setColorFilter(getColor(R.color.text_secondary));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(26), dp(26)));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(createText(compactName(sourceLabel()), 15, R.color.text_primary, true), fullWidth());
+        texts.addView(createText(task == null ? "Файл для записи" : "Исходная строка в заметке", 13, R.color.text_secondary, false), fullWidth());
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        textParams.setMargins(dp(12), 0, 0, 0);
+        row.addView(texts, textParams);
+        card.addView(row, fullWidth());
+        return card;
+    }
+
+    private LinearLayout createPreviewCard() {
+        LinearLayout card = createCardContainer();
+        card.addView(createText("Preview markdown", 14, R.color.text_secondary, false), fullWidth());
+        previewText = createText("", 14, R.color.text_primary, false);
+        previewText.setTypeface(Typeface.MONOSPACE);
+        previewText.setPadding(0, dp(8), 0, 0);
+        card.addView(previewText, fullWidth());
+        return card;
+    }
+
+    private void addModeSwitch(LinearLayout root) {
+        root.addView(createText("Режим редактирования", 15, R.color.text_primary, true), fullWidth());
+        LinearLayout modeRow = new LinearLayout(this);
+        modeRow.setOrientation(LinearLayout.HORIZONTAL);
+
+        Button uiButton = createSegmentButton("UI", EditPreferences.MODE_UI.equals(editMode));
+        uiButton.setOnClickListener(view -> switchMode(EditPreferences.MODE_UI));
+        modeRow.addView(uiButton, new LinearLayout.LayoutParams(
+                0,
+                dp(40),
+                1
+        ));
+
+        Button markdownButton = createSegmentButton("Markdown", EditPreferences.MODE_MARKDOWN.equals(editMode));
+        markdownButton.setOnClickListener(view -> switchMode(EditPreferences.MODE_MARKDOWN));
+        LinearLayout.LayoutParams markdownParams = new LinearLayout.LayoutParams(
+                0,
+                dp(40),
+                1
+        );
+        markdownParams.setMargins(dp(6), 0, 0, 0);
         modeRow.addView(markdownButton, markdownParams);
         root.addView(modeRow, fullWidthWithBottomMargin());
+
+        String hint = EditPreferences.MODE_MARKDOWN.equals(editMode)
+                ? "Markdown позволяет редактировать исходную строку вручную."
+                : "UI-режим собирает markdown-строку автоматически.";
+        TextView modeHint = createText(hint, 13, R.color.text_secondary, false);
+        root.addView(modeHint, fullWidthWithBottomMargin());
     }
 
     private void addMarkdownEditor(LinearLayout root) {
-        addLabel(root, "Markdown-строка");
+        root.addView(createSectionTitle("Markdown"), fullWidth());
         markdownInput = createInput(defaultMarkdownLine());
         markdownInput.setSingleLine(false);
         markdownInput.setMinLines(3);
@@ -192,12 +256,7 @@ public final class TaskEditActivity extends Activity {
     }
 
     private void addUiEditor(LinearLayout root) {
-        checkboxTaskInput = new CheckBox(this);
-        checkboxTaskInput.setText("Записать как checkbox-задачу");
-        checkboxTaskInput.setTextColor(getColor(R.color.text_secondary));
-        checkboxTaskInput.setChecked(task == null || isCheckboxTask(task.getRawLine()));
-        checkboxTaskInput.setOnCheckedChangeListener((button, checked) -> updatePreview());
-        root.addView(checkboxTaskInput, fullWidthWithBottomMargin());
+        root.addView(createSectionTitle("Основное"), fullWidth());
 
         addLabel(root, "Текст");
         titleInput = createInput(task == null ? "Новое уведомление" : task.getTitle());
@@ -210,35 +269,150 @@ public final class TaskEditActivity extends Activity {
 
         addLabel(root, "Дата (yyyy-MM-dd)");
         dateInput = createInput(DATE.format(due.toLocalDate()));
+        dateInput.setOnClickListener(view -> showDatePicker());
+        dateInput.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) {
+                showDatePicker();
+            }
+        });
         dateInput.addTextChangedListener(previewWatcher());
         root.addView(dateInput, fullWidthWithBottomMargin());
 
         addLabel(root, "Время (HH:mm)");
         timeInput = createInput(TIME.format(due.toLocalTime()));
+        timeInput.setOnClickListener(view -> showTimePicker());
+        timeInput.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) {
+                showTimePicker();
+            }
+        });
         timeInput.addTextChangedListener(previewWatcher());
         root.addView(timeInput, fullWidthWithBottomMargin());
 
-        addLabel(root, "Повтор, например 15m, 2h, 1d");
+        root.addView(createSectionTitle("Повтор"), fullWidth());
+        addLabel(root, "Интервал: 15m, 2h, 1d");
         repeatInput = createInput(durationToToken(task == null ? null : task.getRepeatInterval()));
         repeatInput.addTextChangedListener(previewWatcher());
         root.addView(repeatInput, fullWidthWithBottomMargin());
+        addQuickRepeatRow(root);
 
         repeatUntilDoneInput = new CheckBox(this);
-        repeatUntilDoneInput.setText("Повторять, пока задача не будет выполнена");
+        repeatUntilDoneInput.setText("Повторять до выполнения");
         repeatUntilDoneInput.setTextColor(getColor(R.color.text_secondary));
         repeatUntilDoneInput.setChecked(task != null && task.getRepeatMode() == RepeatMode.UNTIL_DONE);
         repeatUntilDoneInput.setOnCheckedChangeListener((button, checked) -> updatePreview());
         root.addView(repeatUntilDoneInput, fullWidthWithBottomMargin());
 
-        addLabel(root, "Приоритет: low, medium, high, urgent");
+        root.addView(createSectionTitle("Дополнительно"), fullWidth());
+        addLabel(root, "Группа");
+        groupInput = createInput(task == null ? "" : task.getGroup());
+        groupInput.addTextChangedListener(previewWatcher());
+        root.addView(groupInput, fullWidthWithBottomMargin());
+
+        addLabel(root, "Приоритет");
         priorityInput = createInput(priorityToToken(task == null ? TaskPriority.NONE : task.getPriority()));
         priorityInput.addTextChangedListener(previewWatcher());
         root.addView(priorityInput, fullWidthWithBottomMargin());
+        addPriorityRow(root);
 
-        addLabel(root, "Теги через пробел");
+        addLabel(root, "Теги через пробел, например #work #health");
         tagsInput = createInput(tagsToText(task == null ? java.util.Collections.emptyList() : task.getTags()));
         tagsInput.addTextChangedListener(previewWatcher());
         root.addView(tagsInput, fullWidthWithBottomMargin());
+
+        checkboxTaskInput = new CheckBox(this);
+        checkboxTaskInput.setText("Сохранить как задачу с чекбоксом");
+        checkboxTaskInput.setTextColor(getColor(R.color.text_secondary));
+        checkboxTaskInput.setChecked(task == null || isCheckboxTask(task.getRawLine()));
+        checkboxTaskInput.setOnCheckedChangeListener((button, checked) -> updatePreview());
+        root.addView(checkboxTaskInput, fullWidthWithBottomMargin());
+    }
+
+    private void addQuickRepeatRow(LinearLayout root) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        addSmallValueButton(row, "5m", "5m", 0);
+        addSmallValueButton(row, "10m", "10m", dp(6));
+        addSmallValueButton(row, "15m", "15m", dp(6));
+        addSmallValueButton(row, "1h", "1h", dp(6));
+        addSmallValueButton(row, "1d", "1d", dp(6));
+        root.addView(row, fullWidthWithBottomMargin());
+    }
+
+    private void addPriorityRow(LinearLayout root) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        addPriorityButton(row, "Нет", "", 0);
+        addPriorityButton(row, "Низкий", "low", dp(6));
+        addPriorityButton(row, "Средний", "medium", dp(6));
+        addPriorityButton(row, "Высокий", "high", dp(6));
+        root.addView(row, fullWidthWithBottomMargin());
+    }
+
+    private void addSmallValueButton(LinearLayout row, String label, String value, int leftMargin) {
+        Button button = createSegmentButton(label, value.equals(valueOf(repeatInput)));
+        button.setOnClickListener(view -> {
+            repeatInput.setText(value);
+            updatePreview();
+        });
+        addCompactButton(row, button, leftMargin);
+    }
+
+    private void addPriorityButton(LinearLayout row, String label, String value, int leftMargin) {
+        Button button = createSegmentButton(label, value.equalsIgnoreCase(valueOf(priorityInput)));
+        button.setOnClickListener(view -> {
+            priorityInput.setText(value);
+            updatePreview();
+        });
+        addCompactButton(row, button, leftMargin);
+    }
+
+    private void addCompactButton(LinearLayout row, Button button, int leftMargin) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0,
+                dp(36),
+                1
+        );
+        params.setMargins(leftMargin, 0, 0, 0);
+        row.addView(button, params);
+    }
+
+    private void showDatePicker() {
+        LocalDate initial;
+        try {
+            initial = LocalDate.parse(valueOf(dateInput), DATE);
+        } catch (RuntimeException exception) {
+            initial = LocalDate.now();
+        }
+        new DatePickerDialog(
+                this,
+                (view, year, month, dayOfMonth) -> {
+                    dateInput.setText(DATE.format(LocalDate.of(year, month + 1, dayOfMonth)));
+                    updatePreview();
+                },
+                initial.getYear(),
+                initial.getMonthValue() - 1,
+                initial.getDayOfMonth()
+        ).show();
+    }
+
+    private void showTimePicker() {
+        java.time.LocalTime initial;
+        try {
+            initial = java.time.LocalTime.parse(valueOf(timeInput), TIME);
+        } catch (RuntimeException exception) {
+            initial = java.time.LocalTime.now();
+        }
+        new TimePickerDialog(
+                this,
+                (view, hourOfDay, minute) -> {
+                    timeInput.setText(TIME.format(java.time.LocalTime.of(hourOfDay, minute)));
+                    updatePreview();
+                },
+                initial.getHour(),
+                initial.getMinute(),
+                true
+        ).show();
     }
 
     private void switchMode(String mode) {
@@ -356,6 +530,11 @@ public final class TaskEditActivity extends Activity {
             builder.append(" @priority(").append(priority).append(")");
         }
 
+        String group = valueOf(groupInput);
+        if (!group.isEmpty() && !ObsidianTask.DEFAULT_GROUP.equals(group)) {
+            builder.append(" @group(").append(group).append(")");
+        }
+
         String tags = valueOf(tagsInput);
         if (!tags.isEmpty()) {
             builder.append(" @tag(").append(tags).append(")");
@@ -386,11 +565,39 @@ public final class TaskEditActivity extends Activity {
 
     private void updatePreview() {
         if (previewText != null) {
-            previewText.setText("Preview:\n" + currentMarkdownLine());
+            previewText.setText(currentMarkdownLine());
+        }
+        boolean validEnough = isCandidateReady(currentMarkdownLine());
+        if (saveBottomButton != null) {
+            saveBottomButton.setEnabled(validEnough);
+        }
+        if (saveTopButton != null) {
+            saveTopButton.setEnabled(validEnough);
         }
         if (statusText != null && loadError != null) {
             statusText.setText("Источник недоступен: " + loadError);
         }
+    }
+
+    private boolean isCandidateReady(String candidate) {
+        if (loadError != null && task == null && defaultDocument == null) {
+            return false;
+        }
+        if (candidate == null || candidate.trim().isEmpty()) {
+            return false;
+        }
+        if (candidate.contains("\n") || candidate.contains("\r")) {
+            return false;
+        }
+        TaskParseResult result = TaskParser.parseDocument(
+                candidate + "\n",
+                LocalDate.now(),
+                "preview.md",
+                TaskFormatSettings.load(this)
+        );
+        return result.getErrors().isEmpty()
+                && !result.getTasks().isEmpty()
+                && result.getTasks().get(0).getReminderAt() != null;
     }
 
     private TextWatcher previewWatcher() {
@@ -485,11 +692,125 @@ public final class TaskEditActivity extends Activity {
         return input;
     }
 
+    private TextView createText(String text, int sizeSp, int colorRes, boolean bold) {
+        TextView textView = new TextView(this);
+        textView.setText(text);
+        textView.setTextSize(sizeSp);
+        textView.setTextColor(getColor(colorRes));
+        textView.setTypeface(Typeface.DEFAULT, bold ? Typeface.BOLD : Typeface.NORMAL);
+        return textView;
+    }
+
+    private TextView createSectionTitle(String text) {
+        TextView title = createText(text, 17, R.color.text_primary, true);
+        title.setPadding(0, dp(12), 0, dp(6));
+        return title;
+    }
+
+    private LinearLayout createCardContainer() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+        return card;
+    }
+
+    private ImageButton createIconButton(int iconRes, String description) {
+        ImageButton button = new ImageButton(this);
+        button.setImageResource(iconRes);
+        button.setContentDescription(description);
+        button.setColorFilter(getColor(R.color.text_primary));
+        button.setBackground(createRoundedBackground(
+                getColor(R.color.icon_button_background),
+                0,
+                22
+        ));
+        return button;
+    }
+
+    private Button createPrimaryButton(String text) {
+        Button button = createButton(text);
+        button.setTextColor(getColor(R.color.primary_button_text));
+        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        button.setBackground(createRoundedBackground(
+                getColor(R.color.primary_button_background),
+                0,
+                8
+        ));
+        return button;
+    }
+
+    private Button createSecondaryButton(String text) {
+        Button button = createButton(text);
+        button.setTextColor(getColor(R.color.secondary_button_text));
+        button.setBackground(createRoundedBackground(
+                getColor(R.color.secondary_button_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+        return button;
+    }
+
+    private Button createSegmentButton(String text, boolean selected) {
+        Button button = createButton(text);
+        button.setTextSize(12);
+        button.setTextColor(getColor(selected ? R.color.chip_selected_text : R.color.chip_text));
+        button.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+        button.setBackground(createRoundedBackground(
+                getColor(selected ? R.color.chip_selected_background : R.color.chip_background),
+                getColor(selected ? R.color.chip_selected_stroke : R.color.chip_stroke),
+                8
+        ));
+        return button;
+    }
+
     private Button createButton(String text) {
         Button button = new Button(this);
         button.setText(text);
         button.setAllCaps(false);
+        button.setMinHeight(0);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
         return button;
+    }
+
+    private GradientDrawable createRoundedBackground(int color, int strokeColor, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(radiusDp));
+        if (strokeColor != 0) {
+            drawable.setStroke(dp(1), strokeColor);
+        }
+        return drawable;
+    }
+
+    private String compactName(String rawName) {
+        if (rawName == null || rawName.trim().isEmpty()) {
+            return "Источник не выбран";
+        }
+
+        String value = rawName.trim();
+        int queryIndex = value.indexOf('?');
+        if (queryIndex >= 0) {
+            value = value.substring(0, queryIndex);
+        }
+        int encodedSlash = Math.max(value.lastIndexOf("%2F"), value.lastIndexOf("%2f"));
+        if (encodedSlash >= 0 && encodedSlash + 3 < value.length()) {
+            value = value.substring(encodedSlash + 3);
+        }
+        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        if (slash >= 0 && slash + 1 < value.length()) {
+            value = value.substring(slash + 1);
+        }
+        int colon = value.lastIndexOf(':');
+        if (colon >= 0 && colon + 1 < value.length()) {
+            value = value.substring(colon + 1);
+        }
+        return value.isEmpty() ? rawName : value;
     }
 
     private LinearLayout.LayoutParams fullWidth() {
