@@ -401,9 +401,11 @@ public final class MainActivity extends Activity {
         nextReminderMetaText = null;
         nextReminderText = null;
 
+        boolean showNextReminder = UserPreferences.shouldShowNextReminder(this);
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(14), dp(16), dp(92));
+        root.setPadding(dp(16), dp(14), dp(16), showNextReminder ? dp(230) : dp(96));
         root.setBackgroundColor(getColor(R.color.background));
 
         LinearLayout appBar = new LinearLayout(this);
@@ -470,22 +472,12 @@ public final class MainActivity extends Activity {
 
         taskList = new LinearLayout(this);
         taskList.setOrientation(LinearLayout.VERTICAL);
-        taskList.setPadding(0, 0, 0, dp(76));
+        taskList.setPadding(0, 0, 0, 0);
         taskList.setClipToPadding(false);
         root.addView(taskList, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-
-        if (UserPreferences.shouldShowNextReminder(this)) {
-            LinearLayout nextReminderCard = createNextReminderCard();
-            LinearLayout.LayoutParams reminderParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            reminderParams.setMargins(0, dp(4), 0, dp(14));
-            root.addView(nextReminderCard, reminderParams);
-        }
 
         ScrollView screenScroll = new ScrollView(this);
         screenScroll.setFillViewport(true);
@@ -501,15 +493,13 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        Button addFab = createFabButton();
-        addFab.setOnClickListener(view -> openTaskEditor(null));
-        FrameLayout.LayoutParams fabParams = new FrameLayout.LayoutParams(
+        LinearLayout bottomOverlay = createBottomOverlay(showNextReminder);
+        FrameLayout.LayoutParams bottomParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(52),
-                android.view.Gravity.BOTTOM | android.view.Gravity.RIGHT
+                android.view.Gravity.BOTTOM
         );
-        fabParams.setMargins(dp(16), dp(16), dp(16), dp(18));
-        frame.addView(addFab, fabParams);
+        frame.addView(bottomOverlay, bottomParams);
 
         setContentView(frame);
     }
@@ -595,9 +585,38 @@ public final class MainActivity extends Activity {
     }
 
     private Button createFabButton() {
-        Button button = createActionButton("+ Добавить", true);
-        button.setPadding(dp(18), 0, dp(18), 0);
+        Button button = createActionButton("+", true);
+        button.setTextSize(24);
+        button.setMinHeight(0);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setMinimumHeight(0);
+        button.setPadding(0, 0, 0, dp(2));
+        button.setBackground(createCircleBackground(getColor(R.color.primary_button_background)));
         return button;
+    }
+
+    private LinearLayout createBottomOverlay(boolean showNextReminder) {
+        LinearLayout overlay = new LinearLayout(this);
+        overlay.setOrientation(LinearLayout.VERTICAL);
+        overlay.setPadding(dp(16), 0, dp(16), dp(16));
+
+        Button addFab = createFabButton();
+        addFab.setOnClickListener(view -> openTaskEditor(null));
+        LinearLayout.LayoutParams fabParams = new LinearLayout.LayoutParams(dp(48), dp(48));
+        fabParams.gravity = android.view.Gravity.RIGHT;
+        fabParams.setMargins(0, 0, 0, showNextReminder ? dp(10) : 0);
+        overlay.addView(addFab, fabParams);
+
+        if (showNextReminder) {
+            LinearLayout nextReminderCard = createNextReminderCard();
+            overlay.addView(nextReminderCard, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+        }
+
+        return overlay;
     }
 
     private LinearLayout createNextReminderCard() {

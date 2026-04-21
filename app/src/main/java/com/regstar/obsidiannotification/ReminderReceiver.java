@@ -155,7 +155,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             );
             builder.addAction(
                     R.drawable.ic_repeat,
-                    "+" + ActionPreferences.getSnoozeMinutes(context) + "м",
+                    "Отложить " + ActionPreferences.getSnoozeMinutes(context) + "м",
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SNOOZE,
@@ -174,21 +174,6 @@ public final class ReminderReceiver extends BroadcastReceiver {
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SKIP,
-                            taskKey,
-                            notificationId,
-                            displayNotificationId,
-                            lineNumber,
-                            title,
-                            repeatIntervalMillis,
-                            repeatMode
-                    )
-            );
-            builder.addAction(
-                    R.drawable.ic_file,
-                    "↗",
-                    ReminderActionReceiver.createActionPendingIntent(
-                            context,
-                            ReminderActionReceiver.ACTION_OPEN_NOTE,
                             taskKey,
                             notificationId,
                             displayNotificationId,
