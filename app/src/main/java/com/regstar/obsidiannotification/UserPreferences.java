@@ -7,6 +7,7 @@ public final class UserPreferences {
     public static final String FILTER_ACTIVE = "active";
     public static final String FILTER_OVERDUE = "overdue";
     public static final String FILTER_COMPLETED = "completed";
+    public static final String FILTER_SKIPPED = "skipped";
     public static final String GROUPING_SMART = "smart";
     public static final String GROUPING_GROUP = "group";
     public static final String GROUPING_TAG = "tag";
@@ -63,6 +64,9 @@ public final class UserPreferences {
         }
         if (FILTER_COMPLETED.equals(filter)) {
             return "завершенные";
+        }
+        if (FILTER_SKIPPED.equals(filter)) {
+            return "пропущенные";
         }
         return "все";
     }
@@ -151,7 +155,8 @@ public final class UserPreferences {
         return FILTER_ALL.equals(filter)
                 || FILTER_ACTIVE.equals(filter)
                 || FILTER_OVERDUE.equals(filter)
-                || FILTER_COMPLETED.equals(filter);
+                || FILTER_COMPLETED.equals(filter)
+                || FILTER_SKIPPED.equals(filter);
     }
 
     private static boolean isKnownGroupingMode(String mode) {

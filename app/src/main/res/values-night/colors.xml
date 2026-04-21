@@ -20,6 +20,8 @@
     <color name="status_overdue_text">#FFC8D0</color>
     <color name="status_completed_background">#2F443A</color>
     <color name="status_completed_text">#BDE7CE</color>
+    <color name="status_skipped_background">#3A3D44</color>
+    <color name="status_skipped_text">#D0D3DA</color>
     <color name="error_text">#FFB4BF</color>
     <color name="text_primary">#F0F1F4</color>
     <color name="text_secondary">#B8BBC4</color>

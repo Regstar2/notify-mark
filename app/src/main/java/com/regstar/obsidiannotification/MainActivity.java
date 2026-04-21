@@ -2,7 +2,6 @@ package com.regstar.obsidiannotification;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -708,6 +707,7 @@ public final class MainActivity extends Activity {
         popupMenu.getMenu().add(0, 2, 1, "Активные");
         popupMenu.getMenu().add(0, 3, 2, "Просроченные");
         popupMenu.getMenu().add(0, 4, 3, "Завершенные");
+        popupMenu.getMenu().add(0, 5, 4, "Пропущенные");
         popupMenu.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == 1) {
@@ -718,6 +718,8 @@ public final class MainActivity extends Activity {
                 UserPreferences.setTaskFilter(this, UserPreferences.FILTER_OVERDUE);
             } else if (id == 4) {
                 UserPreferences.setTaskFilter(this, UserPreferences.FILTER_COMPLETED);
+            } else if (id == 5) {
+                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_SKIPPED);
             }
             updateActiveFilterButton();
             readAndRenderNote();
@@ -1054,6 +1056,8 @@ public final class MainActivity extends Activity {
                 visibleTasks.add(task);
             } else if (UserPreferences.FILTER_COMPLETED.equals(filter) && status == TaskStatus.COMPLETED) {
                 visibleTasks.add(task);
+            } else if (UserPreferences.FILTER_SKIPPED.equals(filter) && status == TaskStatus.SKIPPED) {
+                visibleTasks.add(task);
             }
         }
         return visibleTasks;
@@ -1300,7 +1304,7 @@ public final class MainActivity extends Activity {
                 item,
                 () -> openPreferredTaskEditor(task),
                 () -> skipTask(task),
-                () -> confirmDeleteTask(task)
+                () -> deleteTask(task)
         ));
 
         LinearLayout titleRow = new LinearLayout(this);
@@ -1383,8 +1387,8 @@ public final class MainActivity extends Activity {
 
         TextView skipAction = createSwipeActionLabel(
                 "Пропустить",
-                R.color.status_completed_background,
-                R.color.status_completed_text
+                R.color.status_skipped_background,
+                R.color.status_skipped_text
         );
         skipAction.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.LEFT);
         skipAction.setPadding(dp(16), 0, dp(16), 0);
@@ -1403,7 +1407,7 @@ public final class MainActivity extends Activity {
         );
         deleteAction.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.RIGHT);
         deleteAction.setPadding(dp(16), 0, dp(16), 0);
-        deleteAction.setOnClickListener(view -> confirmDeleteTask(task));
+        deleteAction.setOnClickListener(view -> deleteTask(task));
         FrameLayout.LayoutParams deleteParams = new FrameLayout.LayoutParams(
                 dp(132),
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1536,8 +1540,8 @@ public final class MainActivity extends Activity {
             textColor = R.color.status_completed_text;
             label = "Завершена";
         } else if (status == TaskStatus.SKIPPED) {
-            background = R.color.status_completed_background;
-            textColor = R.color.status_completed_text;
+            background = R.color.status_skipped_background;
+            textColor = R.color.status_skipped_text;
             label = "Пропущена";
         } else if (status == TaskStatus.OVERDUE) {
             background = R.color.status_overdue_background;
@@ -1609,7 +1613,7 @@ public final class MainActivity extends Activity {
                 return true;
             }
             if (id == 6) {
-                confirmDeleteTask(task);
+                deleteTask(task);
                 return true;
             }
             return false;
@@ -1679,15 +1683,6 @@ public final class MainActivity extends Activity {
             readAndRenderNote();
         }
         Toast.makeText(this, result.isUpdated() ? "Уведомление пропущено" : result.getMessage(), Toast.LENGTH_LONG).show();
-    }
-
-    private void confirmDeleteTask(ObsidianTask task) {
-        new AlertDialog.Builder(this)
-                .setTitle("Удалить уведомление?")
-                .setMessage(task.getTitle())
-                .setPositiveButton("Удалить", (dialog, which) -> deleteTask(task))
-                .setNegativeButton("Отмена", null)
-                .show();
     }
 
     private void deleteTask(ObsidianTask task) {
