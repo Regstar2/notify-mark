@@ -417,6 +417,63 @@ public final class NoteStore {
         return documents.get(0);
     }
 
+    public static MarkdownDocument findMarkdownDocument(Context context, String taskKey) throws IOException {
+        if (taskKey != null && !taskKey.trim().isEmpty()) {
+            TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
+            for (NoteDocument document : readDocuments(context)) {
+                TaskParseResult result = TaskParser.parseDocument(
+                        document.getMarkdown(),
+                        LocalDate.now(),
+                        document.getDisplayName(),
+                        formatSettings
+                );
+                for (ObsidianTask task : result.getTasks()) {
+                    if (task.getTaskKey().equals(taskKey)) {
+                        return new MarkdownDocument(
+                                document.getDisplayName(),
+                                document.getUri(),
+                                document.getMarkdown(),
+                                task.getLineNumber()
+                        );
+                    }
+                }
+            }
+            throw new IOException("задача не найдена или уже изменилась");
+        }
+
+        NoteDocument document = findDefaultWriteDocument(context);
+        return new MarkdownDocument(
+                document.getDisplayName(),
+                document.getUri(),
+                document.getMarkdown(),
+                1
+        );
+    }
+
+    public static TaskEditResult replaceMarkdownDocument(
+            Context context,
+            Uri uri,
+            String originalMarkdown,
+            String markdown,
+            boolean force
+    ) {
+        if (uri == null) {
+            return TaskEditResult.notFound("markdown-файл не найден");
+        }
+
+        try {
+            String latestMarkdown = readMarkdown(context, uri);
+            if (!force && originalMarkdown != null && !latestMarkdown.equals(originalMarkdown)) {
+                return TaskEditResult.conflict("файл изменился после открытия редактора");
+            }
+            writeMarkdown(context, uri, markdown == null ? "" : markdown);
+            return TaskEditResult.updated("markdown-файл сохранен");
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось сохранить markdown-файл", exception);
+            return TaskEditResult.writeFailed(exception.getMessage());
+        }
+    }
+
     public static TaskEditResult appendTaskLine(Context context, String rawLine) {
         String safeLine = sanitizeSingleLine(rawLine);
         if (safeLine.isEmpty()) {
@@ -811,6 +868,36 @@ public final class NoteStore {
 
         public String getMarkdown() {
             return markdown;
+        }
+    }
+
+    public static final class MarkdownDocument {
+        private final String displayName;
+        private final Uri uri;
+        private final String markdown;
+        private final int targetLineNumber;
+
+        public MarkdownDocument(String displayName, Uri uri, String markdown, int targetLineNumber) {
+            this.displayName = displayName == null ? uri.toString() : displayName;
+            this.uri = uri;
+            this.markdown = markdown == null ? "" : markdown;
+            this.targetLineNumber = Math.max(1, targetLineNumber);
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public Uri getUri() {
+            return uri;
+        }
+
+        public String getMarkdown() {
+            return markdown;
+        }
+
+        public int getTargetLineNumber() {
+            return targetLineNumber;
         }
     }
 

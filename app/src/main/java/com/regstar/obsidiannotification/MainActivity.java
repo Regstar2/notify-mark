@@ -67,6 +67,7 @@ public final class MainActivity extends Activity {
     private Button notificationPermissionButton;
     private Button exactAlarmPermissionButton;
     private LinearLayout taskList;
+    private boolean showTaskSourceNames;
     private final Handler noteRefreshHandler = new Handler(Looper.getMainLooper());
     private final Runnable noteRefreshRunnable = new Runnable() {
         @Override
@@ -365,7 +366,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout titleColumn = new LinearLayout(this);
         titleColumn.setOrientation(LinearLayout.VERTICAL);
-        titleColumn.addView(createText("ObsidianNotification", 22, R.color.text_primary, true), fullWidth());
+        titleColumn.addView(createText("ObsidianNotification", 21, R.color.text_primary, true), fullWidth());
 
         TextView subtitle = createText(
                 "Напоминания из markdown-заметок Obsidian",
@@ -387,13 +388,13 @@ public final class MainActivity extends Activity {
         refreshAction.setEnabled(noteUri != null);
         refreshAction.setOnClickListener(view -> readAndRenderNote());
         refreshButton = refreshAction;
-        appBar.addView(refreshAction, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        appBar.addView(refreshAction, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         ImageButton settingsButton = createIconButton(R.drawable.ic_settings, "Настройки");
         settingsButton.setImageResource(R.drawable.ic_settings);
         settingsButton.setOnClickListener(view -> openSettings());
-        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(dp(44), dp(44));
-        settingsParams.setMargins(dp(8), 0, 0, 0);
+        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        settingsParams.setMargins(dp(6), 0, 0, 0);
         appBar.addView(settingsButton, settingsParams);
         root.addView(appBar, fullWidth());
 
@@ -474,6 +475,8 @@ public final class MainActivity extends Activity {
 
         taskList = new LinearLayout(this);
         taskList.setOrientation(LinearLayout.VERTICAL);
+        taskList.setPadding(0, 0, 0, dp(76));
+        taskList.setClipToPadding(false);
         root.addView(taskList, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -528,7 +531,12 @@ public final class MainActivity extends Activity {
         button.setImageResource(iconRes);
         button.setContentDescription(description);
         button.setColorFilter(getColor(R.color.text_primary));
-        button.setBackground(createCircleBackground(getColor(R.color.icon_button_background)));
+        button.setPadding(dp(10), dp(10), dp(10), dp(10));
+        button.setBackground(createRoundedBackground(
+                getColor(R.color.icon_button_background),
+                0,
+                18
+        ));
         return button;
     }
 
@@ -867,6 +875,7 @@ public final class MainActivity extends Activity {
     private void renderTasks(List<ObsidianTask> tasks) {
         taskList.removeAllViews();
         updateGroupFilterRow(tasks);
+        showTaskSourceNames = hasMultipleSources(tasks);
         List<ObsidianTask> visibleTasks = filterVisibleTasks(tasks);
         if (visibleTasks.isEmpty()) {
             renderEmptyState("В выбранных markdown-файлах нет уведомлений с @due(...) для текущего фильтра.");
@@ -874,7 +883,7 @@ public final class MainActivity extends Activity {
         }
 
         String currentSource = null;
-        boolean showGroupHeaders = hasMultipleSources(visibleTasks);
+        boolean showGroupHeaders = showTaskSourceNames;
         for (ObsidianTask task : visibleTasks) {
             String sourceName = task.getSourceName();
             if (showGroupHeaders && !sourceName.equals(currentSource)) {
@@ -1043,6 +1052,7 @@ public final class MainActivity extends Activity {
 
     private View createTaskView(ObsidianTask task) {
         LinearLayout item = createCardContainer();
+        item.setOnClickListener(view -> openPreferredTaskEditor(task));
 
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -1060,7 +1070,7 @@ public final class MainActivity extends Activity {
         TextView statusChip = createStatusChip(task.getStatus(LocalDateTime.now()));
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(24)
+                dp(22)
         );
         statusParams.setMargins(dp(8), 0, dp(4), 0);
         titleRow.addView(statusChip, statusParams);
@@ -1082,12 +1092,14 @@ public final class MainActivity extends Activity {
             item.addView(createMetaLine(R.drawable.ic_repeat, formatRepeat(task)), fullWidthWithTopMargin(dp(6)));
         }
 
-        item.addView(createMetaLine(R.drawable.ic_file, compactName(task.getSourceName())), fullWidthWithTopMargin(dp(6)));
+        if (showTaskSourceNames) {
+            item.addView(createMetaLine(R.drawable.ic_file, compactName(task.getSourceName())), fullWidthWithTopMargin(dp(6)));
+        }
         item.addView(createMetaLine(R.drawable.ic_label, "группа: " + task.getGroup()), fullWidthWithTopMargin(dp(6)));
 
         String secondary = formatSecondaryTaskMeta(task);
         if (!secondary.isEmpty()) {
-            TextView secondaryMeta = createText(secondary, 12, R.color.text_secondary, false);
+            TextView secondaryMeta = createText(secondary, 11, R.color.text_secondary, false);
             secondaryMeta.setMaxLines(2);
             secondaryMeta.setEllipsize(TextUtils.TruncateAt.END);
             item.addView(secondaryMeta, fullWidthWithTopMargin(dp(8)));
@@ -1120,9 +1132,9 @@ public final class MainActivity extends Activity {
             label = "Ожидает";
         }
 
-        TextView chip = createText(label, 11, textColor, true);
+        TextView chip = createText(label, 10, textColor, true);
         chip.setGravity(android.view.Gravity.CENTER);
-        chip.setPadding(dp(8), 0, dp(8), 0);
+        chip.setPadding(dp(7), 0, dp(7), 0);
         chip.setBackground(createRoundedBackground(getColor(background), 0, 8));
         return chip;
     }
@@ -1151,15 +1163,15 @@ public final class MainActivity extends Activity {
 
     private void showTaskMenu(View anchor, ObsidianTask task) {
         PopupMenu popupMenu = new PopupMenu(this, anchor);
-        popupMenu.getMenu().add(0, 1, 0, "Открыть заметку");
+        popupMenu.getMenu().add(0, 1, 0, "Выполнить");
         popupMenu.getMenu().add(0, 2, 1, "Отложить");
-        popupMenu.getMenu().add(0, 3, 2, "Отметить выполненной");
-        popupMenu.getMenu().add(0, 4, 3, "Редактировать");
+        popupMenu.getMenu().add(0, 3, 2, "Редактировать через UI");
+        popupMenu.getMenu().add(0, 4, 3, "Открыть markdown");
         popupMenu.getMenu().add(0, 5, 4, "Удалить");
         popupMenu.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == 1) {
-                openNoteForTask(task);
+                markTaskDone(task);
                 return true;
             }
             if (id == 2) {
@@ -1167,11 +1179,11 @@ public final class MainActivity extends Activity {
                 return true;
             }
             if (id == 3) {
-                markTaskDone(task);
+                openTaskEditor(task);
                 return true;
             }
             if (id == 4) {
-                openTaskEditor(task);
+                openMarkdownEditor(task);
                 return true;
             }
             if (id == 5) {
@@ -1188,6 +1200,23 @@ public final class MainActivity extends Activity {
         Intent intent = new Intent(this, TaskEditActivity.class);
         if (task != null) {
             intent.putExtra(TaskEditActivity.EXTRA_TASK_KEY, task.getTaskKey());
+        }
+        startActivityForResult(intent, REQUEST_EDIT_TASK);
+    }
+
+    private void openPreferredTaskEditor(ObsidianTask task) {
+        if (task != null && EditPreferences.MODE_MARKDOWN.equals(EditPreferences.getEditMode(this))) {
+            openMarkdownEditor(task);
+            return;
+        }
+        openTaskEditor(task);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void openMarkdownEditor(ObsidianTask task) {
+        Intent intent = new Intent(this, MarkdownFileEditActivity.class);
+        if (task != null) {
+            intent.putExtra(MarkdownFileEditActivity.EXTRA_TASK_KEY, task.getTaskKey());
         }
         startActivityForResult(intent, REQUEST_EDIT_TASK);
     }

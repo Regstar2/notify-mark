@@ -34,10 +34,8 @@ public final class TaskEditActivity extends Activity {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
-    private static final DateTimeFormatter DUE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private String taskKey;
-    private String editMode;
     private ObsidianTask task;
     private NoteStore.TaskDocumentMatch taskMatch;
     private NoteStore.NoteDocument defaultDocument;
@@ -45,7 +43,6 @@ public final class TaskEditActivity extends Activity {
 
     private TextView statusText;
     private TextView previewText;
-    private EditText markdownInput;
     private EditText titleInput;
     private EditText dateInput;
     private EditText timeInput;
@@ -64,7 +61,6 @@ public final class TaskEditActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         taskKey = getIntent().getStringExtra(EXTRA_TASK_KEY);
-        editMode = EditPreferences.getEditMode(this);
         loadTaskContext();
         buildUi();
         updatePreview();
@@ -102,13 +98,7 @@ public final class TaskEditActivity extends Activity {
         root.addView(createTopBar(), fullWidthWithBottomMargin());
         root.addView(createSourceCard(), fullWidthWithBottomMargin());
 
-        addModeSwitch(root);
-
-        if (EditPreferences.MODE_MARKDOWN.equals(editMode)) {
-            addMarkdownEditor(root);
-        } else {
-            addUiEditor(root);
-        }
+        addUiEditor(root);
 
         root.addView(createPreviewCard(), fullWidthWithBottomMargin());
 
@@ -210,49 +200,6 @@ public final class TaskEditActivity extends Activity {
         previewText.setPadding(0, dp(8), 0, 0);
         card.addView(previewText, fullWidth());
         return card;
-    }
-
-    private void addModeSwitch(LinearLayout root) {
-        root.addView(createText("Режим редактирования", 15, R.color.text_primary, true), fullWidth());
-        LinearLayout modeRow = new LinearLayout(this);
-        modeRow.setOrientation(LinearLayout.HORIZONTAL);
-
-        Button uiButton = createSegmentButton("UI", EditPreferences.MODE_UI.equals(editMode));
-        uiButton.setOnClickListener(view -> switchMode(EditPreferences.MODE_UI));
-        modeRow.addView(uiButton, new LinearLayout.LayoutParams(
-                0,
-                dp(40),
-                1
-        ));
-
-        Button markdownButton = createSegmentButton("Markdown", EditPreferences.MODE_MARKDOWN.equals(editMode));
-        markdownButton.setOnClickListener(view -> switchMode(EditPreferences.MODE_MARKDOWN));
-        LinearLayout.LayoutParams markdownParams = new LinearLayout.LayoutParams(
-                0,
-                dp(40),
-                1
-        );
-        markdownParams.setMargins(dp(6), 0, 0, 0);
-        modeRow.addView(markdownButton, markdownParams);
-        root.addView(modeRow, fullWidthWithBottomMargin());
-
-        String hint = EditPreferences.MODE_MARKDOWN.equals(editMode)
-                ? "Markdown позволяет редактировать исходную строку вручную."
-                : "UI-режим собирает markdown-строку автоматически.";
-        TextView modeHint = createText(hint, 13, R.color.text_secondary, false);
-        root.addView(modeHint, fullWidthWithBottomMargin());
-    }
-
-    private void addMarkdownEditor(LinearLayout root) {
-        root.addView(createSectionTitle("Markdown"), fullWidth());
-        markdownInput = createInput(defaultMarkdownLine());
-        markdownInput.setSingleLine(false);
-        markdownInput.setMinLines(3);
-        markdownInput.setInputType(InputType.TYPE_CLASS_TEXT
-                | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        markdownInput.addTextChangedListener(previewWatcher());
-        root.addView(markdownInput, fullWidthWithBottomMargin());
     }
 
     private void addUiEditor(LinearLayout root) {
@@ -415,11 +362,6 @@ public final class TaskEditActivity extends Activity {
         ).show();
     }
 
-    private void switchMode(String mode) {
-        EditPreferences.setEditMode(this, mode);
-        recreate();
-    }
-
     private void saveTask() {
         String candidate = currentMarkdownLine();
         if (!validateCandidate(candidate, false)) {
@@ -496,10 +438,6 @@ public final class TaskEditActivity extends Activity {
     }
 
     private String currentMarkdownLine() {
-        if (EditPreferences.MODE_MARKDOWN.equals(editMode)) {
-            return markdownInput == null ? "" : markdownInput.getText().toString().trim();
-        }
-
         String title = titleInput == null ? "" : titleInput.getText().toString().trim();
         if (title.isEmpty()) {
             title = "Новое уведомление";
@@ -553,14 +491,6 @@ public final class TaskEditActivity extends Activity {
             return date;
         }
         return time;
-    }
-
-    private String defaultMarkdownLine() {
-        if (task != null) {
-            return task.getRawLine();
-        }
-        LocalDateTime due = LocalDateTime.now().plusMinutes(10);
-        return "- [ ] Новое уведомление @due(" + DUE.format(due) + ")";
     }
 
     private void updatePreview() {
@@ -724,10 +654,11 @@ public final class TaskEditActivity extends Activity {
         button.setImageResource(iconRes);
         button.setContentDescription(description);
         button.setColorFilter(getColor(R.color.text_primary));
+        button.setPadding(dp(10), dp(10), dp(10), dp(10));
         button.setBackground(createRoundedBackground(
                 getColor(R.color.icon_button_background),
                 0,
-                22
+                18
         ));
         return button;
     }

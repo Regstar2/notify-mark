@@ -94,35 +94,51 @@ public final class SettingsActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText("Настройки");
-        title.setTextSize(24);
+        title.setTextSize(22);
         title.setTextColor(getColor(R.color.text_primary));
-        root.addView(title, fullWidth());
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        root.addView(title, fullWidthWithBottomMargin());
 
+        LinearLayout summaryCard = createSettingsCard();
+        TextView summaryTitle = new TextView(this);
+        summaryTitle.setText("Состояние");
+        summaryTitle.setTextSize(15);
+        summaryTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        summaryTitle.setTextColor(getColor(R.color.text_primary));
+        summaryCard.addView(summaryTitle, fullWidth());
         statusText = new TextView(this);
-        statusText.setTextSize(15);
+        statusText.setTextSize(13);
         statusText.setTextColor(getColor(R.color.text_secondary));
-        statusText.setPadding(0, dp(12), 0, dp(12));
-        root.addView(statusText, fullWidth());
+        statusText.setPadding(0, dp(6), 0, 0);
+        summaryCard.addView(statusText, fullWidth());
+        root.addView(summaryCard, fullWidthWithBottomMargin());
 
-        Button chooseNoteButton = createButton("Выбрать заметку или несколько заметок");
-        chooseNoteButton.setOnClickListener(view -> openNotePicker(REQUEST_REPLACE_NOTES));
-        root.addView(chooseNoteButton, fullWidthWithBottomMargin());
-
-        Button chooseFolderButton = createButton("Выбрать папку с заметками");
-        chooseFolderButton.setOnClickListener(view -> openFolderPicker(REQUEST_REPLACE_FOLDER));
-        root.addView(chooseFolderButton, fullWidthWithBottomMargin());
-
-        Button addNoteButton = createButton("Добавить заметку");
-        addNoteButton.setOnClickListener(view -> openNotePicker(REQUEST_ADD_NOTES));
-        root.addView(addNoteButton, fullWidthWithBottomMargin());
-
-        Button addFolderButton = createButton("Добавить папку");
-        addFolderButton.setOnClickListener(view -> openFolderPicker(REQUEST_ADD_FOLDER));
-        root.addView(addFolderButton, fullWidthWithBottomMargin());
-
-        Button clearSourcesButton = createButton("Очистить источники");
-        clearSourcesButton.setOnClickListener(view -> clearSources());
-        root.addView(clearSourcesButton, fullWidthWithBottomMargin());
+        addSectionTitle(root, "Источник данных");
+        root.addView(createActionCard(
+                "Выбрать заметки",
+                "Заменить текущий набор одной или несколькими markdown-заметками.",
+                () -> openNotePicker(REQUEST_REPLACE_NOTES)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Выбрать папку",
+                "Сканировать markdown-файлы внутри выбранной папки.",
+                () -> openFolderPicker(REQUEST_REPLACE_FOLDER)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Добавить заметку",
+                "Добавить еще один markdown-файл к текущим источникам.",
+                () -> openNotePicker(REQUEST_ADD_NOTES)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Добавить папку",
+                "Добавить еще одну папку к текущим источникам.",
+                () -> openFolderPicker(REQUEST_ADD_FOLDER)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Очистить источники",
+                "Сбросить выбранные заметки и папки.",
+                this::clearSources
+        ), fullWidthWithBottomMargin());
 
         activeFilterButton = createButton("");
         activeFilterButton.setOnClickListener(view -> {
@@ -149,30 +165,32 @@ public final class SettingsActivity extends Activity {
 
     private void addEditingSettings(LinearLayout root) {
         TextView editTitle = new TextView(this);
-        editTitle.setText("Поведение");
+        editTitle.setText("Редактирование");
         editTitle.setTextSize(18);
         editTitle.setTextColor(getColor(R.color.text_primary));
         editTitle.setPadding(0, dp(12), 0, dp(6));
         root.addView(editTitle, fullWidth());
 
         TextView editDescription = new TextView(this);
-        editDescription.setText("Режим редактирования задач внутри приложения. В UI-режиме preview markdown-строки остается видимым.");
+        editDescription.setText("Основной способ открытия задачи из списка. UI открывает форму одной задачи, Markdown открывает весь исходный файл на строке задачи.");
         editDescription.setTextSize(14);
         editDescription.setTextColor(getColor(R.color.text_secondary));
         editDescription.setPadding(0, 0, 0, dp(8));
         root.addView(editDescription, fullWidth());
 
-        Button uiModeButton = createButton(EditPreferences.MODE_UI.equals(EditPreferences.getEditMode(this))
-                ? "Режим: UI с записью в markdown"
-                : "Выбрать UI-редактирование");
-        uiModeButton.setOnClickListener(view -> setEditMode(EditPreferences.MODE_UI));
-        root.addView(uiModeButton, fullWidthWithBottomMargin());
-
-        Button markdownModeButton = createButton(EditPreferences.MODE_MARKDOWN.equals(EditPreferences.getEditMode(this))
-                ? "Режим: прямое редактирование markdown"
-                : "Выбрать markdown-редактирование");
-        markdownModeButton.setOnClickListener(view -> setEditMode(EditPreferences.MODE_MARKDOWN));
-        root.addView(markdownModeButton, fullWidthWithBottomMargin());
+        String mode = EditPreferences.getEditMode(this);
+        root.addView(createChoiceCard(
+                "Через UI",
+                "Форма одной задачи с preview итоговой markdown-строки.",
+                EditPreferences.MODE_UI.equals(mode),
+                () -> setEditMode(EditPreferences.MODE_UI)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Markdown-файл",
+                "Полный исходный файл с переходом к строке выбранной задачи.",
+                EditPreferences.MODE_MARKDOWN.equals(mode),
+                () -> setEditMode(EditPreferences.MODE_MARKDOWN)
+        ), fullWidthWithBottomMargin());
     }
 
     private void addAppearanceSettings(LinearLayout root) {
@@ -578,8 +596,8 @@ public final class SettingsActivity extends Activity {
 
     private String formatEditMode(String mode) {
         return EditPreferences.MODE_MARKDOWN.equals(mode)
-                ? "прямой markdown"
-                : "UI с preview markdown";
+                ? "markdown-файл"
+                : "UI-форма";
     }
 
     private String formatThemeMode(String mode) {
@@ -595,20 +613,16 @@ public final class SettingsActivity extends Activity {
     private void updateStatus() {
         String cachedAt = TaskCache.getSavedAt(this);
         String latestError = ErrorLog.latest(this);
-        TaskFormatSettings formatSettings = TaskFormatSettings.load(this);
-        NoteScanSettings scanSettings = NoteScanSettings.load(this);
         StringBuilder status = new StringBuilder("Источник: " + compactName(NoteStore.sourceLabel(this))
-                + "\nИсточников: " + NoteStore.getSavedSourceCount(this)
-                + " · фильтр: " + UserPreferences.getTaskFilterLabel(this)
-                + "\nТочные напоминания: "
-                + (ReminderScheduler.canScheduleExactAlarms(this) ? "да" : "нет")
+                + " · источников: " + NoteStore.getSavedSourceCount(this)
+                + "\nФильтр: " + UserPreferences.getTaskFilterLabel(this)
                 + " · запись: " + (NoteStore.canWriteSavedSource(this) ? "да" : "нужно выбрать источник")
-                + "\nОтложить: " + ActionPreferences.getSnoozeMinutes(this) + " мин."
+                + "\nНапоминания: точные "
+                + (ReminderScheduler.canScheduleExactAlarms(this) ? "да" : "нет")
+                + " · отложить " + ActionPreferences.getSnoozeMinutes(this) + " мин."
                 + " · счетчик: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "вкл." : "выкл.")
                 + "\nРедактирование: " + formatEditMode(EditPreferences.getEditMode(this))
                 + " · тема: " + formatThemeMode(ThemePreferences.getThemeMode(this))
-                + "\nФормат: " + formatSettings.formatForStatus()
-                + "\nПоиск: " + scanSettings.formatForStatus()
                 + "\nКэш задач: " + TaskCache.getCachedTaskCount(this)
                 + (cachedAt == null ? "" : " · " + cachedAt));
         if (latestError != null) {
@@ -621,6 +635,126 @@ public final class SettingsActivity extends Activity {
         activeFilterButton.setText(UserPreferences.isActiveOnly(this)
                 ? "Показать все задачи"
                 : "Показывать только активные");
+    }
+
+    private void addSectionTitle(LinearLayout root, String text) {
+        TextView title = new TextView(this);
+        title.setText(text);
+        title.setTextSize(18);
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        title.setPadding(0, dp(12), 0, dp(6));
+        root.addView(title, fullWidth());
+    }
+
+    private LinearLayout createSettingsCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+        return card;
+    }
+
+    private LinearLayout createActionCard(String title, String subtitle, Runnable action) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+        card.setOnClickListener(view -> action.run());
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextSize(15);
+        titleView.setTextColor(getColor(R.color.text_primary));
+        titleView.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        textColumn.addView(titleView, fullWidth());
+
+        TextView subtitleView = new TextView(this);
+        subtitleView.setText(subtitle);
+        subtitleView.setTextSize(13);
+        subtitleView.setTextColor(getColor(R.color.text_secondary));
+        subtitleView.setPadding(0, dp(3), 0, 0);
+        textColumn.addView(subtitleView, fullWidth());
+
+        card.addView(textColumn, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        TextView chevron = new TextView(this);
+        chevron.setText("›");
+        chevron.setTextSize(24);
+        chevron.setTextColor(getColor(R.color.text_secondary));
+        chevron.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams chevronParams = new LinearLayout.LayoutParams(dp(32), dp(42));
+        chevronParams.setMargins(dp(8), 0, 0, 0);
+        card.addView(chevron, chevronParams);
+        return card;
+    }
+
+    private LinearLayout createChoiceCard(
+            String title,
+            String subtitle,
+            boolean selected,
+            Runnable action
+    ) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(createRoundedBackground(
+                getColor(selected ? R.color.chip_selected_background : R.color.card_background),
+                getColor(selected ? R.color.chip_selected_stroke : R.color.card_stroke),
+                8
+        ));
+        card.setOnClickListener(view -> action.run());
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+
+        TextView titleView = new TextView(this);
+        titleView.setText(title);
+        titleView.setTextSize(15);
+        titleView.setTypeface(Typeface.DEFAULT, selected ? Typeface.BOLD : Typeface.NORMAL);
+        titleView.setTextColor(getColor(R.color.text_primary));
+        textColumn.addView(titleView, fullWidth());
+
+        TextView subtitleView = new TextView(this);
+        subtitleView.setText(subtitle);
+        subtitleView.setTextSize(13);
+        subtitleView.setTextColor(getColor(R.color.text_secondary));
+        subtitleView.setPadding(0, dp(3), 0, 0);
+        textColumn.addView(subtitleView, fullWidth());
+
+        card.addView(textColumn, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        TextView state = new TextView(this);
+        state.setText(selected ? "выбрано" : "");
+        state.setTextSize(12);
+        state.setTextColor(getColor(R.color.chip_selected_text));
+        state.setPadding(dp(10), 0, 0, 0);
+        card.addView(state, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        return card;
     }
 
     private Button createButton(String text) {
