@@ -17,6 +17,7 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -1285,37 +1286,22 @@ public final class MainActivity extends Activity {
     }
 
     private View createTaskView(ObsidianTask task) {
+        FrameLayout wrapper = new FrameLayout(this);
+
+        FrameLayout swipeBackground = createSwipeActionBackground(task);
+        wrapper.addView(swipeBackground, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
         LinearLayout item = createCardContainer();
-        item.setOnClickListener(view -> openPreferredTaskEditor(task));
-        item.setOnTouchListener(new View.OnTouchListener() {
-            private float downX;
-            private float downY;
-
-            @Override
-            public boolean onTouch(View view, MotionEvent event) {
-                if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    downX = event.getX();
-                    downY = event.getY();
-                    return false;
-                }
-                if (event.getAction() != MotionEvent.ACTION_UP) {
-                    return false;
-                }
-
-                float dx = event.getX() - downX;
-                float dy = event.getY() - downY;
-                if (Math.abs(dx) < dp(86) || Math.abs(dx) < Math.abs(dy) * 1.4f) {
-                    return false;
-                }
-
-                if (dx > 0) {
-                    skipTask(task);
-                } else {
-                    confirmDeleteTask(task);
-                }
-                return true;
-            }
-        });
+        item.setClickable(true);
+        item.setOnTouchListener(createSwipeTouchListener(
+                item,
+                () -> openPreferredTaskEditor(task),
+                () -> skipTask(task),
+                () -> confirmDeleteTask(task)
+        ));
 
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -1373,13 +1359,154 @@ public final class MainActivity extends Activity {
             item.addView(secondaryMeta, fullWidthWithTopMargin(dp(8)));
         }
 
+        wrapper.addView(item, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         params.setMargins(0, 0, 0, dp(10));
-        item.setLayoutParams(params);
-        return item;
+        wrapper.setLayoutParams(params);
+        return wrapper;
+    }
+
+    private FrameLayout createSwipeActionBackground(ObsidianTask task) {
+        FrameLayout background = new FrameLayout(this);
+        background.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+
+        TextView skipAction = createSwipeActionLabel(
+                "Пропустить",
+                R.color.status_completed_background,
+                R.color.status_completed_text
+        );
+        skipAction.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.LEFT);
+        skipAction.setPadding(dp(16), 0, dp(16), 0);
+        skipAction.setOnClickListener(view -> skipTask(task));
+        FrameLayout.LayoutParams skipParams = new FrameLayout.LayoutParams(
+                dp(132),
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.Gravity.LEFT
+        );
+        background.addView(skipAction, skipParams);
+
+        TextView deleteAction = createSwipeActionLabel(
+                "Удалить",
+                R.color.status_overdue_background,
+                R.color.status_overdue_text
+        );
+        deleteAction.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.RIGHT);
+        deleteAction.setPadding(dp(16), 0, dp(16), 0);
+        deleteAction.setOnClickListener(view -> confirmDeleteTask(task));
+        FrameLayout.LayoutParams deleteParams = new FrameLayout.LayoutParams(
+                dp(132),
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.Gravity.RIGHT
+        );
+        background.addView(deleteAction, deleteParams);
+        return background;
+    }
+
+    private TextView createSwipeActionLabel(String text, int backgroundColor, int textColor) {
+        TextView label = createText(text, 13, textColor, true);
+        label.setSingleLine(true);
+        label.setBackground(createRoundedBackground(getColor(backgroundColor), 0, 8));
+        return label;
+    }
+
+    private View.OnTouchListener createSwipeTouchListener(
+            View foreground,
+            Runnable clickAction,
+            Runnable rightAction,
+            Runnable leftAction
+    ) {
+        int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
+        int actionWidth = dp(132);
+        int revealThreshold = dp(56);
+
+        return new View.OnTouchListener() {
+            private float downX;
+            private float downY;
+            private float startTranslationX;
+            private boolean dragging;
+
+            @Override
+            public boolean onTouch(View view, MotionEvent event) {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    downX = event.getRawX();
+                    downY = event.getRawY();
+                    startTranslationX = foreground.getTranslationX();
+                    dragging = false;
+                    foreground.animate().cancel();
+                    return true;
+                }
+
+                if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                    float dx = event.getRawX() - downX;
+                    float dy = event.getRawY() - downY;
+                    if (!dragging) {
+                        if (Math.abs(dx) <= touchSlop || Math.abs(dx) <= Math.abs(dy) * 1.2f) {
+                            return true;
+                        }
+                        dragging = true;
+                        view.getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+
+                    float target = clamp(startTranslationX + dx, -actionWidth, actionWidth);
+                    foreground.setTranslationX(target);
+                    return true;
+                }
+
+                if (event.getAction() == MotionEvent.ACTION_CANCEL) {
+                    animateSwipeTo(foreground, 0, null);
+                    return true;
+                }
+
+                if (event.getAction() != MotionEvent.ACTION_UP) {
+                    return true;
+                }
+
+                float dx = event.getRawX() - downX;
+                float dy = event.getRawY() - downY;
+                if (!dragging && Math.abs(dx) < touchSlop && Math.abs(dy) < touchSlop) {
+                    if (Math.abs(foreground.getTranslationX()) > 0.5f) {
+                        animateSwipeTo(foreground, 0, null);
+                    } else {
+                        clickAction.run();
+                    }
+                    return true;
+                }
+
+                float translation = foreground.getTranslationX();
+                if (Math.abs(translation) >= actionWidth * 0.92f) {
+                    Runnable action = translation > 0 ? rightAction : leftAction;
+                    animateSwipeTo(foreground, 0, action);
+                } else if (Math.abs(translation) >= revealThreshold) {
+                    animateSwipeTo(foreground, translation > 0 ? actionWidth : -actionWidth, null);
+                } else {
+                    animateSwipeTo(foreground, 0, null);
+                }
+                return true;
+            }
+        };
+    }
+
+    private void animateSwipeTo(View view, float target, Runnable endAction) {
+        view.animate()
+                .translationX(target)
+                .setDuration(160L)
+                .withEndAction(endAction)
+                .start();
+    }
+
+    private float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private TextView createCompletionButton(ObsidianTask task) {
