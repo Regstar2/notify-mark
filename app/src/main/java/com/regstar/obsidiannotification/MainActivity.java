@@ -64,7 +64,6 @@ public final class MainActivity extends Activity {
     private TextView nextReminderTitleText;
     private TextView nextReminderMetaText;
     private TextView taskSectionTitleText;
-    private TextView taskSectionCountText;
     private View refreshButton;
     private Button activeFilterButton;
     private Button allFilterButton;
@@ -434,17 +433,30 @@ public final class MainActivity extends Activity {
             root.addView(sourceCard, sourceParams);
         }
 
+        LinearLayout groupFilterContainer = new LinearLayout(this);
+        groupFilterContainer.setOrientation(LinearLayout.HORIZONTAL);
+        groupFilterContainer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
         HorizontalScrollView groupScroll = new HorizontalScrollView(this);
         groupScroll.setHorizontalScrollBarEnabled(false);
         groupScroll.setVerticalScrollBarEnabled(false);
-        groupScroll.setPadding(0, 0, 0, dp(10));
         groupFilterRow = new LinearLayout(this);
         groupFilterRow.setOrientation(LinearLayout.HORIZONTAL);
         groupScroll.addView(groupFilterRow, new HorizontalScrollView.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-        root.addView(groupScroll, fullWidth());
+        groupFilterContainer.addView(groupScroll, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        ImageButton filterButton = createTaskFilterButton();
+        LinearLayout.LayoutParams filterButtonParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        filterButtonParams.setMargins(dp(8), 0, 0, 0);
+        groupFilterContainer.addView(filterButton, filterButtonParams);
+        root.addView(groupFilterContainer, fullWidthWithBottomMargin());
 
         notificationPermissionButton = createActionButton("Разрешить уведомления", true);
         notificationPermissionButton.setOnClickListener(view -> requestNotificationPermission());
@@ -683,22 +695,19 @@ public final class MainActivity extends Activity {
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(2), 0, 0);
 
-        LinearLayout titleColumn = new LinearLayout(this);
-        titleColumn.setOrientation(LinearLayout.VERTICAL);
         taskSectionTitleText = createText("Задачи", 18, R.color.text_primary, true);
-        taskSectionCountText = createText("", 13, R.color.text_secondary, false);
-        titleColumn.addView(taskSectionTitleText, fullWidth());
-        titleColumn.addView(taskSectionCountText, fullWidthWithTopMargin(dp(2)));
-        row.addView(titleColumn, new LinearLayout.LayoutParams(
+        row.addView(taskSectionTitleText, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
+        return row;
+    }
 
+    private ImageButton createTaskFilterButton() {
         ImageButton filterButton = createPlainIconButton(R.drawable.ic_filter_list, "Фильтр задач");
         filterButton.setOnClickListener(view -> showTaskFilterMenu(filterButton));
-        row.addView(filterButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
-        return row;
+        return filterButton;
     }
 
     private void showTaskFilterMenu(View anchor) {
@@ -729,14 +738,13 @@ public final class MainActivity extends Activity {
     }
 
     private void updateTaskSectionHeader(int visibleCount) {
-        if (taskSectionTitleText == null || taskSectionCountText == null) {
+        if (taskSectionTitleText == null) {
             return;
         }
         String filterLabel = UserPreferences.getTaskFilterLabel(this);
         taskSectionTitleText.setText(UserPreferences.FILTER_ALL.equals(UserPreferences.getTaskFilter(this))
                 ? "Задачи"
                 : "Задачи · " + capitalize(filterLabel));
-        taskSectionCountText.setText(visibleCount + " в списке");
     }
 
     private void addChip(LinearLayout row, Button chip, int leftMargin) {
