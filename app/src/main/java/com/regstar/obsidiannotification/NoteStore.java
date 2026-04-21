@@ -41,6 +41,8 @@ public final class NoteStore {
             Pattern.compile("^(\\s*[-*+]\\s+)(?!\\[[ xX]\\]\\s+)(.+)$");
     private static final Pattern SNOOZED_COUNT =
             Pattern.compile("(?iu)@snoozed\\(\\s*(\\d+)\\s*\\)");
+    private static final Pattern SKIPPED_MARKER =
+            Pattern.compile("(?iu)(?:@skipped\\b|@skip\\b|@status\\(\\s*skipped\\s*\\))");
 
     private NoteStore() {
     }
@@ -413,6 +415,10 @@ public final class NoteStore {
         return editActiveTaskLine(context, taskKey, NoteStore::incrementSnoozedMarker);
     }
 
+    public static TaskEditResult markTaskSkipped(Context context, String taskKey) {
+        return editActiveTaskLine(context, taskKey, NoteStore::appendSkippedMarker);
+    }
+
     public static NoteDocument findDefaultWriteDocument(Context context) throws IOException {
         List<NoteDocument> documents = readDocuments(context);
         if (documents.isEmpty()) {
@@ -570,6 +576,9 @@ public final class NoteStore {
                     if (task.isCompleted()) {
                         return TaskEditResult.alreadyDone("задача уже выполнена");
                     }
+                    if (task.isSkipped()) {
+                        return TaskEditResult.alreadyDone("уведомление уже пропущено");
+                    }
 
                     String[] lines = document.getMarkdown().split("\n", -1);
                     int index = task.getLineNumber() - 1;
@@ -670,6 +679,14 @@ public final class NoteStore {
             return matcher.replaceFirst("@snoozed(" + (count + 1) + ")");
         }
         return line + " @snoozed(1)";
+    }
+
+    private static String appendSkippedMarker(String line) {
+        String safeLine = line == null ? "" : line.trim();
+        if (safeLine.isEmpty() || SKIPPED_MARKER.matcher(line).find()) {
+            return line;
+        }
+        return line + " @skipped";
     }
 
     private static String joinLines(String[] lines) {

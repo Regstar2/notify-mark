@@ -24,7 +24,7 @@ public final class TaskParseResult {
     public List<ObsidianTask> getActiveTasks() {
         List<ObsidianTask> activeTasks = new ArrayList<>();
         for (ObsidianTask task : tasks) {
-            if (!task.isCompleted()) {
+            if (!task.isCompleted() && !task.isSkipped()) {
                 activeTasks.add(task);
             }
         }

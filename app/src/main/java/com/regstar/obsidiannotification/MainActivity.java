@@ -34,6 +34,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -74,7 +75,6 @@ public final class MainActivity extends Activity {
     private LinearLayout taskList;
     private boolean showTaskSourceNames;
     private boolean renderedShowSourceOnMain;
-    private boolean renderedShowNextReminder;
     private final Handler noteRefreshHandler = new Handler(Looper.getMainLooper());
     private final Runnable noteRefreshRunnable = new Runnable() {
         @Override
@@ -115,8 +115,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (renderedShowSourceOnMain != UserPreferences.shouldShowSourceOnMain(this)
-                || renderedShowNextReminder != UserPreferences.shouldShowNextReminder(this)) {
+        if (renderedShowSourceOnMain != UserPreferences.shouldShowSourceOnMain(this)) {
             buildUi();
             updateNotificationPermissionUi();
             updateExactAlarmPermissionUi();
@@ -395,17 +394,14 @@ public final class MainActivity extends Activity {
 
     private void buildUi() {
         renderedShowSourceOnMain = UserPreferences.shouldShowSourceOnMain(this);
-        renderedShowNextReminder = UserPreferences.shouldShowNextReminder(this);
         nextReminderTimeText = null;
         nextReminderTitleText = null;
         nextReminderMetaText = null;
         nextReminderText = null;
 
-        boolean showNextReminder = UserPreferences.shouldShowNextReminder(this);
-
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(14), dp(16), showNextReminder ? dp(230) : dp(96));
+        root.setPadding(dp(16), dp(14), dp(16), dp(96));
         root.setBackgroundColor(getColor(R.color.background));
 
         LinearLayout appBar = new LinearLayout(this);
@@ -493,7 +489,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        LinearLayout bottomOverlay = createBottomOverlay(showNextReminder);
+        LinearLayout bottomOverlay = createBottomOverlay();
         FrameLayout.LayoutParams bottomParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -596,7 +592,7 @@ public final class MainActivity extends Activity {
         return button;
     }
 
-    private LinearLayout createBottomOverlay(boolean showNextReminder) {
+    private LinearLayout createBottomOverlay() {
         LinearLayout overlay = new LinearLayout(this);
         overlay.setOrientation(LinearLayout.VERTICAL);
         overlay.setPadding(dp(16), 0, dp(16), dp(16));
@@ -605,31 +601,10 @@ public final class MainActivity extends Activity {
         addFab.setOnClickListener(view -> openTaskEditor(null));
         LinearLayout.LayoutParams fabParams = new LinearLayout.LayoutParams(dp(48), dp(48));
         fabParams.gravity = android.view.Gravity.RIGHT;
-        fabParams.setMargins(0, 0, 0, showNextReminder ? dp(10) : 0);
+        fabParams.setMargins(0, 0, 0, 0);
         overlay.addView(addFab, fabParams);
 
-        if (showNextReminder) {
-            LinearLayout nextReminderCard = createNextReminderCard();
-            overlay.addView(nextReminderCard, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-            ));
-        }
-
         return overlay;
-    }
-
-    private LinearLayout createNextReminderCard() {
-        LinearLayout card = createCardContainer();
-        card.addView(createText("Ближайшее напоминание", 13, R.color.text_secondary, false), fullWidth());
-        nextReminderTitleText = createText("Нет будущих напоминаний", 16, R.color.text_primary, true);
-        nextReminderTimeText = createText("", 15, R.color.text_primary, false);
-        nextReminderMetaText = createText("", 12, R.color.text_secondary, false);
-        nextReminderText = nextReminderTitleText;
-        card.addView(nextReminderTitleText, fullWidthWithTopMargin(dp(6)));
-        card.addView(nextReminderTimeText, fullWidthWithTopMargin(dp(3)));
-        card.addView(nextReminderMetaText, fullWidthWithTopMargin(dp(3)));
-        return card;
     }
 
     private LinearLayout createSourceCard() {
@@ -1030,6 +1005,7 @@ public final class MainActivity extends Activity {
         updateGroupFilterRow(tasks);
         showTaskSourceNames = hasMultipleSources(tasks);
         List<ObsidianTask> visibleTasks = filterVisibleTasks(tasks);
+        visibleTasks.sort(this::compareTasksForDisplay);
         updateTaskSectionHeader(visibleTasks.size());
         if (visibleTasks.isEmpty()) {
             renderEmptyState("В выбранных markdown-файлах нет уведомлений с @due(...) для текущего фильтра.");
@@ -1064,7 +1040,9 @@ public final class MainActivity extends Activity {
                 continue;
             }
             TaskStatus status = task.getStatus(now);
-            if (UserPreferences.FILTER_ACTIVE.equals(filter) && status != TaskStatus.COMPLETED) {
+            if (UserPreferences.FILTER_ACTIVE.equals(filter)
+                    && status != TaskStatus.COMPLETED
+                    && status != TaskStatus.SKIPPED) {
                 visibleTasks.add(task);
             } else if (UserPreferences.FILTER_OVERDUE.equals(filter) && status == TaskStatus.OVERDUE) {
                 visibleTasks.add(task);
@@ -1073,6 +1051,38 @@ public final class MainActivity extends Activity {
             }
         }
         return visibleTasks;
+    }
+
+    private int compareTasksForDisplay(ObsidianTask first, ObsidianTask second) {
+        int statusCompare = Integer.compare(displayStatusRank(first), displayStatusRank(second));
+        if (statusCompare != 0) {
+            return statusCompare;
+        }
+
+        int timeCompare = Comparator
+                .nullsLast(LocalDateTime::compareTo)
+                .compare(first.getReminderAt(), second.getReminderAt());
+        if (timeCompare != 0) {
+            return timeCompare;
+        }
+
+        int sourceCompare = compactName(first.getSourceName())
+                .compareToIgnoreCase(compactName(second.getSourceName()));
+        if (sourceCompare != 0) {
+            return sourceCompare;
+        }
+
+        return Integer.compare(first.getLineNumber(), second.getLineNumber());
+    }
+
+    private int displayStatusRank(ObsidianTask task) {
+        if (task.isCompleted()) {
+            return 3;
+        }
+        if (task.isSkipped()) {
+            return 2;
+        }
+        return 0;
     }
 
     private void updateGroupFilterRow(List<ObsidianTask> tasks) {
@@ -1269,7 +1279,7 @@ public final class MainActivity extends Activity {
                 }
 
                 if (dx > 0) {
-                    snoozeTask(task);
+                    skipTask(task);
                 } else {
                     confirmDeleteTask(task);
                 }
@@ -1368,6 +1378,10 @@ public final class MainActivity extends Activity {
             background = R.color.status_completed_background;
             textColor = R.color.status_completed_text;
             label = "Завершена";
+        } else if (status == TaskStatus.SKIPPED) {
+            background = R.color.status_completed_background;
+            textColor = R.color.status_completed_text;
+            label = "Пропущена";
         } else if (status == TaskStatus.OVERDUE) {
             background = R.color.status_overdue_background;
             textColor = R.color.status_overdue_text;
@@ -1410,10 +1424,11 @@ public final class MainActivity extends Activity {
     private void showTaskMenu(View anchor, ObsidianTask task) {
         PopupMenu popupMenu = new PopupMenu(this, anchor);
         popupMenu.getMenu().add(0, 1, 0, "Выполнить");
-        popupMenu.getMenu().add(0, 2, 1, "Отложить");
-        popupMenu.getMenu().add(0, 3, 2, "Редактировать через UI");
-        popupMenu.getMenu().add(0, 4, 3, "Открыть markdown");
-        popupMenu.getMenu().add(0, 5, 4, "Удалить");
+        popupMenu.getMenu().add(0, 2, 1, "Пропустить");
+        popupMenu.getMenu().add(0, 3, 2, "Отложить");
+        popupMenu.getMenu().add(0, 4, 3, "Редактировать через UI");
+        popupMenu.getMenu().add(0, 5, 4, "Открыть markdown");
+        popupMenu.getMenu().add(0, 6, 5, "Удалить");
         popupMenu.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == 1) {
@@ -1421,18 +1436,22 @@ public final class MainActivity extends Activity {
                 return true;
             }
             if (id == 2) {
-                snoozeTask(task);
+                skipTask(task);
                 return true;
             }
             if (id == 3) {
-                openTaskEditor(task);
+                snoozeTask(task);
                 return true;
             }
             if (id == 4) {
-                openMarkdownEditor(task);
+                openTaskEditor(task);
                 return true;
             }
             if (id == 5) {
+                openMarkdownEditor(task);
+                return true;
+            }
+            if (id == 6) {
                 confirmDeleteTask(task);
                 return true;
             }
@@ -1493,6 +1512,16 @@ public final class MainActivity extends Activity {
         }
         Toast.makeText(this, "Уведомление отложено", Toast.LENGTH_SHORT).show();
         readAndRenderNote();
+    }
+
+    private void skipTask(ObsidianTask task) {
+        TaskEditResult result = NoteStore.markTaskSkipped(this, task.getTaskKey());
+        if (result.shouldStopReminder()) {
+            ReminderScheduler.cancelReminder(this, task.getTaskKey());
+            NoteChangeMonitor.syncNow(this, true);
+            readAndRenderNote();
+        }
+        Toast.makeText(this, result.isUpdated() ? "Уведомление пропущено" : result.getMessage(), Toast.LENGTH_LONG).show();
     }
 
     private void confirmDeleteTask(ObsidianTask task) {
@@ -1591,6 +1620,9 @@ public final class MainActivity extends Activity {
     private String formatStatus(TaskStatus status) {
         if (status == TaskStatus.COMPLETED) {
             return "завершена";
+        }
+        if (status == TaskStatus.SKIPPED) {
+            return "пропущена";
         }
         if (status == TaskStatus.OVERDUE) {
             return "просрочена";

@@ -52,6 +52,8 @@ public final class TaskParser {
             Pattern.compile("(?<!\\S)#([\\p{L}\\p{N}_/-]+)");
     private static final Pattern SNOOZED_COUNT =
             Pattern.compile("(?iu)@snoozed\\(\\s*\\d+\\s*\\)");
+    private static final Pattern SKIPPED_MARKER =
+            Pattern.compile("(?iu)(?:@skipped\\b|@skip\\b|@status\\(\\s*skipped\\s*\\))");
 
     private static final DateTimeFormatter ISO_DATE =
             DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT);
@@ -148,6 +150,7 @@ public final class TaskParser {
                     fields.repeatInterval,
                     fields.repeatMode,
                     completed,
+                    fields.skipped,
                     fields.tags,
                     fields.priority,
                     fields.group
@@ -188,6 +191,7 @@ public final class TaskParser {
         fields.reminderAt = parseReminder(body, defaultDate, format, fields);
         fields.repeatInterval = parseRepeat(body, format, fields);
         fields.repeatMode = parseRepeatMode(body, fields.repeatInterval, format);
+        fields.skipped = SKIPPED_MARKER.matcher(body).find();
         fields.tags = parseTags(body, format);
         fields.priority = parsePriority(body, format, fields);
         fields.group = parseGroup(body, format);
@@ -523,6 +527,7 @@ public final class TaskParser {
         cleaned = removeFunctions(cleaned, format.priorityKeywords());
         cleaned = removeFunctions(cleaned, format.groupKeywords());
         cleaned = SNOOZED_COUNT.matcher(cleaned).replaceAll(" ");
+        cleaned = SKIPPED_MARKER.matcher(cleaned).replaceAll(" ");
         cleaned = ISO_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = RU_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = ISO_DATE_ONLY_REMINDER.matcher(cleaned).replaceAll(" ");
@@ -568,6 +573,9 @@ public final class TaskParser {
     private static boolean isKnownFunctionToken(String token, TaskFormatSettings format) {
         String normalized = token.toLowerCase(Locale.ROOT);
         return normalized.startsWith("@snoozed(")
+                || normalized.equals("@skipped")
+                || normalized.equals("@skip")
+                || normalized.startsWith("@status(")
                 || startsWithFunction(normalized, format.dueKeywords())
                 || startsWithFunction(normalized, format.repeatKeywords())
                 || startsWithFunction(normalized, format.repeatUntilDoneKeywords())
@@ -592,6 +600,7 @@ public final class TaskParser {
         private List<String> tags = new ArrayList<>();
         private TaskPriority priority = TaskPriority.NONE;
         private String group = ObsidianTask.DEFAULT_GROUP;
+        private boolean skipped;
         private boolean dueFunctionInvalid;
         private boolean repeatFunctionInvalid;
         private boolean priorityFunctionInvalid;

@@ -40,7 +40,7 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
             return;
         }
         if (ACTION_SKIP.equals(action)) {
-            cancelNotification(context, intent);
+            skip(context, intent);
             return;
         }
         if (ACTION_OPEN_NOTE.equals(action)) {
@@ -126,6 +126,20 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
             }
         }
         cancelNotification(context, intent);
+    }
+
+    private void skip(Context context, Intent intent) {
+        String taskKey = intent.getStringExtra(ReminderScheduler.EXTRA_TASK_KEY);
+        TaskEditResult result = NoteStore.markTaskSkipped(context, taskKey);
+        if (result.shouldStopReminder()) {
+            ReminderScheduler.cancelReminder(context, taskKey);
+            cancelNotification(context, intent);
+            NoteChangeMonitor.syncNow(context, true);
+            return;
+        }
+
+        cancelNotification(context, intent);
+        ErrorLog.record(context, "Не удалось пропустить уведомление: " + result.getMessage());
     }
 
     private void openNote(Context context, Intent intent) {

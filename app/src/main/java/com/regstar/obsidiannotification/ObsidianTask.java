@@ -18,6 +18,7 @@ public final class ObsidianTask {
     private final Duration repeatInterval;
     private final RepeatMode repeatMode;
     private final boolean completed;
+    private final boolean skipped;
     private final List<String> tags;
     private final TaskPriority priority;
     private final String group;
@@ -50,6 +51,7 @@ public final class ObsidianTask {
                 repeatInterval,
                 repeatMode,
                 false,
+                false,
                 Collections.emptyList(),
                 TaskPriority.NONE,
                 DEFAULT_GROUP
@@ -77,6 +79,7 @@ public final class ObsidianTask {
                 repeatInterval,
                 repeatMode,
                 completed,
+                false,
                 Collections.emptyList(),
                 TaskPriority.NONE,
                 DEFAULT_GROUP
@@ -106,6 +109,7 @@ public final class ObsidianTask {
                 repeatInterval,
                 repeatMode,
                 completed,
+                false,
                 tags,
                 priority,
                 DEFAULT_GROUP
@@ -126,6 +130,38 @@ public final class ObsidianTask {
             TaskPriority priority,
             String group
     ) {
+        this(
+                taskKey,
+                sourceName,
+                lineNumber,
+                title,
+                rawLine,
+                reminderAt,
+                repeatInterval,
+                repeatMode,
+                completed,
+                false,
+                tags,
+                priority,
+                group
+        );
+    }
+
+    public ObsidianTask(
+            String taskKey,
+            String sourceName,
+            int lineNumber,
+            String title,
+            String rawLine,
+            LocalDateTime reminderAt,
+            Duration repeatInterval,
+            RepeatMode repeatMode,
+            boolean completed,
+            boolean skipped,
+            List<String> tags,
+            TaskPriority priority,
+            String group
+    ) {
         this.taskKey = taskKey;
         this.sourceName = sourceName == null ? "" : sourceName;
         this.lineNumber = lineNumber;
@@ -135,6 +171,7 @@ public final class ObsidianTask {
         this.repeatInterval = repeatInterval;
         this.repeatMode = repeatMode == null ? RepeatMode.NONE : repeatMode;
         this.completed = completed;
+        this.skipped = skipped;
         this.tags = Collections.unmodifiableList(new ArrayList<>(tags == null
                 ? Collections.emptyList()
                 : tags));
@@ -176,6 +213,10 @@ public final class ObsidianTask {
 
     public boolean isCompleted() {
         return completed;
+    }
+
+    public boolean isSkipped() {
+        return skipped;
     }
 
     public List<String> getTags() {

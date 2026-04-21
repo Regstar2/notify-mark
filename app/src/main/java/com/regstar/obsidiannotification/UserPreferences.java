@@ -18,7 +18,6 @@ public final class UserPreferences {
     private static final String KEY_TASK_GROUP = "task_group";
     private static final String KEY_GROUPING_MODE = "grouping_mode";
     private static final String KEY_SHOW_SOURCE_ON_MAIN = "show_source_on_main";
-    private static final String KEY_SHOW_NEXT_REMINDER = "show_next_reminder";
 
     private UserPreferences() {
     }
@@ -115,18 +114,6 @@ public final class UserPreferences {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean(KEY_SHOW_SOURCE_ON_MAIN, show)
-                .apply();
-    }
-
-    public static boolean shouldShowNextReminder(Context context) {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(KEY_SHOW_NEXT_REMINDER, true);
-    }
-
-    public static void setShowNextReminder(Context context, boolean show) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean(KEY_SHOW_NEXT_REMINDER, show)
                 .apply();
     }
 

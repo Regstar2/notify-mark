@@ -170,7 +170,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             );
             builder.addAction(
                     R.drawable.ic_close,
-                    "×",
+                    "Пропустить",
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SKIP,

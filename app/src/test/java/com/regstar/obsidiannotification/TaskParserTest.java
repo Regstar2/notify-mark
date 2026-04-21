@@ -2,6 +2,7 @@ package com.regstar.obsidiannotification;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -265,6 +266,26 @@ public final class TaskParserTest {
                 .getStatus(LocalDateTime.of(2026, 4, 20, 12, 0)));
         assertEquals(TaskStatus.COMPLETED, result.getTasks().get(1)
                 .getStatus(LocalDateTime.of(2026, 4, 20, 13, 0)));
+    }
+
+    @Test
+    public void parseDocument_excludesSkippedTasksFromActiveTasks() {
+        String markdown = ""
+                + "- [ ] Waiting task @2026-04-20 12:30\n"
+                + "- [ ] Skipped task @2026-04-20 13:30 @skipped\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        assertEquals(2, result.getTasks().size());
+        assertEquals(1, result.getActiveTasks().size());
+        assertEquals("Skipped task", result.getTasks().get(1).getTitle());
+        assertTrue(result.getTasks().get(1).isSkipped());
+        assertEquals(TaskStatus.SKIPPED, result.getTasks().get(1)
+                .getStatus(LocalDateTime.of(2026, 4, 20, 14, 0)));
     }
 
     @Test

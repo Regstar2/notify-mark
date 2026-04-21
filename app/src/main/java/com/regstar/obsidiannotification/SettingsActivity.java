@@ -51,7 +51,6 @@ public final class SettingsActivity extends Activity {
     private EditText maxFilesInput;
     private CheckBox recordSnoozeCountCheckbox;
     private CheckBox showSourceOnMainCheckbox;
-    private CheckBox showNextReminderCheckbox;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -272,14 +271,6 @@ public final class SettingsActivity extends Activity {
         showSourceOnMainCheckbox.setOnCheckedChangeListener((button, checked) ->
                 UserPreferences.setShowSourceOnMain(this, checked));
         root.addView(showSourceOnMainCheckbox, fullWidthWithBottomMargin());
-
-        showNextReminderCheckbox = createCheckBox(
-                "Показывать ближайшее напоминание",
-                UserPreferences.shouldShowNextReminder(this)
-        );
-        showNextReminderCheckbox.setOnCheckedChangeListener((button, checked) ->
-                UserPreferences.setShowNextReminder(this, checked));
-        root.addView(showNextReminderCheckbox, fullWidthWithBottomMargin());
 
         root.addView(createSubsectionLabel("Группировка"), fullWidth());
         String groupingMode = UserPreferences.getGroupingMode(this);
