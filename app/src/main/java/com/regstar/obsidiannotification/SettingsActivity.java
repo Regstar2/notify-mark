@@ -49,6 +49,7 @@ public final class SettingsActivity extends Activity {
     private EditText includePatternsInput;
     private EditText excludePatternsInput;
     private EditText maxFilesInput;
+    private EditText privateMarkerInput;
     private CheckBox recordSnoozeCountCheckbox;
     private CheckBox showSourceOnMainCheckbox;
 
@@ -271,6 +272,18 @@ public final class SettingsActivity extends Activity {
         showSourceOnMainCheckbox.setOnCheckedChangeListener((button, checked) ->
                 UserPreferences.setShowSourceOnMain(this, checked));
         root.addView(showSourceOnMainCheckbox, fullWidthWithBottomMargin());
+
+        privateMarkerInput = addKeywordInput(
+                root,
+                "Приватная группа или тег",
+                UserPreferences.getPrivateMarker(this)
+        );
+        root.addView(createDescription(
+                "Например private: задачи с @group(private) или #private скрываются в «Все группы». Пустое значение отключает скрытие."
+        ), fullWidthWithBottomMargin());
+        Button savePrivateMarkerButton = createButton("Сохранить приватный маркер");
+        savePrivateMarkerButton.setOnClickListener(view -> savePrivateMarker());
+        root.addView(savePrivateMarkerButton, fullWidthWithBottomMargin());
 
         root.addView(createSubsectionLabel("Группировка"), fullWidth());
         String groupingMode = UserPreferences.getGroupingMode(this);
@@ -782,6 +795,12 @@ public final class SettingsActivity extends Activity {
         ThemePreferences.setThemeMode(this, mode);
         Toast.makeText(this, "Тема сохранена", Toast.LENGTH_SHORT).show();
         recreate();
+    }
+
+    private void savePrivateMarker() {
+        UserPreferences.setPrivateMarker(this, privateMarkerInput.getText().toString());
+        privateMarkerInput.setText(UserPreferences.getPrivateMarker(this));
+        Toast.makeText(this, "Приватный маркер сохранен", Toast.LENGTH_SHORT).show();
     }
 
     private String themeButtonText(String mode, String label) {

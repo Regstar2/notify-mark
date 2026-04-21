@@ -1027,12 +1027,17 @@ public final class MainActivity extends Activity {
     private List<ObsidianTask> filterVisibleTasks(List<ObsidianTask> tasks) {
         String filter = UserPreferences.getTaskFilter(this);
         String selectedGroup = UserPreferences.getTaskGroup(this);
+        String privateMarker = UserPreferences.getPrivateMarker(this);
         ArrayList<ObsidianTask> visibleTasks = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         for (ObsidianTask task : tasks) {
             if (selectedGroup != null
                     && !selectedGroup.isEmpty()
                     && !selectedGroup.equals(taskGroupLabel(task))) {
+                continue;
+            }
+            if ((selectedGroup == null || selectedGroup.isEmpty())
+                    && isPrivateTask(task, privateMarker)) {
                 continue;
             }
             if (UserPreferences.FILTER_ALL.equals(filter)) {
@@ -1091,12 +1096,17 @@ public final class MainActivity extends Activity {
         }
 
         Set<String> groups = new LinkedHashSet<>();
+        boolean hasPrivateTasks = false;
+        String privateMarker = UserPreferences.getPrivateMarker(this);
         for (ObsidianTask task : tasks) {
             groups.add(taskGroupLabel(task));
+            if (isPrivateTask(task, privateMarker)) {
+                hasPrivateTasks = true;
+            }
         }
 
         groupFilterRow.removeAllViews();
-        if (groups.size() <= 1) {
+        if (groups.size() <= 1 && !hasPrivateTasks) {
             UserPreferences.setTaskGroup(this, "");
             return;
         }
@@ -1176,6 +1186,26 @@ public final class MainActivity extends Activity {
             return "контекст: " + taskGroupLabel(task);
         }
         return "группа: " + taskGroupLabel(task);
+    }
+
+    private boolean isPrivateTask(ObsidianTask task, String privateMarker) {
+        String marker = normalizePrivateMarker(privateMarker);
+        if (marker.isEmpty()) {
+            return false;
+        }
+        if (marker.equals(normalizePrivateMarker(task.getGroup()))) {
+            return true;
+        }
+        for (String tag : task.getTags()) {
+            if (marker.equals(normalizePrivateMarker(tag))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizePrivateMarker(String value) {
+        return UserPreferences.normalizePrivateMarker(value).toLowerCase(Locale.ROOT);
     }
 
     private String emptyFallback(String value, String fallback) {

@@ -18,6 +18,8 @@ public final class UserPreferences {
     private static final String KEY_TASK_GROUP = "task_group";
     private static final String KEY_GROUPING_MODE = "grouping_mode";
     private static final String KEY_SHOW_SOURCE_ON_MAIN = "show_source_on_main";
+    private static final String KEY_PRIVATE_MARKER = "private_marker";
+    private static final String DEFAULT_PRIVATE_MARKER = "private";
 
     private UserPreferences() {
     }
@@ -115,6 +117,34 @@ public final class UserPreferences {
                 .edit()
                 .putBoolean(KEY_SHOW_SOURCE_ON_MAIN, show)
                 .apply();
+    }
+
+    public static String getPrivateMarker(Context context) {
+        android.content.SharedPreferences preferences =
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (!preferences.contains(KEY_PRIVATE_MARKER)) {
+            return DEFAULT_PRIVATE_MARKER;
+        }
+        return normalizePrivateMarker(preferences.getString(KEY_PRIVATE_MARKER, ""));
+    }
+
+    public static void setPrivateMarker(Context context, String marker) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_PRIVATE_MARKER, normalizePrivateMarker(marker))
+                .putString(KEY_TASK_GROUP, "")
+                .apply();
+    }
+
+    public static String normalizePrivateMarker(String marker) {
+        if (marker == null) {
+            return "";
+        }
+        String normalized = marker.trim();
+        while (normalized.startsWith("#") || normalized.startsWith("@")) {
+            normalized = normalized.substring(1).trim();
+        }
+        return normalized.replaceAll("\\s{2,}", " ");
     }
 
     private static boolean isKnownFilter(String filter) {
