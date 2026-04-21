@@ -15,6 +15,8 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
             "com.regstar.obsidiannotification.action.MARK_DONE";
     public static final String ACTION_SNOOZE =
             "com.regstar.obsidiannotification.action.SNOOZE";
+    public static final String ACTION_SKIP =
+            "com.regstar.obsidiannotification.action.SKIP";
     public static final String ACTION_OPEN_NOTE =
             "com.regstar.obsidiannotification.action.OPEN_NOTE";
 
@@ -35,6 +37,10 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
         }
         if (ACTION_SNOOZE.equals(action)) {
             snooze(context, intent);
+            return;
+        }
+        if (ACTION_SKIP.equals(action)) {
+            cancelNotification(context, intent);
             return;
         }
         if (ACTION_OPEN_NOTE.equals(action)) {

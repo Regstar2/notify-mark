@@ -139,8 +139,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
         if (taskKey != null && !taskKey.trim().isEmpty()) {
             builder.addAction(
-                    R.drawable.ic_notification,
-                    "Выполнено",
+                    R.drawable.ic_check,
+                    "✓",
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_MARK_DONE,
@@ -154,8 +154,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
                     )
             );
             builder.addAction(
-                    R.drawable.ic_notification,
-                    "Отложить " + ActionPreferences.getSnoozeMinutes(context) + " мин",
+                    R.drawable.ic_repeat,
+                    "+" + ActionPreferences.getSnoozeMinutes(context) + "м",
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SNOOZE,
@@ -169,8 +169,23 @@ public final class ReminderReceiver extends BroadcastReceiver {
                     )
             );
             builder.addAction(
-                    R.drawable.ic_notification,
-                    "Открыть заметку",
+                    R.drawable.ic_close,
+                    "×",
+                    ReminderActionReceiver.createActionPendingIntent(
+                            context,
+                            ReminderActionReceiver.ACTION_SKIP,
+                            taskKey,
+                            notificationId,
+                            displayNotificationId,
+                            lineNumber,
+                            title,
+                            repeatIntervalMillis,
+                            repeatMode
+                    )
+            );
+            builder.addAction(
+                    R.drawable.ic_file,
+                    "↗",
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_OPEN_NOTE,

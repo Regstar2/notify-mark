@@ -6,7 +6,9 @@ import android.content.Intent;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.InputType;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -21,6 +23,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class SettingsActivity extends Activity {
+    private static final String EXTRA_SECTION = "section";
+    private static final String SECTION_BASIC = "basic";
+    private static final String SECTION_SOURCES = "sources";
+    private static final String SECTION_NOTIFICATIONS = "notifications";
+    private static final String SECTION_FORMAT = "format";
+    private static final String SECTION_SCAN = "scan";
+    private static final String SECTION_ADVANCED = "advanced";
+
     private static final int REQUEST_REPLACE_NOTES = 3001;
     private static final int REQUEST_REPLACE_FOLDER = 3002;
     private static final int REQUEST_ADD_NOTES = 3003;
@@ -40,13 +50,17 @@ public final class SettingsActivity extends Activity {
     private EditText excludePatternsInput;
     private EditText maxFilesInput;
     private CheckBox recordSnoozeCountCheckbox;
+    private CheckBox showSourceOnMainCheckbox;
+    private CheckBox showNextReminderCheckbox;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         ThemePreferences.apply(this);
         super.onCreate(savedInstanceState);
         buildUi();
-        updateStatus();
+        if (statusText != null) {
+            updateStatus();
+        }
     }
 
     @Override
@@ -98,13 +112,283 @@ public final class SettingsActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
+        String section = getIntent().getStringExtra(EXTRA_SECTION);
+        if (section == null || section.trim().isEmpty()) {
+            addHeader(root, "Настройки", false);
+            addSettingsIndex(root);
+        } else {
+            addHeader(root, sectionTitle(section), true);
+            addSettingsSection(root, section);
+        }
+
+        setContentView(scrollView);
+    }
+
+    private void addHeader(LinearLayout root, String titleText, boolean back) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(0, 0, 0, dp(12));
+
+        if (back) {
+            Button backButton = createSmallButton("‹");
+            backButton.setTextSize(24);
+            backButton.setOnClickListener(view -> finish());
+            LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(dp(44), dp(42));
+            backParams.setMargins(0, 0, dp(8), 0);
+            row.addView(backButton, backParams);
+        }
+
         TextView title = new TextView(this);
-        title.setText("Настройки");
+        title.setText(titleText);
         title.setTextSize(22);
         title.setTextColor(getColor(R.color.text_primary));
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        root.addView(title, fullWidthWithBottomMargin());
+        row.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
 
+        root.addView(row, fullWidth());
+    }
+
+    private void addSettingsIndex(LinearLayout root) {
+        root.addView(createActionCard(
+                "Основные",
+                "Открытие задач, главный экран, группировка и тема.",
+                () -> openSection(SECTION_BASIC)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Источники",
+                "Файлы, папки и управление доступом через Android picker.",
+                () -> openSection(SECTION_SOURCES)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Уведомления",
+                "Exact alarms, отложить, повторы и действия из уведомления.",
+                () -> openSection(SECTION_NOTIFICATIONS)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Формат задач",
+                "Ключевые слова @due, @repeat, @tag, @priority и @group.",
+                () -> openSection(SECTION_FORMAT)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Поиск задач в файлах",
+                "Маски, исключения и лимит сканирования папок.",
+                () -> openSection(SECTION_SCAN)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Продвинутые / Отладка",
+                "Служебное состояние, последняя ошибка, кэш и debug actions.",
+                () -> openSection(SECTION_ADVANCED)
+        ), fullWidthWithBottomMargin());
+
+        Button closeButton = createButton("Закрыть");
+        closeButton.setOnClickListener(view -> finish());
+        root.addView(closeButton, fullWidthWithBottomMargin());
+    }
+
+    private void addSettingsSection(LinearLayout root, String section) {
+        if (SECTION_BASIC.equals(section)) {
+            addBasicSettings(root);
+        } else if (SECTION_SOURCES.equals(section)) {
+            addSourceSettings(root);
+        } else if (SECTION_NOTIFICATIONS.equals(section)) {
+            addNotificationSettings(root);
+        } else if (SECTION_FORMAT.equals(section)) {
+            addFormatSettings(root);
+        } else if (SECTION_SCAN.equals(section)) {
+            addScanSettings(root);
+        } else if (SECTION_ADVANCED.equals(section)) {
+            addAdvancedSettings(root);
+        } else {
+            root.addView(createDescription("Раздел настроек не найден."), fullWidthWithBottomMargin());
+        }
+    }
+
+    private String sectionTitle(String section) {
+        if (SECTION_BASIC.equals(section)) {
+            return "Основные";
+        }
+        if (SECTION_SOURCES.equals(section)) {
+            return "Источники";
+        }
+        if (SECTION_NOTIFICATIONS.equals(section)) {
+            return "Уведомления";
+        }
+        if (SECTION_FORMAT.equals(section)) {
+            return "Формат задач";
+        }
+        if (SECTION_SCAN.equals(section)) {
+            return "Поиск задач";
+        }
+        if (SECTION_ADVANCED.equals(section)) {
+            return "Продвинутые";
+        }
+        return "Настройки";
+    }
+
+    private void openSection(String section) {
+        Intent intent = new Intent(this, SettingsActivity.class);
+        intent.putExtra(EXTRA_SECTION, section);
+        startActivity(intent);
+    }
+
+    private void addBasicSettings(LinearLayout root) {
+        root.addView(createDescription(
+                "Здесь остаются только настройки, которые меняют ежедневный сценарий работы."
+        ), fullWidthWithBottomMargin());
+
+        root.addView(createSubsectionLabel("Основной способ открытия задачи"), fullWidth());
+        String mode = EditPreferences.getEditMode(this);
+        root.addView(createChoiceCard(
+                "Через UI",
+                "Форма одной задачи с preview итоговой markdown-строки.",
+                EditPreferences.MODE_UI.equals(mode),
+                () -> setEditMode(EditPreferences.MODE_UI)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Markdown-файл",
+                "Открывать полный исходный файл на строке задачи.",
+                EditPreferences.MODE_MARKDOWN.equals(mode),
+                () -> setEditMode(EditPreferences.MODE_MARKDOWN)
+        ), fullWidthWithBottomMargin());
+
+        root.addView(createSubsectionLabel("Главный экран"), fullWidth());
+        activeFilterButton = createButton("");
+        activeFilterButton.setOnClickListener(view -> {
+            UserPreferences.setActiveOnly(this, !UserPreferences.isActiveOnly(this));
+            updateActiveFilterButton();
+        });
+        updateActiveFilterButton();
+        root.addView(activeFilterButton, fullWidthWithBottomMargin());
+
+        showSourceOnMainCheckbox = createCheckBox(
+                "Показывать источник на главном экране",
+                UserPreferences.shouldShowSourceOnMain(this)
+        );
+        showSourceOnMainCheckbox.setOnCheckedChangeListener((button, checked) ->
+                UserPreferences.setShowSourceOnMain(this, checked));
+        root.addView(showSourceOnMainCheckbox, fullWidthWithBottomMargin());
+
+        showNextReminderCheckbox = createCheckBox(
+                "Показывать ближайшее напоминание",
+                UserPreferences.shouldShowNextReminder(this)
+        );
+        showNextReminderCheckbox.setOnCheckedChangeListener((button, checked) ->
+                UserPreferences.setShowNextReminder(this, checked));
+        root.addView(showNextReminderCheckbox, fullWidthWithBottomMargin());
+
+        root.addView(createSubsectionLabel("Группировка"), fullWidth());
+        String groupingMode = UserPreferences.getGroupingMode(this);
+        root.addView(createChoiceCard(
+                "Смешанная",
+                "Использовать @group, иначе первый тег или имя файла.",
+                UserPreferences.GROUPING_SMART.equals(groupingMode),
+                () -> setGroupingMode(UserPreferences.GROUPING_SMART)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "По @group",
+                "Показывать группы только из @group(...).",
+                UserPreferences.GROUPING_GROUP.equals(groupingMode),
+                () -> setGroupingMode(UserPreferences.GROUPING_GROUP)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "По тегам",
+                "Использовать первый тег задачи как группу.",
+                UserPreferences.GROUPING_TAG.equals(groupingMode),
+                () -> setGroupingMode(UserPreferences.GROUPING_TAG)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "По файлам",
+                "Группировать задачи по имени markdown-файла.",
+                UserPreferences.GROUPING_FILE.equals(groupingMode),
+                () -> setGroupingMode(UserPreferences.GROUPING_FILE)
+        ), fullWidthWithBottomMargin());
+
+        root.addView(createSubsectionLabel("Тема"), fullWidth());
+        String themeMode = ThemePreferences.getThemeMode(this);
+        root.addView(createChoiceCard(
+                "Системная",
+                "Следовать настройке темы Android.",
+                ThemePreferences.MODE_SYSTEM.equals(themeMode),
+                () -> setThemeMode(ThemePreferences.MODE_SYSTEM)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Светлая",
+                "Всегда использовать светлую тему.",
+                ThemePreferences.MODE_LIGHT.equals(themeMode),
+                () -> setThemeMode(ThemePreferences.MODE_LIGHT)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Темная",
+                "Всегда использовать темную тему.",
+                ThemePreferences.MODE_DARK.equals(themeMode),
+                () -> setThemeMode(ThemePreferences.MODE_DARK)
+        ), fullWidthWithBottomMargin());
+    }
+
+    private void addSourceSettings(LinearLayout root) {
+        root.addView(createDescription(
+                "Источник нужен для первичной настройки. После выбора он может быть скрыт с главного экрана."
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Управление источниками",
+                "Текущий источник: " + compactName(NoteStore.sourceLabel(this)),
+                this::openSourceManagement
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Заменить заметками",
+                "Выбрать один или несколько markdown-файлов заново.",
+                () -> openNotePicker(REQUEST_REPLACE_NOTES)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Заменить папкой",
+                "Выбрать папку vault или Syncthing-папку.",
+                () -> openFolderPicker(REQUEST_REPLACE_FOLDER)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Добавить заметки",
+                "Добавить markdown-файлы к текущим источникам.",
+                () -> openNotePicker(REQUEST_ADD_NOTES)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Добавить папку",
+                "Добавить еще одну папку к текущим источникам.",
+                () -> openFolderPicker(REQUEST_ADD_FOLDER)
+        ), fullWidthWithBottomMargin());
+        Button clearButton = createButton("Очистить источники");
+        clearButton.setOnClickListener(view -> clearSources());
+        root.addView(clearButton, fullWidthWithBottomMargin());
+    }
+
+    private void addNotificationSettings(LinearLayout root) {
+        root.addView(createDescription(
+                "Параметры точности, отложения и действий из системных уведомлений."
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Exact alarms",
+                ReminderScheduler.canScheduleExactAlarms(this)
+                        ? "Точные напоминания разрешены."
+                        : "Разрешите точные напоминания в системных настройках.",
+                this::requestExactAlarmPermission
+        ), fullWidthWithBottomMargin());
+        addNotificationActionSettings(root);
+        root.addView(createActionCard(
+                "Перепланировать все",
+                "Перечитать источник и заново поставить активные уведомления.",
+                this::rescheduleAll
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Тестовое уведомление",
+                "Проверить звук, вибрацию и разрешение уведомлений.",
+                this::sendTestNotification
+        ), fullWidthWithBottomMargin());
+    }
+
+    private void addAdvancedSettings(LinearLayout root) {
         LinearLayout summaryCard = createSettingsCard();
         TextView summaryTitle = new TextView(this);
         summaryTitle.setText("Состояние");
@@ -118,26 +402,7 @@ public final class SettingsActivity extends Activity {
         statusText.setPadding(0, dp(6), 0, 0);
         summaryCard.addView(statusText, fullWidth());
         root.addView(summaryCard, fullWidthWithBottomMargin());
-
-        addSectionTitle(root, "Источник данных");
-        root.addView(createActionCard(
-                "Управление источниками",
-                "Выбрать заметки, папки, добавить источник или очистить список.",
-                this::openSourceManagement
-        ), fullWidthWithBottomMargin());
-
-        addEditingSettings(root);
-        addAppearanceSettings(root);
-        addFormatSettings(root);
-        addScanSettings(root);
-        addNotificationActionSettings(root);
         addDebugSettings(root);
-
-        Button closeButton = createButton("Закрыть");
-        closeButton.setOnClickListener(view -> finish());
-        root.addView(closeButton, fullWidthWithBottomMargin());
-
-        setContentView(scrollView);
     }
 
     private void addEditingSettings(LinearLayout root) {
@@ -618,6 +883,20 @@ public final class SettingsActivity extends Activity {
         ).show();
     }
 
+    private void requestExactAlarmPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                || ReminderScheduler.canScheduleExactAlarms(this)) {
+            Toast.makeText(this, "Точные напоминания уже разрешены", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Intent intent = new Intent(
+                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:" + getPackageName())
+        );
+        startActivity(intent);
+    }
+
     private void runDebugAction(DebugActionResult result) {
         Toast.makeText(
                 this,
@@ -644,6 +923,9 @@ public final class SettingsActivity extends Activity {
     }
 
     private void updateStatus() {
+        if (statusText == null) {
+            return;
+        }
         String cachedAt = TaskCache.getSavedAt(this);
         String latestError = ErrorLog.latest(this);
         StringBuilder status = new StringBuilder("Источник: " + compactName(NoteStore.sourceLabel(this))
@@ -812,6 +1094,33 @@ public final class SettingsActivity extends Activity {
                 8
         ));
         return button;
+    }
+
+    private Button createSmallButton(String text) {
+        Button button = createButton(text);
+        button.setMinHeight(0);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setPadding(0, 0, 0, 0);
+        return button;
+    }
+
+    private TextView createDescription(String text) {
+        TextView description = new TextView(this);
+        description.setText(text);
+        description.setTextSize(14);
+        description.setTextColor(getColor(R.color.text_secondary));
+        description.setPadding(0, 0, 0, dp(2));
+        return description;
+    }
+
+    private CheckBox createCheckBox(String text, boolean checked) {
+        CheckBox checkBox = new CheckBox(this);
+        checkBox.setText(text);
+        checkBox.setTextSize(14);
+        checkBox.setTextColor(getColor(R.color.text_secondary));
+        checkBox.setChecked(checked);
+        return checkBox;
     }
 
     private GradientDrawable createRoundedBackground(int color, int strokeColor, int radiusDp) {

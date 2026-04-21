@@ -15,6 +15,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.text.TextUtils;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
@@ -72,6 +73,8 @@ public final class MainActivity extends Activity {
     private Button exactAlarmPermissionButton;
     private LinearLayout taskList;
     private boolean showTaskSourceNames;
+    private boolean renderedShowSourceOnMain;
+    private boolean renderedShowNextReminder;
     private final Handler noteRefreshHandler = new Handler(Looper.getMainLooper());
     private final Runnable noteRefreshRunnable = new Runnable() {
         @Override
@@ -112,6 +115,12 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (renderedShowSourceOnMain != UserPreferences.shouldShowSourceOnMain(this)
+                || renderedShowNextReminder != UserPreferences.shouldShowNextReminder(this)) {
+            buildUi();
+            updateNotificationPermissionUi();
+            updateExactAlarmPermissionUi();
+        }
         if (exactAlarmPermissionButton != null) {
             updateExactAlarmPermissionUi();
         }
@@ -385,6 +394,13 @@ public final class MainActivity extends Activity {
     }
 
     private void buildUi() {
+        renderedShowSourceOnMain = UserPreferences.shouldShowSourceOnMain(this);
+        renderedShowNextReminder = UserPreferences.shouldShowNextReminder(this);
+        nextReminderTimeText = null;
+        nextReminderTitleText = null;
+        nextReminderMetaText = null;
+        nextReminderText = null;
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16), dp(14), dp(16), dp(92));
@@ -411,12 +427,14 @@ public final class MainActivity extends Activity {
         root.addView(appBar, fullWidth());
 
         LinearLayout sourceCard = createSourceCard();
-        LinearLayout.LayoutParams sourceParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        sourceParams.setMargins(0, 0, 0, dp(12));
-        root.addView(sourceCard, sourceParams);
+        if (noteUri == null || UserPreferences.shouldShowSourceOnMain(this)) {
+            LinearLayout.LayoutParams sourceParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            sourceParams.setMargins(0, 0, 0, dp(12));
+            root.addView(sourceCard, sourceParams);
+        }
 
         HorizontalScrollView groupScroll = new HorizontalScrollView(this);
         groupScroll.setHorizontalScrollBarEnabled(false);
@@ -448,22 +466,6 @@ public final class MainActivity extends Activity {
         exactAlarmParams.setMargins(0, 0, 0, dp(10));
         root.addView(exactAlarmPermissionButton, exactAlarmParams);
 
-        LinearLayout reminderCard = createCardContainer();
-        reminderCard.addView(createText("Ближайшее напоминание", 13, R.color.text_secondary, false), fullWidth());
-        nextReminderTimeText = createText("Нет будущих напоминаний", 20, R.color.text_primary, true);
-        nextReminderTitleText = createText("", 15, R.color.text_primary, false);
-        nextReminderMetaText = createText("", 13, R.color.text_secondary, false);
-        nextReminderText = nextReminderTitleText;
-        reminderCard.addView(nextReminderTimeText, fullWidthWithTopMargin(dp(6)));
-        reminderCard.addView(nextReminderTitleText, fullWidthWithTopMargin(dp(4)));
-        reminderCard.addView(nextReminderMetaText, fullWidthWithTopMargin(dp(4)));
-        LinearLayout.LayoutParams reminderParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        reminderParams.setMargins(0, 0, 0, dp(14));
-        root.addView(reminderCard, reminderParams);
-
         root.addView(createTaskSectionHeader(), fullWidthWithBottomMargin());
 
         taskList = new LinearLayout(this);
@@ -471,9 +473,19 @@ public final class MainActivity extends Activity {
         taskList.setPadding(0, 0, 0, dp(76));
         taskList.setClipToPadding(false);
         root.addView(taskList, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+
+        if (UserPreferences.shouldShowNextReminder(this)) {
+            LinearLayout nextReminderCard = createNextReminderCard();
+            LinearLayout.LayoutParams reminderParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            reminderParams.setMargins(0, dp(4), 0, dp(14));
+            root.addView(nextReminderCard, reminderParams);
+        }
 
         ScrollView screenScroll = new ScrollView(this);
         screenScroll.setFillViewport(true);
@@ -586,6 +598,19 @@ public final class MainActivity extends Activity {
         Button button = createActionButton("+ Добавить", true);
         button.setPadding(dp(18), 0, dp(18), 0);
         return button;
+    }
+
+    private LinearLayout createNextReminderCard() {
+        LinearLayout card = createCardContainer();
+        card.addView(createText("Ближайшее напоминание", 13, R.color.text_secondary, false), fullWidth());
+        nextReminderTitleText = createText("Нет будущих напоминаний", 16, R.color.text_primary, true);
+        nextReminderTimeText = createText("", 15, R.color.text_primary, false);
+        nextReminderMetaText = createText("", 12, R.color.text_secondary, false);
+        nextReminderText = nextReminderTitleText;
+        card.addView(nextReminderTitleText, fullWidthWithTopMargin(dp(6)));
+        card.addView(nextReminderTimeText, fullWidthWithTopMargin(dp(3)));
+        card.addView(nextReminderMetaText, fullWidthWithTopMargin(dp(3)));
+        return card;
     }
 
     private LinearLayout createSourceCard() {
@@ -1203,10 +1228,44 @@ public final class MainActivity extends Activity {
     private View createTaskView(ObsidianTask task) {
         LinearLayout item = createCardContainer();
         item.setOnClickListener(view -> openPreferredTaskEditor(task));
+        item.setOnTouchListener(new View.OnTouchListener() {
+            private float downX;
+            private float downY;
+
+            @Override
+            public boolean onTouch(View view, MotionEvent event) {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    downX = event.getX();
+                    downY = event.getY();
+                    return false;
+                }
+                if (event.getAction() != MotionEvent.ACTION_UP) {
+                    return false;
+                }
+
+                float dx = event.getX() - downX;
+                float dy = event.getY() - downY;
+                if (Math.abs(dx) < dp(86) || Math.abs(dx) < Math.abs(dy) * 1.4f) {
+                    return false;
+                }
+
+                if (dx > 0) {
+                    snoozeTask(task);
+                } else {
+                    confirmDeleteTask(task);
+                }
+                return true;
+            }
+        });
 
         LinearLayout titleRow = new LinearLayout(this);
         titleRow.setOrientation(LinearLayout.HORIZONTAL);
         titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView completeButton = createCompletionButton(task);
+        LinearLayout.LayoutParams completeParams = new LinearLayout.LayoutParams(dp(30), dp(30));
+        completeParams.setMargins(0, 0, dp(10), 0);
+        titleRow.addView(completeButton, completeParams);
 
         TextView title = createText(task.getTitle(), 16, R.color.text_primary, true);
         title.setMaxLines(2);
@@ -1216,14 +1275,6 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
-
-        if (!task.isCompleted()) {
-            ImageButton doneButton = createPlainIconButton(R.drawable.ic_check, "Выполнить");
-            doneButton.setOnClickListener(view -> markTaskDone(task));
-            LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(dp(36), dp(36));
-            doneParams.setMargins(dp(8), 0, 0, 0);
-            titleRow.addView(doneButton, doneParams);
-        }
 
         TextView statusChip = createStatusChip(task.getStatus(LocalDateTime.now()));
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
@@ -1270,6 +1321,24 @@ public final class MainActivity extends Activity {
         params.setMargins(0, 0, 0, dp(10));
         item.setLayoutParams(params);
         return item;
+    }
+
+    private TextView createCompletionButton(ObsidianTask task) {
+        TextView button = createText(task.isCompleted() ? "✓" : "", 16, R.color.accent, true);
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setContentDescription(task.isCompleted() ? "Задача выполнена" : "Выполнить");
+        button.setBackground(createCircleOutlineBackground(
+                task.isCompleted()
+                        ? getColor(R.color.status_completed_background)
+                        : Color.TRANSPARENT,
+                task.isCompleted()
+                        ? getColor(R.color.status_completed_text)
+                        : getColor(R.color.text_secondary)
+        ));
+        if (!task.isCompleted()) {
+            button.setOnClickListener(view -> markTaskDone(task));
+        }
+        return button;
     }
 
     private TextView createStatusChip(TaskStatus status) {
@@ -1556,24 +1625,28 @@ public final class MainActivity extends Activity {
     }
 
     private void setNextReminder(ScheduledReminder reminder) {
+        if (nextReminderTimeText == null && nextReminderText == null) {
+            return;
+        }
+
         if (nextReminderTimeText != null) {
             if (!hasNotificationPermission()) {
-                nextReminderTimeText.setText("Уведомления выключены");
                 nextReminderTitleText.setText("Разрешение нужно выдать в системе");
+                nextReminderTimeText.setText("Уведомления выключены");
                 nextReminderMetaText.setText("");
                 return;
             }
 
             if (reminder == null) {
-                nextReminderTimeText.setText("Нет будущих напоминаний");
-                nextReminderTitleText.setText("");
+                nextReminderTitleText.setText("Нет будущих напоминаний");
+                nextReminderTimeText.setText("");
                 nextReminderMetaText.setText("");
                 return;
             }
 
-            nextReminderTimeText.setText(DateTimeFormatter.ofPattern("HH:mm").format(reminder.getTriggerAt()));
             nextReminderTitleText.setText(reminder.getTitle());
-            nextReminderMetaText.setText(DATE_TIME_FORMAT.format(reminder.getTriggerAt()));
+            nextReminderTimeText.setText(DATE_TIME_FORMAT.format(reminder.getTriggerAt()));
+            nextReminderMetaText.setText(formatRelativeReminder(reminder.getTriggerAt()));
             return;
         }
 
@@ -1593,6 +1666,17 @@ public final class MainActivity extends Activity {
                 DATE_TIME_FORMAT.format(reminder.getTriggerAt()),
                 reminder.getTitle()
         ));
+    }
+
+    private String formatRelativeReminder(LocalDateTime triggerAt) {
+        LocalDateTime now = LocalDateTime.now();
+        if (triggerAt.toLocalDate().equals(now.toLocalDate())) {
+            return "сегодня";
+        }
+        if (triggerAt.toLocalDate().equals(now.toLocalDate().plusDays(1))) {
+            return "завтра";
+        }
+        return "";
     }
 
     private void renderEmptyState(String message) {
@@ -1730,6 +1814,14 @@ public final class MainActivity extends Activity {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setShape(GradientDrawable.OVAL);
         drawable.setColor(color);
+        return drawable;
+    }
+
+    private GradientDrawable createCircleOutlineBackground(int color, int strokeColor) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.OVAL);
+        drawable.setColor(color);
+        drawable.setStroke(dp(2), strokeColor);
         return drawable;
     }
 
