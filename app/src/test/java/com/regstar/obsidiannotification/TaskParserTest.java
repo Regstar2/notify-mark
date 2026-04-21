@@ -146,6 +146,28 @@ public final class TaskParserTest {
     }
 
     @Test
+    public void parse_ignoresTasksInsideFencedCodeBlocks() {
+        String markdown = ""
+                + "```markdown\n"
+                + "- [ ] Example only @due(2026-04-20 20:00)\n"
+                + "```\n"
+                + "- [ ] Real task @due(2026-04-20 21:00)\n"
+                + "~~~\n"
+                + "Plain example @due(2026-04-20 22:00)\n"
+                + "~~~\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        assertEquals(1, result.getTasks().size());
+        assertEquals("Real task", result.getTasks().get(0).getTitle());
+        assertEquals(0, result.getErrors().size());
+    }
+
+    @Test
     public void parse_reportsInvalidUnifiedFormat() {
         String markdown = "- [ ] Broken @due(2026-02-30 25:00) "
                 + "@repeat(bad) @priority(nope)\n";
@@ -205,6 +227,23 @@ public final class TaskParserTest {
         ObsidianTask task = result.getTasks().get(0);
         assertEquals("Pay bills", task.getTitle());
         assertEquals("home", task.getGroup());
+    }
+
+    @Test
+    public void parse_deduplicatesTagsAndKeepsStableOrder() {
+        String markdown = "- [ ] Tagged @due(2026-04-20 19:00) @tag(work, health work) #health #today\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        ObsidianTask task = result.getTasks().get(0);
+        assertEquals(3, task.getTags().size());
+        assertEquals("work", task.getTags().get(0));
+        assertEquals("health", task.getTags().get(1));
+        assertEquals("today", task.getTags().get(2));
     }
 
     @Test

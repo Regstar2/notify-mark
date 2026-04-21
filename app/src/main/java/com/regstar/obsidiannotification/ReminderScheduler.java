@@ -350,7 +350,7 @@ public final class ReminderScheduler {
             return null;
         }
 
-        if (reminderAt.isAfter(now)) {
+        if (!reminderAt.isBefore(now)) {
             return reminderAt;
         }
 

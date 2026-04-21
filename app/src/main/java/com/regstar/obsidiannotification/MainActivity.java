@@ -44,6 +44,7 @@ public final class MainActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 1002;
     private static final int REQUEST_EDIT_TASK = 1003;
     private static final int REQUEST_SOURCE_MANAGEMENT = 1004;
+    private static final int REQUEST_ONBOARDING = 1005;
     private static final long FOREGROUND_REFRESH_INTERVAL_MS = 15_000L;
     private static final DateTimeFormatter DATE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
@@ -101,6 +102,7 @@ public final class MainActivity extends Activity {
             setStatus("Выберите markdown-файл или папку с задачами Obsidian.");
             setNextReminder(null);
             renderEmptyState("Задачи появятся здесь после выбора заметки.");
+            showOnboardingIfNeeded();
         } else {
             readAndRenderNote();
             NoteChangeMonitor.ensureScheduled(this);
@@ -150,6 +152,15 @@ public final class MainActivity extends Activity {
                 setNextReminder(null);
                 renderEmptyState("Задачи появятся здесь после выбора источника.");
             } else {
+                readAndRenderNote();
+                NoteChangeMonitor.ensureScheduled(this);
+            }
+            return;
+        }
+
+        if (requestCode == REQUEST_ONBOARDING) {
+            noteUri = NoteStore.getSavedSourceUri(this);
+            if (noteUri != null) {
                 readAndRenderNote();
                 NoteChangeMonitor.ensureScheduled(this);
             }
@@ -778,6 +789,14 @@ public final class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
     private void openSourceManagement() {
         startActivityForResult(new Intent(this, SourceManagementActivity.class), REQUEST_SOURCE_MANAGEMENT);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void showOnboardingIfNeeded() {
+        if (!OnboardingPreferences.shouldShow(this) || NoteStore.hasSavedSources(this)) {
+            return;
+        }
+        startActivityForResult(new Intent(this, OnboardingActivity.class), REQUEST_ONBOARDING);
     }
 
     private void readAndRenderNote() {

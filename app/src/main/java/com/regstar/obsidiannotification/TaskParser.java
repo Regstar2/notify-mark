@@ -93,11 +93,20 @@ public final class TaskParser {
         List<ObsidianTask> tasks = new ArrayList<>();
         List<TaskParseError> errors = new ArrayList<>();
         String[] lines = markdown.split("\\R", -1);
+        boolean inFencedCodeBlock = false;
 
         for (int i = 0; i < lines.length; i++) {
             String line = stripBom(lines[i]);
+            String trimmedLine = line.trim();
             Matcher taskMatcher = TASK.matcher(line);
             int lineNumber = i + 1;
+            if (trimmedLine.startsWith("```") || trimmedLine.startsWith("~~~")) {
+                inFencedCodeBlock = !inFencedCodeBlock;
+                continue;
+            }
+            if (inFencedCodeBlock) {
+                continue;
+            }
             boolean completed = false;
             boolean checkboxTask = taskMatcher.find();
             String body;
