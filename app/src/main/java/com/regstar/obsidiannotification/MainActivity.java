@@ -492,6 +492,9 @@ public final class MainActivity extends Activity {
                 21,
                 R.color.text_primary,
                 true);
+        if (selectedSection == SECTION_TASKS) {
+            taskSectionTitleText = title;
+        }
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
@@ -564,8 +567,6 @@ public final class MainActivity extends Activity {
         );
         exactAlarmParams.setMargins(0, 0, 0, dp(10));
         root.addView(exactAlarmPermissionButton, exactAlarmParams);
-
-        root.addView(createTaskSectionHeader(), fullWidthWithBottomMargin());
 
         taskList = new LinearLayout(this);
         taskList.setOrientation(LinearLayout.VERTICAL);
@@ -676,25 +677,25 @@ public final class MainActivity extends Activity {
     private LinearLayout createBottomOverlay() {
         LinearLayout overlay = new LinearLayout(this);
         overlay.setOrientation(LinearLayout.VERTICAL);
-        overlay.setPadding(dp(16), 0, dp(16), dp(12));
+        overlay.setPadding(0, 0, 0, 0);
 
         if (selectedSection == SECTION_TASKS) {
             Button addFab = createFabButton();
             addFab.setOnClickListener(view -> openTaskEditor(null));
             LinearLayout.LayoutParams fabParams = new LinearLayout.LayoutParams(dp(48), dp(48));
             fabParams.gravity = android.view.Gravity.RIGHT;
-            fabParams.setMargins(0, 0, 0, dp(10));
+            fabParams.setMargins(0, 0, dp(16), dp(10));
             overlay.addView(addFab, fabParams);
         }
 
         LinearLayout bottomBar = new LinearLayout(this);
         bottomBar.setOrientation(LinearLayout.HORIZONTAL);
         bottomBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        bottomBar.setPadding(dp(6), dp(6), dp(6), dp(6));
+        bottomBar.setPadding(0, 0, 0, 0);
         bottomBar.setBackground(createRoundedBackground(
                 getColor(R.color.card_background),
-                getColor(R.color.card_stroke),
-                8
+                0,
+                0
         ));
 
         bottomBar.addView(createBottomNavItem(
@@ -707,10 +708,9 @@ public final class MainActivity extends Activity {
                         rebuildAndRenderCurrentSection();
                     }
                 }
-        ), new LinearLayout.LayoutParams(0, dp(48), 1));
+        ), new LinearLayout.LayoutParams(0, dp(60), 1));
 
-        LinearLayout.LayoutParams calendarParams = new LinearLayout.LayoutParams(0, dp(48), 1);
-        calendarParams.setMargins(dp(6), 0, 0, 0);
+        LinearLayout.LayoutParams calendarParams = new LinearLayout.LayoutParams(0, dp(60), 1);
         bottomBar.addView(createBottomNavItem(
                 "Календарь",
                 R.drawable.ic_calendar,
@@ -744,8 +744,8 @@ public final class MainActivity extends Activity {
         item.setPadding(dp(10), 0, dp(10), 0);
         item.setBackground(createRoundedBackground(
                 getColor(selected ? R.color.chip_selected_background : R.color.card_background),
-                selected ? getColor(R.color.chip_selected_stroke) : 0,
-                8
+                0,
+                0
         ));
         item.setOnClickListener(view -> action.run());
 
@@ -1002,21 +1002,6 @@ public final class MainActivity extends Activity {
             readAndRenderNote();
         });
         return chip;
-    }
-
-    private LinearLayout createTaskSectionHeader() {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(2), 0, 0);
-
-        taskSectionTitleText = createText("Задачи", 18, R.color.text_primary, true);
-        row.addView(taskSectionTitleText, new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1
-        ));
-        return row;
     }
 
     private ImageButton createTaskFilterButton() {
