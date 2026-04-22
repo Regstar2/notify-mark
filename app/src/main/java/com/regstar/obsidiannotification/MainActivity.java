@@ -78,8 +78,13 @@ public final class MainActivity extends Activity {
     private FrameLayout drawerLayer;
     private View drawerScrim;
     private View drawerPanel;
+    private FrameLayout filterSheetLayer;
+    private View filterSheetScrim;
+    private View filterSheetPanel;
+    private LinearLayout filterSheetOptions;
     private int selectedSection = SECTION_TASKS;
     private boolean drawerOpen;
+    private boolean filterSheetOpen;
     private boolean showTaskSourceNames;
     private boolean renderedShowSourceOnMain;
     private final Handler noteRefreshHandler = new Handler(Looper.getMainLooper());
@@ -149,6 +154,10 @@ public final class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (filterSheetOpen) {
+            closeTaskFilterSheet();
+            return;
+        }
         if (drawerOpen) {
             closeDrawer();
             return;
@@ -430,6 +439,11 @@ public final class MainActivity extends Activity {
         notificationPermissionButton = null;
         exactAlarmPermissionButton = null;
         drawerOpen = false;
+        filterSheetOpen = false;
+        filterSheetLayer = null;
+        filterSheetScrim = null;
+        filterSheetPanel = null;
+        filterSheetOptions = null;
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -471,6 +485,10 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
         appRoot.addView(createDrawerLayer(), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        appRoot.addView(createTaskFilterSheetLayer(), new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
@@ -925,6 +943,163 @@ public final class MainActivity extends Activity {
                 .start();
     }
 
+    private FrameLayout createTaskFilterSheetLayer() {
+        filterSheetLayer = new FrameLayout(this);
+        filterSheetLayer.setVisibility(View.GONE);
+
+        filterSheetScrim = new View(this);
+        filterSheetScrim.setBackgroundColor(Color.argb(120, 0, 0, 0));
+        filterSheetScrim.setAlpha(0f);
+        filterSheetScrim.setOnClickListener(view -> closeTaskFilterSheet());
+        filterSheetLayer.addView(filterSheetScrim, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(10), dp(16), dp(18));
+        panel.setBackground(createTopRoundedBackground(getColor(R.color.card_background), 0, 24));
+        panel.setTranslationY(dp(360));
+
+        View handle = new View(this);
+        handle.setBackground(createRoundedBackground(getColor(R.color.card_stroke), 0, 4));
+        LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(dp(42), dp(4));
+        handleParams.gravity = android.view.Gravity.CENTER_HORIZONTAL;
+        handleParams.setMargins(0, 0, 0, dp(14));
+        panel.addView(handle, handleParams);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView title = createText("Фильтр задач", 18, R.color.text_primary, true);
+        header.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        ImageButton closeButton = createPlainIconButton(R.drawable.ic_close, "Закрыть фильтр");
+        closeButton.setOnClickListener(view -> closeTaskFilterSheet());
+        header.addView(closeButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        panel.addView(header, fullWidth());
+
+        filterSheetOptions = new LinearLayout(this);
+        filterSheetOptions.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams optionsParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        optionsParams.setMargins(0, dp(10), 0, 0);
+        panel.addView(filterSheetOptions, optionsParams);
+        populateTaskFilterSheetOptions();
+
+        filterSheetPanel = panel;
+        FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM
+        );
+        filterSheetLayer.addView(panel, panelParams);
+        return filterSheetLayer;
+    }
+
+    private void openTaskFilterSheet() {
+        if (filterSheetLayer == null || filterSheetPanel == null) {
+            return;
+        }
+        if (drawerOpen) {
+            closeDrawer();
+        }
+        filterSheetOpen = true;
+        populateTaskFilterSheetOptions();
+        filterSheetLayer.setVisibility(View.VISIBLE);
+        filterSheetScrim.setAlpha(0f);
+        filterSheetPanel.post(() -> {
+            int sheetHeight = filterSheetPanel.getHeight() == 0 ? dp(360) : filterSheetPanel.getHeight();
+            filterSheetPanel.setTranslationY(sheetHeight);
+            filterSheetScrim.animate().alpha(1f).setDuration(150L).start();
+            filterSheetPanel.animate().translationY(0f).setDuration(190L).start();
+        });
+    }
+
+    private void closeTaskFilterSheet() {
+        if (filterSheetLayer == null || filterSheetPanel == null) {
+            return;
+        }
+        filterSheetOpen = false;
+        int sheetHeight = filterSheetPanel.getHeight() == 0 ? dp(360) : filterSheetPanel.getHeight();
+        filterSheetScrim.animate().alpha(0f).setDuration(130L).start();
+        filterSheetPanel.animate()
+                .translationY(sheetHeight)
+                .setDuration(170L)
+                .withEndAction(() -> {
+                    if (!filterSheetOpen && filterSheetLayer != null) {
+                        filterSheetLayer.setVisibility(View.GONE);
+                    }
+                })
+                .start();
+    }
+
+    private void populateTaskFilterSheetOptions() {
+        if (filterSheetOptions == null) {
+            return;
+        }
+        filterSheetOptions.removeAllViews();
+        addTaskFilterSheetItem(UserPreferences.FILTER_ALL, "Все");
+        addTaskFilterSheetItem(UserPreferences.FILTER_ACTIVE, "Активные");
+        addTaskFilterSheetItem(UserPreferences.FILTER_OVERDUE, "Просроченные");
+        addTaskFilterSheetItem(UserPreferences.FILTER_COMPLETED, "Завершенные");
+        addTaskFilterSheetItem(UserPreferences.FILTER_SKIPPED, "Пропущенные");
+    }
+
+    private void addTaskFilterSheetItem(String filter, String label) {
+        boolean selected = Objects.equals(UserPreferences.getTaskFilter(this), filter);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setClickable(true);
+        row.setPadding(dp(14), 0, dp(12), 0);
+        row.setBackground(createRoundedBackground(
+                getColor(selected ? R.color.chip_selected_background : R.color.card_background),
+                0,
+                10
+        ));
+        row.setOnClickListener(view -> {
+            UserPreferences.setTaskFilter(this, filter);
+            updateActiveFilterButton();
+            updateTaskSectionHeader(0);
+            closeTaskFilterSheet();
+            readAndRenderNote();
+        });
+
+        TextView text = createText(
+                label,
+                15,
+                selected ? R.color.chip_selected_text : R.color.text_primary,
+                selected
+        );
+        row.addView(text, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        ImageView checkIcon = new ImageView(this);
+        checkIcon.setImageResource(R.drawable.ic_check);
+        checkIcon.setColorFilter(getColor(R.color.chip_selected_text));
+        checkIcon.setVisibility(selected ? View.VISIBLE : View.INVISIBLE);
+        row.addView(checkIcon, new LinearLayout.LayoutParams(dp(22), dp(22)));
+
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(52)
+        );
+        rowParams.setMargins(0, dp(2), 0, dp(2));
+        filterSheetOptions.addView(row, rowParams);
+    }
+
     private void showAboutDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("ObsidianNotification")
@@ -1005,35 +1180,8 @@ public final class MainActivity extends Activity {
 
     private ImageButton createTaskFilterButton() {
         ImageButton filterButton = createPlainIconButton(R.drawable.ic_filter_list, "Фильтр задач");
-        filterButton.setOnClickListener(view -> showTaskFilterMenu(filterButton));
+        filterButton.setOnClickListener(view -> openTaskFilterSheet());
         return filterButton;
-    }
-
-    private void showTaskFilterMenu(View anchor) {
-        PopupMenu popupMenu = new PopupMenu(this, anchor);
-        popupMenu.getMenu().add(0, 1, 0, "Все");
-        popupMenu.getMenu().add(0, 2, 1, "Активные");
-        popupMenu.getMenu().add(0, 3, 2, "Просроченные");
-        popupMenu.getMenu().add(0, 4, 3, "Завершенные");
-        popupMenu.getMenu().add(0, 5, 4, "Пропущенные");
-        popupMenu.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == 1) {
-                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_ALL);
-            } else if (id == 2) {
-                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_ACTIVE);
-            } else if (id == 3) {
-                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_OVERDUE);
-            } else if (id == 4) {
-                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_COMPLETED);
-            } else if (id == 5) {
-                UserPreferences.setTaskFilter(this, UserPreferences.FILTER_SKIPPED);
-            }
-            updateActiveFilterButton();
-            readAndRenderNote();
-            return true;
-        });
-        popupMenu.show();
     }
 
     private void updateTaskSectionHeader(int visibleCount) {
@@ -2311,6 +2459,22 @@ public final class MainActivity extends Activity {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(color);
         drawable.setCornerRadius(dp(radiusDp));
+        if (strokeColor != 0) {
+            drawable.setStroke(dp(1), strokeColor);
+        }
+        return drawable;
+    }
+
+    private GradientDrawable createTopRoundedBackground(int color, int strokeColor, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        float radius = dp(radiusDp);
+        drawable.setCornerRadii(new float[]{
+                radius, radius,
+                radius, radius,
+                0f, 0f,
+                0f, 0f
+        });
         if (strokeColor != 0) {
             drawable.setStroke(dp(1), strokeColor);
         }
