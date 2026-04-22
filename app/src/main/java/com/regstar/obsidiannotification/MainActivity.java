@@ -510,6 +510,9 @@ public final class MainActivity extends Activity {
         topRefreshButton.setOnClickListener(view -> readAndRenderNote());
         refreshButton = topRefreshButton;
         appBar.addView(topRefreshButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        if (selectedSection == SECTION_TASKS) {
+            appBar.addView(createTaskFilterButton(), new LinearLayout.LayoutParams(dp(40), dp(40)));
+        }
         return appBar;
     }
 
@@ -533,10 +536,6 @@ public final class MainActivity extends Activity {
                 1
         ));
 
-        ImageButton filterButton = createTaskFilterButton();
-        LinearLayout.LayoutParams filterButtonParams = new LinearLayout.LayoutParams(dp(40), dp(40));
-        filterButtonParams.setMargins(dp(8), 0, 0, 0);
-        groupFilterContainer.addView(filterButton, filterButtonParams);
         root.addView(groupFilterContainer, fullWidthWithBottomMargin());
         updateGroupFilterRow(new ArrayList<>());
 
