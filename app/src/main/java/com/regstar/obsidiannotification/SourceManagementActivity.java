@@ -17,6 +17,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,6 +26,8 @@ public final class SourceManagementActivity extends Activity {
     private static final int REQUEST_REPLACE_FOLDER = 4102;
     private static final int REQUEST_ADD_NOTES = 4103;
     private static final int REQUEST_ADD_FOLDER = 4104;
+    private static final int REQUEST_CREATE_NOTE = 4105;
+    private static final String NEW_NOTE_TEMPLATE = "## Уведомления\n\n";
 
     private LinearLayout sourcesList;
     private TextView summaryText;
@@ -51,6 +54,11 @@ public final class SourceManagementActivity extends Activity {
         }
         for (Uri uri : selectedUris) {
             persistReadPermission(data, uri);
+        }
+
+        if (requestCode == REQUEST_CREATE_NOTE) {
+            handleCreatedNote(selectedUris.get(0));
+            return;
         }
 
         if (requestCode == REQUEST_REPLACE_NOTES) {
@@ -106,6 +114,11 @@ public final class SourceManagementActivity extends Activity {
                 "Добавить заметку",
                 "Добавить файл к текущим источникам.",
                 () -> openNotePicker(REQUEST_ADD_NOTES)
+        ), fullWidthWithBottomMargin());
+        root.addView(createActionCard(
+                "Создать файл",
+                "Создать новый markdown-файл и добавить его к источникам.",
+                this::openNoteCreator
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
                 "Добавить папку",
@@ -245,6 +258,35 @@ public final class SourceManagementActivity extends Activity {
     }
 
     @SuppressWarnings("deprecation")
+    private void openNoteCreator() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/markdown");
+        intent.putExtra(Intent.EXTRA_TITLE, "ObsidianNotification.md");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, REQUEST_CREATE_NOTE);
+    }
+
+    private void handleCreatedNote(Uri uri) {
+        try {
+            NoteStore.writeMarkdown(this, uri, NEW_NOTE_TEMPLATE);
+            NoteStore.addNoteUris(this, java.util.Collections.singletonList(uri));
+            NoteChangeMonitor.ensureScheduled(this);
+            NoteChangeMonitor.syncNow(this, true);
+            setResult(RESULT_OK);
+            renderSources();
+            Toast.makeText(this, "Файл создан и добавлен в источники", Toast.LENGTH_SHORT).show();
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(this, "Не удалось создать markdown-файл", exception);
+            Toast.makeText(this,
+                    "Не удалось создать файл: " + safeMessage(exception),
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @SuppressWarnings("deprecation")
     private void openFolderPicker(int requestCode) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -295,6 +337,13 @@ public final class SourceManagementActivity extends Activity {
         setResult(RESULT_OK);
         renderSources();
         Toast.makeText(this, "Источники очищены", Toast.LENGTH_SHORT).show();
+    }
+
+    private String safeMessage(Exception exception) {
+        String message = exception == null ? null : exception.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? "провайдер файлов не дал доступ к записи"
+                : message;
     }
 
     private TextView createSectionTitle(String text) {
