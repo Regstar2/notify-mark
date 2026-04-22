@@ -31,11 +31,13 @@ import java.util.Locale;
 
 public final class TaskEditActivity extends Activity {
     public static final String EXTRA_TASK_KEY = "task_key";
+    public static final String EXTRA_DUE_DATE = "due_date";
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private String taskKey;
+    private LocalDate prefilledDate;
     private ObsidianTask task;
     private NoteStore.TaskDocumentMatch taskMatch;
     private NoteStore.NoteDocument defaultDocument;
@@ -61,6 +63,7 @@ public final class TaskEditActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         taskKey = getIntent().getStringExtra(EXTRA_TASK_KEY);
+        prefilledDate = parsePrefilledDate(getIntent().getStringExtra(EXTRA_DUE_DATE));
         loadTaskContext();
         buildUi();
         updatePreview();
@@ -82,6 +85,22 @@ public final class TaskEditActivity extends Activity {
             loadError = exception.getMessage();
             ErrorLog.record(this, "Не удалось открыть экран редактирования", exception);
         }
+    }
+
+    private LocalDate parsePrefilledDate(String rawDate) {
+        if (rawDate == null || rawDate.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(rawDate.trim(), DATE);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private LocalDateTime defaultDueDateTime() {
+        LocalDate date = prefilledDate == null ? LocalDate.now() : prefilledDate;
+        return LocalDateTime.of(date, LocalDateTime.now().plusMinutes(10).toLocalTime());
     }
 
     private void buildUi() {
@@ -211,7 +230,7 @@ public final class TaskEditActivity extends Activity {
         root.addView(titleInput, fullWidthWithBottomMargin());
 
         LocalDateTime due = task == null || task.getReminderAt() == null
-                ? LocalDateTime.now().plusMinutes(10)
+                ? defaultDueDateTime()
                 : task.getReminderAt();
 
         addLabel(root, "Дата (yyyy-MM-dd)");
