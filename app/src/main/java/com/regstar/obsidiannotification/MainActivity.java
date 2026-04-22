@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -42,6 +43,8 @@ import java.util.Objects;
 import java.util.Set;
 
 public final class MainActivity extends Activity {
+    private static final int SECTION_TASKS = 0;
+    private static final int SECTION_CALENDAR = 1;
     private static final int REQUEST_OPEN_NOTE = 1001;
     private static final int REQUEST_NOTIFICATIONS = 1002;
     private static final int REQUEST_EDIT_TASK = 1003;
@@ -72,6 +75,11 @@ public final class MainActivity extends Activity {
     private Button notificationPermissionButton;
     private Button exactAlarmPermissionButton;
     private LinearLayout taskList;
+    private FrameLayout drawerLayer;
+    private View drawerScrim;
+    private View drawerPanel;
+    private int selectedSection = SECTION_TASKS;
+    private boolean drawerOpen;
     private boolean showTaskSourceNames;
     private boolean renderedShowSourceOnMain;
     private final Handler noteRefreshHandler = new Handler(Looper.getMainLooper());
@@ -137,6 +145,20 @@ public final class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         stopForegroundNotePolling();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (drawerOpen) {
+            closeDrawer();
+            return;
+        }
+        if (selectedSection == SECTION_CALENDAR) {
+            selectedSection = SECTION_TASKS;
+            rebuildAndRenderCurrentSection();
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override
@@ -393,46 +415,102 @@ public final class MainActivity extends Activity {
 
     private void buildUi() {
         renderedShowSourceOnMain = UserPreferences.shouldShowSourceOnMain(this);
+        sourceTitleText = null;
+        sourceMetaText = null;
+        sourceStatsText = null;
+        sourceErrorText = null;
+        sourceStatsRow = null;
+        groupFilterRow = null;
+        taskSectionTitleText = null;
+        taskList = null;
         nextReminderTimeText = null;
         nextReminderTitleText = null;
         nextReminderMetaText = null;
         nextReminderText = null;
+        notificationPermissionButton = null;
+        exactAlarmPermissionButton = null;
+        drawerOpen = false;
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(14), dp(16), dp(96));
+        root.setPadding(dp(16), dp(14), dp(16), dp(152));
         root.setBackgroundColor(getColor(R.color.background));
 
+        root.addView(createTopAppBar(), fullWidth());
+        if (selectedSection == SECTION_CALENDAR) {
+            addCalendarPlaceholder(root);
+        } else {
+            addTaskScreenContent(root);
+        }
+
+        ScrollView screenScroll = new ScrollView(this);
+        screenScroll.setFillViewport(true);
+        screenScroll.addView(root, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackgroundColor(getColor(R.color.background));
+        frame.addView(screenScroll, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout bottomOverlay = createBottomOverlay();
+        FrameLayout.LayoutParams bottomParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM
+        );
+        frame.addView(bottomOverlay, bottomParams);
+
+        FrameLayout appRoot = new FrameLayout(this);
+        appRoot.addView(frame, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        appRoot.addView(createDrawerLayer(), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        setContentView(appRoot);
+    }
+
+    private LinearLayout createTopAppBar() {
         LinearLayout appBar = new LinearLayout(this);
         appBar.setOrientation(LinearLayout.HORIZONTAL);
         appBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
         appBar.setPadding(0, 0, 0, dp(10));
 
-        TextView title = createText("ObsidianNotification", 21, R.color.text_primary, true);
+        ImageButton menuButton = createPlainIconButton(R.drawable.ic_menu, "Открыть меню");
+        menuButton.setOnClickListener(view -> openDrawer());
+        appBar.addView(menuButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        TextView title = createText(selectedSection == SECTION_CALENDAR ? "Календарь" : "Задачи",
+                21,
+                R.color.text_primary,
+                true);
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
-        appBar.addView(title, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
-        ));
+        );
+        titleParams.setMargins(dp(8), 0, dp(8), 0);
+        appBar.addView(title, titleParams);
 
-        TextView overflowButton = createOverflowButton("Главное меню");
-        overflowButton.setOnClickListener(view -> showMainMenu(overflowButton));
-        refreshButton = overflowButton;
-        appBar.addView(overflowButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
-        root.addView(appBar, fullWidth());
+        ImageButton topRefreshButton = createPlainIconButton(R.drawable.ic_refresh, "Обновить");
+        topRefreshButton.setEnabled(noteUri != null);
+        topRefreshButton.setOnClickListener(view -> readAndRenderNote());
+        refreshButton = topRefreshButton;
+        appBar.addView(topRefreshButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        return appBar;
+    }
 
-        LinearLayout sourceCard = createSourceCard();
-        if (noteUri == null || UserPreferences.shouldShowSourceOnMain(this)) {
-            LinearLayout.LayoutParams sourceParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            sourceParams.setMargins(0, 0, 0, dp(12));
-            root.addView(sourceCard, sourceParams);
-        }
-
+    private void addTaskScreenContent(LinearLayout root) {
         LinearLayout groupFilterContainer = new LinearLayout(this);
         groupFilterContainer.setOrientation(LinearLayout.HORIZONTAL);
         groupFilterContainer.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -457,6 +535,17 @@ public final class MainActivity extends Activity {
         filterButtonParams.setMargins(dp(8), 0, 0, 0);
         groupFilterContainer.addView(filterButton, filterButtonParams);
         root.addView(groupFilterContainer, fullWidthWithBottomMargin());
+        updateGroupFilterRow(new ArrayList<>());
+
+        LinearLayout sourceCard = createSourceCard();
+        if (noteUri == null || UserPreferences.shouldShowSourceOnMain(this)) {
+            LinearLayout.LayoutParams sourceParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            sourceParams.setMargins(0, 0, 0, dp(12));
+            root.addView(sourceCard, sourceParams);
+        }
 
         notificationPermissionButton = createActionButton("Разрешить уведомления", true);
         notificationPermissionButton.setOnClickListener(view -> requestNotificationPermission());
@@ -483,33 +572,52 @@ public final class MainActivity extends Activity {
         taskList.setPadding(0, 0, 0, 0);
         taskList.setClipToPadding(false);
         root.addView(taskList, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ));
-
-        ScrollView screenScroll = new ScrollView(this);
-        screenScroll.setFillViewport(true);
-        screenScroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+    }
 
-        FrameLayout frame = new FrameLayout(this);
-        frame.setBackgroundColor(getColor(R.color.background));
-        frame.addView(screenScroll, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
+    private void addCalendarPlaceholder(LinearLayout root) {
+        taskList = new LinearLayout(this);
 
-        LinearLayout bottomOverlay = createBottomOverlay();
-        FrameLayout.LayoutParams bottomParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                android.view.Gravity.BOTTOM
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_calendar);
+        icon.setColorFilter(getColor(R.color.text_secondary));
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(34), dp(34));
+        card.addView(icon, iconParams);
+
+        TextView title = createText("Календарь", 18, R.color.text_primary, true);
+        card.addView(title, fullWidthWithTopMargin(dp(12)));
+
+        TextView description = createText(
+                "Раздел календаря появится позже. Сейчас уведомления доступны в списке задач.",
+                14,
+                R.color.text_secondary,
+                false
         );
-        frame.addView(bottomOverlay, bottomParams);
+        description.setLineSpacing(0, 1.08f);
+        card.addView(description, fullWidthWithTopMargin(dp(8)));
 
-        setContentView(frame);
+        root.addView(card, fullWidthWithBottomMargin());
+    }
+
+    private void rebuildAndRenderCurrentSection() {
+        buildUi();
+        updateNotificationPermissionUi();
+        updateExactAlarmPermissionUi();
+        if (selectedSection != SECTION_TASKS) {
+            return;
+        }
+        if (noteUri == null) {
+            setStatus("Файл не выбран.");
+            setNextReminder(null);
+            renderEmptyState("Нажмите «Выбрать заметку».");
+            return;
+        }
+        readAndRenderNote();
     }
 
     private Button createActionButton(String text, boolean primary) {
@@ -553,45 +661,6 @@ public final class MainActivity extends Activity {
         return button;
     }
 
-    private TextView createOverflowButton(String description) {
-        TextView button = new TextView(this);
-        button.setText("⋮");
-        button.setTextSize(22);
-        button.setTextColor(getColor(R.color.text_primary));
-        button.setGravity(android.view.Gravity.CENTER);
-        button.setContentDescription(description);
-        button.setBackground(createRoundedBackground(
-                getColor(R.color.icon_button_background),
-                0,
-                18
-        ));
-        return button;
-    }
-
-    private void showMainMenu(View anchor) {
-        PopupMenu popupMenu = new PopupMenu(this, anchor);
-        popupMenu.getMenu().add(0, 1, 0, "Обновить");
-        popupMenu.getMenu().add(0, 2, 1, "Источники");
-        popupMenu.getMenu().add(0, 3, 2, "Настройки");
-        popupMenu.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == 1) {
-                readAndRenderNote();
-                return true;
-            }
-            if (id == 2) {
-                openSourceManagement();
-                return true;
-            }
-            if (id == 3) {
-                openSettings();
-                return true;
-            }
-            return false;
-        });
-        popupMenu.show();
-    }
-
     private Button createFabButton() {
         Button button = createActionButton("+", true);
         button.setTextSize(24);
@@ -607,16 +676,262 @@ public final class MainActivity extends Activity {
     private LinearLayout createBottomOverlay() {
         LinearLayout overlay = new LinearLayout(this);
         overlay.setOrientation(LinearLayout.VERTICAL);
-        overlay.setPadding(dp(16), 0, dp(16), dp(16));
+        overlay.setPadding(dp(16), 0, dp(16), dp(12));
 
-        Button addFab = createFabButton();
-        addFab.setOnClickListener(view -> openTaskEditor(null));
-        LinearLayout.LayoutParams fabParams = new LinearLayout.LayoutParams(dp(48), dp(48));
-        fabParams.gravity = android.view.Gravity.RIGHT;
-        fabParams.setMargins(0, 0, 0, 0);
-        overlay.addView(addFab, fabParams);
+        if (selectedSection == SECTION_TASKS) {
+            Button addFab = createFabButton();
+            addFab.setOnClickListener(view -> openTaskEditor(null));
+            LinearLayout.LayoutParams fabParams = new LinearLayout.LayoutParams(dp(48), dp(48));
+            fabParams.gravity = android.view.Gravity.RIGHT;
+            fabParams.setMargins(0, 0, 0, dp(10));
+            overlay.addView(addFab, fabParams);
+        }
+
+        LinearLayout bottomBar = new LinearLayout(this);
+        bottomBar.setOrientation(LinearLayout.HORIZONTAL);
+        bottomBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        bottomBar.setPadding(dp(6), dp(6), dp(6), dp(6));
+        bottomBar.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+
+        bottomBar.addView(createBottomNavItem(
+                "Задачи",
+                R.drawable.ic_task_list,
+                selectedSection == SECTION_TASKS,
+                () -> {
+                    if (selectedSection != SECTION_TASKS) {
+                        selectedSection = SECTION_TASKS;
+                        rebuildAndRenderCurrentSection();
+                    }
+                }
+        ), new LinearLayout.LayoutParams(0, dp(48), 1));
+
+        LinearLayout.LayoutParams calendarParams = new LinearLayout.LayoutParams(0, dp(48), 1);
+        calendarParams.setMargins(dp(6), 0, 0, 0);
+        bottomBar.addView(createBottomNavItem(
+                "Календарь",
+                R.drawable.ic_calendar,
+                selectedSection == SECTION_CALENDAR,
+                () -> {
+                    if (selectedSection != SECTION_CALENDAR) {
+                        selectedSection = SECTION_CALENDAR;
+                        rebuildAndRenderCurrentSection();
+                    }
+                }
+        ), calendarParams);
+
+        overlay.addView(bottomBar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
 
         return overlay;
+    }
+
+    private LinearLayout createBottomNavItem(
+            String text,
+            int iconRes,
+            boolean selected,
+            Runnable action
+    ) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(android.view.Gravity.CENTER);
+        item.setClickable(true);
+        item.setPadding(dp(10), 0, dp(10), 0);
+        item.setBackground(createRoundedBackground(
+                getColor(selected ? R.color.chip_selected_background : R.color.card_background),
+                selected ? getColor(R.color.chip_selected_stroke) : 0,
+                8
+        ));
+        item.setOnClickListener(view -> action.run());
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(getColor(selected ? R.color.chip_selected_text : R.color.text_secondary));
+        item.addView(icon, new LinearLayout.LayoutParams(dp(20), dp(20)));
+
+        TextView label = createText(
+                text,
+                13,
+                selected ? R.color.chip_selected_text : R.color.text_secondary,
+                selected
+        );
+        label.setSingleLine(true);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        labelParams.setMargins(dp(8), 0, 0, 0);
+        item.addView(label, labelParams);
+        return item;
+    }
+
+    private FrameLayout createDrawerLayer() {
+        int drawerWidth = dp(308);
+
+        drawerLayer = new FrameLayout(this);
+        drawerLayer.setVisibility(View.GONE);
+
+        drawerScrim = new View(this);
+        drawerScrim.setBackgroundColor(Color.argb(110, 0, 0, 0));
+        drawerScrim.setAlpha(0f);
+        drawerScrim.setOnClickListener(view -> closeDrawer());
+        drawerLayer.addView(drawerScrim, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(16), dp(20), dp(16), dp(16));
+        panel.setBackgroundColor(getColor(R.color.card_background));
+        panel.setTranslationX(-drawerWidth);
+
+        TextView appName = createText("ObsidianNotification", 18, R.color.text_primary, true);
+        panel.addView(appName, fullWidth());
+
+        TextView subtitle = createText("Меню приложения", 13, R.color.text_secondary, false);
+        panel.addView(subtitle, fullWidthWithTopMargin(dp(4)));
+
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.card_stroke));
+        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        dividerParams.setMargins(0, dp(16), 0, dp(8));
+        panel.addView(divider, dividerParams);
+
+        panel.addView(createDrawerItem(
+                R.drawable.ic_file,
+                "Источники",
+                "Файлы и папки с задачами",
+                () -> {
+                    closeDrawer();
+                    openSourceManagement();
+                }
+        ));
+        panel.addView(createDrawerItem(
+                R.drawable.ic_settings,
+                "Настройки",
+                "Формат, уведомления, внешний вид",
+                () -> {
+                    closeDrawer();
+                    openSettings();
+                }
+        ));
+        panel.addView(createDrawerItem(
+                R.drawable.ic_refresh,
+                "Обновить",
+                "Перечитать markdown сейчас",
+                () -> {
+                    closeDrawer();
+                    readAndRenderNote();
+                }
+        ));
+        panel.addView(createDrawerItem(
+                R.drawable.ic_info,
+                "О приложении",
+                "ObsidianNotification",
+                () -> {
+                    closeDrawer();
+                    showAboutDialog();
+                }
+        ));
+
+        drawerPanel = panel;
+        FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
+                drawerWidth,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.Gravity.LEFT
+        );
+        drawerLayer.addView(panel, panelParams);
+        return drawerLayer;
+    }
+
+    private LinearLayout createDrawerItem(
+            int iconRes,
+            String title,
+            String subtitle,
+            Runnable action
+    ) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setClickable(true);
+        row.setPadding(dp(10), dp(10), dp(10), dp(10));
+        row.setBackground(createRoundedBackground(Color.TRANSPARENT, 0, 8));
+        row.setOnClickListener(view -> action.run());
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(getColor(R.color.text_secondary));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(24), dp(24)));
+
+        LinearLayout textColumn = new LinearLayout(this);
+        textColumn.setOrientation(LinearLayout.VERTICAL);
+        TextView titleView = createText(title, 15, R.color.text_primary, true);
+        TextView subtitleView = createText(subtitle, 12, R.color.text_secondary, false);
+        subtitleView.setSingleLine(true);
+        subtitleView.setEllipsize(TextUtils.TruncateAt.END);
+        textColumn.addView(titleView, fullWidth());
+        textColumn.addView(subtitleView, fullWidthWithTopMargin(dp(2)));
+
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        textParams.setMargins(dp(12), 0, 0, 0);
+        row.addView(textColumn, textParams);
+
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        rowParams.setMargins(0, dp(2), 0, dp(2));
+        row.setLayoutParams(rowParams);
+        return row;
+    }
+
+    private void openDrawer() {
+        if (drawerLayer == null || drawerPanel == null) {
+            return;
+        }
+        drawerOpen = true;
+        drawerLayer.setVisibility(View.VISIBLE);
+        drawerScrim.animate().alpha(1f).setDuration(160L).start();
+        drawerPanel.animate().translationX(0).setDuration(180L).start();
+    }
+
+    private void closeDrawer() {
+        if (drawerLayer == null || drawerPanel == null) {
+            return;
+        }
+        drawerOpen = false;
+        int drawerWidth = drawerPanel.getWidth() == 0 ? dp(308) : drawerPanel.getWidth();
+        drawerScrim.animate().alpha(0f).setDuration(140L).start();
+        drawerPanel.animate()
+                .translationX(-drawerWidth)
+                .setDuration(170L)
+                .withEndAction(() -> {
+                    if (!drawerOpen && drawerLayer != null) {
+                        drawerLayer.setVisibility(View.GONE);
+                    }
+                })
+                .start();
+    }
+
+    private void showAboutDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("ObsidianNotification")
+                .setMessage("Локальные напоминания из markdown-заметок Obsidian.")
+                .setPositiveButton("OK", null)
+                .show();
     }
 
     private LinearLayout createSourceCard() {
@@ -1109,20 +1424,11 @@ public final class MainActivity extends Activity {
         }
 
         Set<String> groups = new LinkedHashSet<>();
-        boolean hasPrivateTasks = false;
-        String privateMarker = UserPreferences.getPrivateMarker(this);
         for (ObsidianTask task : tasks) {
             groups.add(taskGroupLabel(task));
-            if (isPrivateTask(task, privateMarker)) {
-                hasPrivateTasks = true;
-            }
         }
 
         groupFilterRow.removeAllViews();
-        if (groups.size() <= 1 && !hasPrivateTasks) {
-            UserPreferences.setTaskGroup(this, "");
-            return;
-        }
         String selectedGroup = UserPreferences.getTaskGroup(this);
         if (selectedGroup != null && !selectedGroup.isEmpty() && !groups.contains(selectedGroup)) {
             UserPreferences.setTaskGroup(this, "");
@@ -1942,12 +2248,18 @@ public final class MainActivity extends Activity {
     }
 
     private void updateNotificationPermissionUi() {
+        if (notificationPermissionButton == null) {
+            return;
+        }
         boolean needsPermissionButton = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 && !hasNotificationPermission();
         notificationPermissionButton.setVisibility(needsPermissionButton ? View.VISIBLE : View.GONE);
     }
 
     private void updateExactAlarmPermissionUi() {
+        if (exactAlarmPermissionButton == null) {
+            return;
+        }
         boolean needsPermissionButton = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 && !ReminderScheduler.canScheduleExactAlarms(this);
         exactAlarmPermissionButton.setVisibility(needsPermissionButton ? View.VISIBLE : View.GONE);
@@ -2098,7 +2410,9 @@ public final class MainActivity extends Activity {
             sourceErrorText.setVisibility(View.GONE);
             return;
         }
-        statusText.setText(message);
+        if (statusText != null) {
+            statusText.setText(message);
+        }
     }
 
     private int dp(int value) {
