@@ -22,6 +22,12 @@
     <color name="status_completed_text">#2E5D3F</color>
     <color name="status_skipped_background">#E7E9EC</color>
     <color name="status_skipped_text">#4F5963</color>
+    <color name="calendar_today_background">#DDEBE9</color>
+    <color name="calendar_indicator_inactive">#CBD3D1</color>
+    <color name="calendar_indicator_completed">#2E7D4F</color>
+    <color name="calendar_indicator_active">#6E56CF</color>
+    <color name="calendar_indicator_skipped">#C77800</color>
+    <color name="calendar_indicator_overdue">#B3263A</color>
     <color name="error_text">#9B2D3C</color>
     <color name="launcher_icon_background">#0F0E18</color>
     <color name="text_primary">#17201F</color>
