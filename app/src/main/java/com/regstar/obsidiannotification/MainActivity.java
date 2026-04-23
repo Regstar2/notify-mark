@@ -1851,7 +1851,7 @@ public final class MainActivity extends Activity {
 
     private LinearLayout createCalendarGrid(Map<LocalDate, List<ObsidianTask>> tasksByDate) {
         LinearLayout card = createCardContainer();
-        card.setPadding(dp(10), dp(10), dp(10), dp(12));
+        card.setPadding(dp(8), dp(8), dp(8), dp(8));
 
         LinearLayout weekdays = new LinearLayout(this);
         weekdays.setOrientation(LinearLayout.HORIZONTAL);
@@ -1861,7 +1861,7 @@ public final class MainActivity extends Activity {
             text.setGravity(android.view.Gravity.CENTER);
             weekdays.addView(text, new LinearLayout.LayoutParams(
                     0,
-                    dp(28),
+                    dp(22),
                     1
             ));
         }
@@ -1875,18 +1875,18 @@ public final class MainActivity extends Activity {
                 LocalDate date = firstVisibleDay.plusDays(week * 7L + day);
                 row.addView(createDayCell(date, tasksByDate), new LinearLayout.LayoutParams(
                         0,
-                        dp(78),
+                        dp(60),
                         1
                 ));
             }
-            card.addView(row, fullWidthWithTopMargin(dp(3)));
+            card.addView(row, fullWidthWithTopMargin(dp(1)));
         }
         return card;
     }
 
     private LinearLayout createCalendarWeekGrid(Map<LocalDate, List<ObsidianTask>> tasksByDate) {
         LinearLayout card = createCardContainer();
-        card.setPadding(dp(10), dp(10), dp(10), dp(12));
+        card.setPadding(dp(8), dp(8), dp(8), dp(8));
 
         LinearLayout weekdays = new LinearLayout(this);
         weekdays.setOrientation(LinearLayout.HORIZONTAL);
@@ -1896,7 +1896,7 @@ public final class MainActivity extends Activity {
             text.setGravity(android.view.Gravity.CENTER);
             weekdays.addView(text, new LinearLayout.LayoutParams(
                     0,
-                    dp(28),
+                    dp(22),
                     1
             ));
         }
@@ -1909,11 +1909,11 @@ public final class MainActivity extends Activity {
             LocalDate date = weekStart.plusDays(day);
             row.addView(createDayCell(date, tasksByDate), new LinearLayout.LayoutParams(
                     0,
-                    dp(84),
+                    dp(62),
                     1
             ));
         }
-        card.addView(row, fullWidthWithTopMargin(dp(3)));
+        card.addView(row, fullWidthWithTopMargin(dp(1)));
         return card;
     }
 
