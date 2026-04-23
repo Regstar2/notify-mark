@@ -2,7 +2,6 @@ package com.regstar.obsidiannotification;
 
 import android.Manifest;
 import android.app.AlertDialog;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -29,6 +28,10 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.android.material.snackbar.Snackbar;
+
 import java.io.IOException;
 import java.time.Duration;
 import java.time.DayOfWeek;
@@ -46,7 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public final class MainActivity extends Activity {
+public final class MainActivity extends AppCompatActivity {
     private static final int SECTION_TASKS = 0;
     private static final int SECTION_CALENDAR = 1;
     private static final int CALENDAR_MODE_WEEK = 0;
@@ -97,7 +100,8 @@ public final class MainActivity extends Activity {
     private View drawerScrim;
     private View drawerPanel;
     private FrameLayout appRootContainer;
-    private View snackbarView;
+    private Snackbar snackbarView;
+    private View bottomBarView;
     private FrameLayout filterSheetLayer;
     private View filterSheetScrim;
     private View filterSheetPanel;
@@ -795,6 +799,7 @@ public final class MainActivity extends Activity {
         }
 
         LinearLayout bottomBar = new LinearLayout(this);
+        bottomBarView = bottomBar;
         bottomBar.setOrientation(LinearLayout.HORIZONTAL);
         bottomBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
         bottomBar.setPadding(0, 0, 0, 0);
@@ -1528,71 +1533,53 @@ public final class MainActivity extends Activity {
     }
 
     private void showSnackbar(String message, String actionLabel, Runnable action) {
+        String resolvedMessage = (message == null || message.trim().isEmpty())
+                ? "Операция завершена"
+                : message;
         if (appRootContainer == null) {
-            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            Toast.makeText(this, resolvedMessage, Toast.LENGTH_LONG).show();
             return;
         }
-        if (snackbarView != null) {
-            appRootContainer.removeView(snackbarView);
-            snackbarView = null;
+        hideSnackbar();
+
+        Snackbar snackbar = Snackbar.make(appRootContainer, resolvedMessage, Snackbar.LENGTH_LONG);
+        snackbar.setBackgroundTint(getColor(R.color.secondary_button_background));
+        snackbar.setTextColor(getColor(R.color.text_primary));
+        snackbar.setActionTextColor(getColor(R.color.accent));
+        View anchor = snackbarAnchorView();
+        if (anchor != null) {
+            snackbar.setAnchorView(anchor);
         }
-
-        LinearLayout snackbar = new LinearLayout(this);
-        snackbar.setOrientation(LinearLayout.HORIZONTAL);
-        snackbar.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        snackbar.setPadding(dp(14), dp(10), dp(8), dp(10));
-        snackbar.setBackground(createRoundedBackground(
-                getColor(R.color.secondary_button_background),
-                getColor(R.color.card_stroke),
-                8
-        ));
-
-        TextView text = createText(message, 14, R.color.text_primary, false);
-        text.setMaxLines(2);
-        text.setEllipsize(TextUtils.TruncateAt.END);
-        snackbar.addView(text, new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1
-        ));
-
         if (actionLabel != null && action != null) {
-            Button button = new Button(this);
-            button.setText(actionLabel);
-            button.setAllCaps(false);
-            button.setTextSize(13);
-            button.setTextColor(getColor(R.color.accent));
-            button.setBackgroundColor(Color.TRANSPARENT);
-            button.setOnClickListener(view -> {
-                hideSnackbar();
-                action.run();
-            });
-            snackbar.addView(button, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    dp(42)
-            ));
+            snackbar.setAction(actionLabel, view -> action.run());
         }
-
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                android.view.Gravity.BOTTOM
-        );
-        params.setMargins(dp(16), 0, dp(16), dp(178));
-        snackbarView = snackbar;
-        appRootContainer.addView(snackbar, params);
-        noteRefreshHandler.postDelayed(() -> {
-            if (snackbarView == snackbar) {
-                hideSnackbar();
+        snackbar.addCallback(new Snackbar.Callback() {
+            @Override
+            public void onDismissed(Snackbar transientBottomBar, int event) {
+                if (snackbarView == transientBottomBar) {
+                    snackbarView = null;
+                }
             }
-        }, 5000L);
+        });
+        snackbarView = snackbar;
+        snackbar.show();
     }
 
     private void hideSnackbar() {
-        if (appRootContainer != null && snackbarView != null) {
-            appRootContainer.removeView(snackbarView);
+        if (snackbarView != null) {
+            snackbarView.dismiss();
         }
         snackbarView = null;
+    }
+
+    private View snackbarAnchorView() {
+        if (addFabButton != null && addFabButton.getVisibility() == View.VISIBLE) {
+            return addFabButton;
+        }
+        if (bottomBarView != null) {
+            return bottomBarView;
+        }
+        return appRootContainer;
     }
 
     private void refreshFromTopBar() {
@@ -2314,14 +2301,6 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
-
-        TextView menu = new TextView(this);
-        menu.setText("⋮");
-        menu.setTextSize(22);
-        menu.setTextColor(getColor(R.color.text_secondary));
-        menu.setGravity(android.view.Gravity.CENTER);
-        menu.setOnClickListener(view -> showTaskMenu(menu, task));
-        row.addView(menu, new LinearLayout.LayoutParams(dp(34), dp(34)));
         item.addView(row, fullWidth());
 
         String meta = calendarTaskMeta(task);
@@ -2850,12 +2829,6 @@ public final class MainActivity extends Activity {
                 1
         ));
 
-        Button menuButton = new Button(this);
-        menuButton.setText("⋮");
-        menuButton.setAllCaps(false);
-        menuButton.setOnClickListener(view -> showTaskMenu(menuButton, task));
-        titleRow.addView(menuButton, new LinearLayout.LayoutParams(dp(48), dp(42)));
-
         item.addView(titleRow, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -2957,18 +2930,8 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 dp(22)
         );
-        statusParams.setMargins(dp(8), 0, dp(4), 0);
+        statusParams.setMargins(dp(8), 0, 0, 0);
         titleRow.addView(statusChip, statusParams);
-
-        TextView menuButton = new TextView(this);
-        menuButton.setText("⋮");
-        menuButton.setTextSize(24);
-        menuButton.setTextColor(getColor(R.color.text_secondary));
-        menuButton.setGravity(android.view.Gravity.CENTER);
-        menuButton.setOnClickListener(view -> showTaskMenu(menuButton, task));
-        if (!isSelectionMode()) {
-            titleRow.addView(menuButton, new LinearLayout.LayoutParams(dp(36), dp(36)));
-        }
 
         item.addView(titleRow, fullWidth());
         item.addView(createMetaLine(R.drawable.ic_clock, task.getReminderAt() == null
@@ -3412,116 +3375,6 @@ public final class MainActivity extends Activity {
         return row;
     }
 
-    private void showTaskMenu(View anchor, ObsidianTask task) {
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(4), dp(8), dp(4), dp(4));
-
-        final AlertDialog[] dialogRef = new AlertDialog[1];
-        TaskStatus status = taskStatus(task);
-
-        addTaskMenuSectionLabel(content, "Основные действия");
-        if (status == TaskStatus.COMPLETED) {
-            addTaskMenuAction(content, R.drawable.ic_undo, "Снять выполнение", R.color.text_primary,
-                    () -> unmarkTaskDone(task), dialogRef);
-        } else {
-            addTaskMenuAction(content, R.drawable.ic_check, "Выполнить", R.color.text_primary,
-                    () -> markTaskDone(task), dialogRef);
-        }
-
-        if (task.isSkipped()) {
-            addTaskMenuAction(content, R.drawable.ic_undo, "Отменить пропуск", R.color.text_primary,
-                    () -> unskipTask(task), dialogRef);
-        } else {
-            addTaskMenuAction(content, R.drawable.ic_skip, "Пропустить", R.color.text_primary,
-                    () -> skipTask(task), dialogRef);
-        }
-
-        if (status != TaskStatus.COMPLETED && status != TaskStatus.SKIPPED) {
-            addTaskMenuAction(content, R.drawable.ic_clock, "Отложить", R.color.text_primary,
-                    () -> snoozeTask(task), dialogRef);
-        }
-
-        addTaskMenuDivider(content);
-        addTaskMenuSectionLabel(content, "Редактирование");
-        addTaskMenuAction(content, R.drawable.ic_edit, "Редактировать через UI", R.color.text_primary,
-                () -> openTaskEditor(task), dialogRef);
-        addTaskMenuAction(content, R.drawable.ic_file, "Открыть markdown", R.color.text_primary,
-                () -> openMarkdownEditor(task), dialogRef);
-
-        addTaskMenuDivider(content);
-        addTaskMenuAction(content, R.drawable.ic_delete, "Удалить", R.color.error_text,
-                () -> deleteTask(task), dialogRef);
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Действия задачи")
-                .setView(content)
-                .create();
-        dialogRef[0] = dialog;
-        dialog.show();
-    }
-
-    private void addTaskMenuSectionLabel(LinearLayout content, String label) {
-        TextView text = createText(label, 12, R.color.text_secondary, true);
-        text.setPadding(dp(12), dp(8), dp(12), dp(4));
-        content.addView(text, fullWidth());
-    }
-
-    private void addTaskMenuAction(
-            LinearLayout content,
-            int iconRes,
-            String label,
-            int textColor,
-            Runnable action,
-            AlertDialog[] dialogRef
-    ) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        row.setClickable(true);
-        row.setPadding(dp(12), 0, dp(12), 0);
-        row.setBackground(createRoundedBackground(getColor(R.color.card_background), 0, 8));
-
-        ImageView icon = new ImageView(this);
-        icon.setImageResource(iconRes);
-        icon.setColorFilter(getColor(textColor));
-        row.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
-
-        TextView text = createText(label, 15, textColor, false);
-        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1
-        );
-        textParams.setMargins(dp(14), 0, 0, 0);
-        row.addView(text, textParams);
-
-        row.setOnClickListener(view -> {
-            if (dialogRef[0] != null) {
-                dialogRef[0].dismiss();
-            }
-            action.run();
-        });
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(50)
-        );
-        params.setMargins(0, dp(1), 0, dp(1));
-        content.addView(row, params);
-    }
-
-    private void addTaskMenuDivider(LinearLayout content) {
-        View divider = new View(this);
-        divider.setBackgroundColor(getColor(R.color.card_stroke));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(1)
-        );
-        params.setMargins(dp(12), dp(8), dp(12), dp(6));
-        content.addView(divider, params);
-    }
-
     @SuppressWarnings("deprecation")
     private void openTaskEditor(ObsidianTask task) {
         Intent intent = new Intent(this, TaskEditActivity.class);
@@ -3763,11 +3616,36 @@ public final class MainActivity extends Activity {
     }
 
     private void deleteTask(ObsidianTask task) {
-        TaskEditResult result = NoteStore.deleteTaskLine(this, task.getTaskKey());
+        NoteStore.TaskBlockSnapshot snapshot = null;
+        try {
+            snapshot = NoteStore.captureTaskBlockSnapshot(this, task.getTaskKey());
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(this, "Не удалось подготовить откат удаления задачи", exception);
+        }
+
+        TaskEditResult result = NoteStore.deleteTaskBlock(this, task.getTaskKey());
         if (result.isUpdated()) {
             ReminderScheduler.cancelReminder(this, task.getTaskKey());
             NoteChangeMonitor.syncNow(this, true);
             readAndRenderNote();
+            if (snapshot != null) {
+                NoteStore.TaskBlockSnapshot finalSnapshot = snapshot;
+                showSnackbar("Задача удалена", "Отменить", () -> undoDeleteTask(finalSnapshot));
+            } else {
+                showSnackbar("Задача удалена", null, null);
+            }
+            return;
+        }
+        showSnackbar(result.getMessage(), null, null);
+    }
+
+    private void undoDeleteTask(NoteStore.TaskBlockSnapshot snapshot) {
+        TaskEditResult result = NoteStore.restoreTaskBlock(this, snapshot);
+        if (result.isUpdated()) {
+            NoteChangeMonitor.syncNow(this, true);
+            readAndRenderNote();
+            showSnackbar("Удаление отменено", null, null);
+            return;
         }
         showSnackbar(result.getMessage(), null, null);
     }

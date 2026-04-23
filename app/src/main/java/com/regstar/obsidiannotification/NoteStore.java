@@ -396,6 +396,65 @@ public final class NoteStore {
         return null;
     }
 
+    public static TaskBlockSnapshot captureTaskBlockSnapshot(Context context, String taskKey) throws IOException {
+        if (taskKey == null || taskKey.trim().isEmpty()) {
+            return null;
+        }
+
+        TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
+        for (NoteDocument document : readDocuments(context)) {
+            TaskParseResult result = TaskParser.parseDocument(
+                    document.getMarkdown(),
+                    LocalDate.now(),
+                    document.getDisplayName(),
+                    formatSettings
+            );
+            for (ObsidianTask task : result.getTasks()) {
+                if (!task.getTaskKey().equals(taskKey)) {
+                    continue;
+                }
+                String[] lines = document.getMarkdown().split("\n", -1);
+                int startIndex = task.getLineNumber() - 1;
+                if (startIndex < 0 || startIndex >= lines.length) {
+                    return null;
+                }
+                int endExclusive = taskBlockEnd(lines, startIndex);
+                String block = joinLineRange(lines, startIndex, endExclusive);
+                String markdownAfterDelete = replaceLineRange(lines, startIndex, endExclusive, "");
+                return new TaskBlockSnapshot(
+                        document.getUri(),
+                        document.getDisplayName(),
+                        task.getTaskKey(),
+                        document.getMarkdown(),
+                        markdownAfterDelete,
+                        block
+                );
+            }
+        }
+        return null;
+    }
+
+    public static TaskEditResult restoreTaskBlock(Context context, TaskBlockSnapshot snapshot) {
+        if (snapshot == null || snapshot.getUri() == null) {
+            return TaskEditResult.notFound("снимок удаленной задачи отсутствует");
+        }
+
+        try {
+            String latestMarkdown = readMarkdown(context, snapshot.getUri());
+            if (sameMarkdownContent(latestMarkdown, snapshot.getOriginalMarkdown())) {
+                return TaskEditResult.updated("удаление отменено");
+            }
+            if (!sameMarkdownContent(latestMarkdown, snapshot.getMarkdownAfterDelete())) {
+                return TaskEditResult.conflict("файл изменился, откат удаления невозможен");
+            }
+            writeMarkdown(context, snapshot.getUri(), snapshot.getOriginalMarkdown());
+            return TaskEditResult.updated("удаление отменено");
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось откатить удаление markdown-задачи", exception);
+            return TaskEditResult.writeFailed(exception.getMessage());
+        }
+    }
+
     public static TaskEditResult markTaskDone(Context context, String taskKey) {
         return editActiveTaskLine(context, taskKey, NoteStore::markDoneLine);
     }
@@ -995,6 +1054,20 @@ public final class NoteStore {
         return builder.toString();
     }
 
+    private static boolean sameMarkdownContent(String first, String second) {
+        return normalizeMarkdownForComparison(first).equals(normalizeMarkdownForComparison(second));
+    }
+
+    private static String normalizeMarkdownForComparison(String markdown) {
+        if (markdown == null || markdown.isEmpty()) {
+            return "";
+        }
+        String normalized = markdown
+                .replace("\r\n", "\n")
+                .replace('\r', '\n');
+        return normalized.endsWith("\n") ? normalized : normalized + '\n';
+    }
+
     private static String replaceLine(String[] lines, int index, String updatedLine) {
         lines[index] = updatedLine;
         return joinLines(lines);
@@ -1083,6 +1156,14 @@ public final class NoteStore {
             if (i >= startIndex && i < endExclusive) {
                 continue;
             }
+            appendWithSeparator(builder, lines[i]);
+        }
+        return builder.toString();
+    }
+
+    private static String joinLineRange(String[] lines, int startIndex, int endExclusive) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = startIndex; i < endExclusive && i < lines.length; i++) {
             appendWithSeparator(builder, lines[i]);
         }
         return builder.toString();
@@ -1433,6 +1514,55 @@ public final class NoteStore {
 
         public ObsidianTask getTask() {
             return task;
+        }
+    }
+
+    public static final class TaskBlockSnapshot {
+        private final Uri uri;
+        private final String displayName;
+        private final String taskKey;
+        private final String originalMarkdown;
+        private final String markdownAfterDelete;
+        private final String deletedBlock;
+
+        public TaskBlockSnapshot(
+                Uri uri,
+                String displayName,
+                String taskKey,
+                String originalMarkdown,
+                String markdownAfterDelete,
+                String deletedBlock
+        ) {
+            this.uri = uri;
+            this.displayName = displayName;
+            this.taskKey = taskKey;
+            this.originalMarkdown = originalMarkdown == null ? "" : originalMarkdown;
+            this.markdownAfterDelete = markdownAfterDelete == null ? "" : markdownAfterDelete;
+            this.deletedBlock = deletedBlock == null ? "" : deletedBlock;
+        }
+
+        public Uri getUri() {
+            return uri;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public String getTaskKey() {
+            return taskKey;
+        }
+
+        public String getOriginalMarkdown() {
+            return originalMarkdown;
+        }
+
+        public String getMarkdownAfterDelete() {
+            return markdownAfterDelete;
+        }
+
+        public String getDeletedBlock() {
+            return deletedBlock;
         }
     }
 
