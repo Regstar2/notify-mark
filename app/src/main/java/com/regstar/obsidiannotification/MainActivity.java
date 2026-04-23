@@ -84,6 +84,8 @@ public final class MainActivity extends Activity {
     private TextView nextReminderMetaText;
     private TextView taskSectionTitleText;
     private View refreshButton;
+    private LinearLayout topAppBar;
+    private View addFabButton;
     private Button activeFilterButton;
     private Button allFilterButton;
     private Button overdueFilterButton;
@@ -99,6 +101,7 @@ public final class MainActivity extends Activity {
     private View filterSheetPanel;
     private LinearLayout filterSheetOptions;
     private List<ObsidianTask> latestTasks = new ArrayList<>();
+    private final Set<String> selectedTaskKeys = new LinkedHashSet<>();
     private YearMonth displayedCalendarMonth = YearMonth.now();
     private LocalDate selectedCalendarDate = LocalDate.now();
     private int calendarMode = CALENDAR_MODE_MONTH;
@@ -180,6 +183,10 @@ public final class MainActivity extends Activity {
         }
         if (drawerOpen) {
             closeDrawer();
+            return;
+        }
+        if (isSelectionMode()) {
+            exitSelectionMode();
             return;
         }
         if (selectedSection == SECTION_CALENDAR) {
@@ -456,6 +463,8 @@ public final class MainActivity extends Activity {
         groupFilterRow = null;
         taskSectionTitleText = null;
         taskList = null;
+        topAppBar = null;
+        addFabButton = null;
         nextReminderTimeText = null;
         nextReminderTitleText = null;
         nextReminderMetaText = null;
@@ -522,10 +531,31 @@ public final class MainActivity extends Activity {
 
     private LinearLayout createTopAppBar() {
         LinearLayout appBar = new LinearLayout(this);
+        topAppBar = appBar;
         appBar.setOrientation(LinearLayout.HORIZONTAL);
         appBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
         appBar.setPadding(0, 0, 0, dp(10));
+        populateTopAppBar(appBar);
+        return appBar;
+    }
 
+    private void refreshTopAppBar() {
+        if (topAppBar == null) {
+            return;
+        }
+        populateTopAppBar(topAppBar);
+    }
+
+    private void populateTopAppBar(LinearLayout appBar) {
+        appBar.removeAllViews();
+        if (selectedSection == SECTION_TASKS && isSelectionMode()) {
+            populateSelectionTopAppBar(appBar);
+            return;
+        }
+        populateDefaultTopAppBar(appBar);
+    }
+
+    private void populateDefaultTopAppBar(LinearLayout appBar) {
         ImageButton menuButton = createPlainIconButton(R.drawable.ic_menu, "Открыть меню");
         menuButton.setOnClickListener(view -> openDrawer());
         appBar.addView(menuButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
@@ -557,7 +587,38 @@ public final class MainActivity extends Activity {
             appBar.addView(topRefreshButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
             appBar.addView(createTaskFilterButton(), new LinearLayout.LayoutParams(dp(40), dp(40)));
         }
-        return appBar;
+    }
+
+    private void populateSelectionTopAppBar(LinearLayout appBar) {
+        ImageButton closeButton = createPlainIconButton(R.drawable.ic_close, "Снять выделение");
+        closeButton.setOnClickListener(view -> exitSelectionMode());
+        appBar.addView(closeButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        TextView title = createText(selectedTaskKeys.size() + " выбрано",
+                19,
+                R.color.text_primary,
+                true);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        titleParams.setMargins(dp(8), 0, dp(8), 0);
+        appBar.addView(title, titleParams);
+
+        ImageButton doneButton = createPlainIconButton(R.drawable.ic_check, "Отметить выполненными");
+        doneButton.setOnClickListener(view -> bulkMarkSelectedDone());
+        appBar.addView(doneButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        ImageButton snoozeButton = createPlainIconButton(R.drawable.ic_clock, "Отложить");
+        snoozeButton.setOnClickListener(view -> bulkSnoozeSelected());
+        appBar.addView(snoozeButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        ImageButton deleteButton = createPlainIconButton(R.drawable.ic_delete, "Удалить");
+        deleteButton.setOnClickListener(view -> confirmBulkDeleteSelected());
+        appBar.addView(deleteButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
     }
 
     private void addTaskScreenContent(LinearLayout root) {
@@ -709,6 +770,7 @@ public final class MainActivity extends Activity {
 
         if (selectedSection == SECTION_TASKS || selectedSection == SECTION_CALENDAR) {
             Button addFab = createFabButton();
+            addFabButton = addFab;
             addFab.setOnClickListener(view -> {
                 if (selectedSection == SECTION_CALENDAR) {
                     openTaskEditorForDate(selectedCalendarDate == null
@@ -722,6 +784,7 @@ public final class MainActivity extends Activity {
             fabParams.gravity = android.view.Gravity.RIGHT;
             fabParams.setMargins(0, 0, dp(16), dp(10));
             overlay.addView(addFab, fabParams);
+            updateFabVisibility();
         }
 
         LinearLayout bottomBar = new LinearLayout(this);
@@ -740,6 +803,7 @@ public final class MainActivity extends Activity {
                 selectedSection == SECTION_TASKS,
                 () -> {
                     if (selectedSection != SECTION_TASKS) {
+                        selectedTaskKeys.clear();
                         selectedSection = SECTION_TASKS;
                         rebuildAndRenderCurrentSection();
                     }
@@ -753,6 +817,7 @@ public final class MainActivity extends Activity {
                 selectedSection == SECTION_CALENDAR,
                 () -> {
                     if (selectedSection != SECTION_CALENDAR) {
+                        selectedTaskKeys.clear();
                         selectedSection = SECTION_CALENDAR;
                         rebuildAndRenderCurrentSection();
                     }
@@ -837,6 +902,7 @@ public final class MainActivity extends Activity {
                 () -> {
                     closeDrawer();
                     if (selectedSection != SECTION_TASKS) {
+                        selectedTaskKeys.clear();
                         selectedSection = SECTION_TASKS;
                         rebuildAndRenderCurrentSection();
                     }
@@ -850,6 +916,7 @@ public final class MainActivity extends Activity {
                 () -> {
                     closeDrawer();
                     if (selectedSection != SECTION_CALENDAR) {
+                        selectedTaskKeys.clear();
                         selectedSection = SECTION_CALENDAR;
                         rebuildAndRenderCurrentSection();
                     }
@@ -1687,6 +1754,7 @@ public final class MainActivity extends Activity {
 
     private void renderTasks(List<ObsidianTask> tasks) {
         latestTasks = new ArrayList<>(tasks);
+        pruneSelectedTaskKeys(tasks);
         taskList.removeAllViews();
         updateGroupFilterRow(tasks);
         showTaskSourceNames = hasMultipleSources(tasks);
@@ -1708,6 +1776,86 @@ public final class MainActivity extends Activity {
             }
             taskList.addView(createTaskView(task));
         }
+    }
+
+    private boolean isSelectionMode() {
+        return !selectedTaskKeys.isEmpty();
+    }
+
+    private void enterSelectionMode(ObsidianTask task) {
+        if (task == null) {
+            return;
+        }
+        selectedTaskKeys.add(task.getTaskKey());
+        updateSelectionUi();
+    }
+
+    private void toggleTaskSelection(ObsidianTask task) {
+        if (task == null) {
+            return;
+        }
+        String taskKey = task.getTaskKey();
+        if (selectedTaskKeys.contains(taskKey)) {
+            selectedTaskKeys.remove(taskKey);
+        } else {
+            selectedTaskKeys.add(taskKey);
+        }
+        if (selectedTaskKeys.isEmpty()) {
+            exitSelectionMode();
+            return;
+        }
+        updateSelectionUi();
+    }
+
+    private void exitSelectionMode() {
+        if (selectedTaskKeys.isEmpty()) {
+            refreshTopAppBar();
+            updateFabVisibility();
+            return;
+        }
+        selectedTaskKeys.clear();
+        updateSelectionUi();
+    }
+
+    private void updateSelectionUi() {
+        refreshTopAppBar();
+        updateFabVisibility();
+        if (selectedSection == SECTION_TASKS) {
+            renderTasks(latestTasks);
+        }
+    }
+
+    private void updateFabVisibility() {
+        if (addFabButton == null) {
+            return;
+        }
+        addFabButton.setVisibility(selectedSection == SECTION_TASKS && isSelectionMode()
+                ? View.GONE
+                : View.VISIBLE);
+    }
+
+    private void pruneSelectedTaskKeys(List<ObsidianTask> tasks) {
+        if (selectedTaskKeys.isEmpty()) {
+            return;
+        }
+        Set<String> availableKeys = new LinkedHashSet<>();
+        for (ObsidianTask task : tasks) {
+            availableKeys.add(task.getTaskKey());
+        }
+        if (selectedTaskKeys.retainAll(availableKeys) && selectedTaskKeys.isEmpty()) {
+            refreshTopAppBar();
+            updateFabVisibility();
+        }
+    }
+
+    private List<ObsidianTask> selectedTasks() {
+        List<ObsidianTask> selectedTasks = new ArrayList<>();
+        for (ObsidianTask task : latestTasks) {
+            if (selectedTaskKeys.contains(task.getTaskKey())) {
+                selectedTasks.add(task);
+            }
+        }
+        return selectedTasks;
     }
 
     private void renderCalendar(List<ObsidianTask> tasks) {
@@ -2463,7 +2611,12 @@ public final class MainActivity extends Activity {
         chip.setPadding(dp(14), 0, dp(14), 0);
         boolean selected = Objects.equals(UserPreferences.getTaskGroup(this), group);
         styleFilterChip(chip, selected);
+        chip.setEnabled(!isSelectionMode());
+        chip.setAlpha(isSelectionMode() ? 0.55f : 1f);
         chip.setOnClickListener(view -> {
+            if (isSelectionMode()) {
+                return;
+            }
             UserPreferences.setTaskGroup(this, group);
             readAndRenderNote();
         });
@@ -2617,6 +2770,7 @@ public final class MainActivity extends Activity {
 
     private View createTaskView(ObsidianTask task) {
         FrameLayout wrapper = new FrameLayout(this);
+        boolean selected = selectedTaskKeys.contains(task.getTaskKey());
 
         FrameLayout swipeBackground = createSwipeActionBackground(task);
         wrapper.addView(swipeBackground, new FrameLayout.LayoutParams(
@@ -2625,12 +2779,26 @@ public final class MainActivity extends Activity {
         ));
 
         LinearLayout item = createCardContainer();
+        if (selected) {
+            item.setBackground(createRoundedBackground(
+                    getColor(R.color.chip_selected_background),
+                    getColor(R.color.chip_selected_stroke),
+                    8
+            ));
+        }
         item.setClickable(true);
         item.setOnTouchListener(createSwipeTouchListener(
                 item,
-                () -> openPreferredTaskEditor(task),
+                () -> {
+                    if (isSelectionMode()) {
+                        toggleTaskSelection(task);
+                    } else {
+                        openPreferredTaskEditor(task);
+                    }
+                },
                 () -> skipTask(task),
-                () -> deleteTask(task)
+                () -> deleteTask(task),
+                () -> enterSelectionMode(task)
         ));
 
         LinearLayout titleRow = new LinearLayout(this);
@@ -2665,7 +2833,9 @@ public final class MainActivity extends Activity {
         menuButton.setTextColor(getColor(R.color.text_secondary));
         menuButton.setGravity(android.view.Gravity.CENTER);
         menuButton.setOnClickListener(view -> showTaskMenu(menuButton, task));
-        titleRow.addView(menuButton, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        if (!isSelectionMode()) {
+            titleRow.addView(menuButton, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        }
 
         item.addView(titleRow, fullWidth());
         item.addView(createMetaLine(R.drawable.ic_clock, task.getReminderAt() == null
@@ -2754,17 +2924,28 @@ public final class MainActivity extends Activity {
             View foreground,
             Runnable clickAction,
             Runnable rightAction,
-            Runnable leftAction
+            Runnable leftAction,
+            Runnable longPressAction
     ) {
         int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
         int actionWidth = dp(132);
         int revealThreshold = dp(56);
+        int longPressTimeout = ViewConfiguration.getLongPressTimeout();
 
         return new View.OnTouchListener() {
             private float downX;
             private float downY;
             private float startTranslationX;
             private boolean dragging;
+            private boolean longPressed;
+            private final Handler longPressHandler = new Handler(Looper.getMainLooper());
+            private final Runnable longPressRunnable = () -> {
+                longPressed = true;
+                foreground.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                if (longPressAction != null) {
+                    longPressAction.run();
+                }
+            };
 
             @Override
             public boolean onTouch(View view, MotionEvent event) {
@@ -2773,13 +2954,21 @@ public final class MainActivity extends Activity {
                     downY = event.getRawY();
                     startTranslationX = foreground.getTranslationX();
                     dragging = false;
+                    longPressed = false;
                     foreground.animate().cancel();
+                    longPressHandler.postDelayed(longPressRunnable, longPressTimeout);
                     return true;
                 }
 
                 if (event.getAction() == MotionEvent.ACTION_MOVE) {
                     float dx = event.getRawX() - downX;
                     float dy = event.getRawY() - downY;
+                    if (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop) {
+                        longPressHandler.removeCallbacks(longPressRunnable);
+                    }
+                    if (isSelectionMode()) {
+                        return true;
+                    }
                     if (!dragging) {
                         if (Math.abs(dx) <= touchSlop || Math.abs(dx) <= Math.abs(dy) * 1.2f) {
                             return true;
@@ -2794,11 +2983,17 @@ public final class MainActivity extends Activity {
                 }
 
                 if (event.getAction() == MotionEvent.ACTION_CANCEL) {
+                    longPressHandler.removeCallbacks(longPressRunnable);
                     animateSwipeTo(foreground, 0, null);
                     return true;
                 }
 
                 if (event.getAction() != MotionEvent.ACTION_UP) {
+                    return true;
+                }
+
+                longPressHandler.removeCallbacks(longPressRunnable);
+                if (longPressed) {
                     return true;
                 }
 
@@ -2842,7 +3037,9 @@ public final class MainActivity extends Activity {
     private TextView createCompletionButton(ObsidianTask task) {
         TextView button = createText(task.isCompleted() ? "✓" : "", 16, R.color.accent, true);
         button.setGravity(android.view.Gravity.CENTER);
-        button.setContentDescription(task.isCompleted() ? "Задача выполнена" : "Выполнить");
+        button.setContentDescription(isSelectionMode()
+                ? "Выбрать"
+                : task.isCompleted() ? "Задача выполнена" : "Выполнить");
         button.setBackground(createCircleOutlineBackground(
                 task.isCompleted()
                         ? getColor(R.color.status_completed_background)
@@ -2851,9 +3048,19 @@ public final class MainActivity extends Activity {
                         ? getColor(R.color.status_completed_text)
                         : getColor(R.color.text_secondary)
         ));
-        if (!task.isCompleted()) {
-            button.setOnClickListener(view -> markTaskDone(task));
-        }
+        button.setOnLongClickListener(view -> {
+            enterSelectionMode(task);
+            return true;
+        });
+        button.setOnClickListener(view -> {
+            if (isSelectionMode()) {
+                toggleTaskSelection(task);
+                return;
+            }
+            if (!task.isCompleted()) {
+                markTaskDone(task);
+            }
+        });
         return button;
     }
 
@@ -2979,6 +3186,138 @@ public final class MainActivity extends Activity {
             intent.putExtra(MarkdownFileEditActivity.EXTRA_TASK_KEY, task.getTaskKey());
         }
         startActivityForResult(intent, REQUEST_EDIT_TASK);
+    }
+
+    private void bulkMarkSelectedDone() {
+        List<String> taskKeys = selectedTaskKeyList();
+        if (taskKeys.isEmpty()) {
+            exitSelectionMode();
+            return;
+        }
+
+        NoteStore.BulkEditResult result = NoteStore.markTasksDone(this, taskKeys);
+        for (String taskKey : result.getUpdatedTaskKeys()) {
+            ReminderScheduler.cancelReminder(this, taskKey);
+        }
+        finishBulkOperation(result, "отмечено выполненными");
+    }
+
+    private void bulkSnoozeSelected() {
+        List<ObsidianTask> tasks = selectedTasks();
+        if (tasks.isEmpty()) {
+            exitSelectionMode();
+            return;
+        }
+
+        int snoozeMinutes = ActionPreferences.getSnoozeMinutes(this);
+        int updatedCount = 0;
+        int skippedCount = 0;
+        List<String> snoozedTaskKeys = new ArrayList<>();
+        for (ObsidianTask task : tasks) {
+            if (task.isCompleted() || task.isSkipped()) {
+                skippedCount++;
+                continue;
+            }
+            ReminderScheduler.scheduleSnooze(
+                    this,
+                    task.getTaskKey(),
+                    notificationIdFor(task),
+                    task.getLineNumber(),
+                    task.getTitle(),
+                    Duration.ofMinutes(snoozeMinutes),
+                    task.getRepeatIntervalMillis(),
+                    task.getRepeatMode()
+            );
+            snoozedTaskKeys.add(task.getTaskKey());
+            updatedCount++;
+        }
+
+        NoteStore.BulkEditResult recordResult = null;
+        if (ActionPreferences.shouldRecordSnoozeCount(this) && !snoozedTaskKeys.isEmpty()) {
+            recordResult = NoteStore.incrementSnoozeCounts(this, snoozedTaskKeys);
+        }
+
+        selectedTaskKeys.clear();
+        refreshTopAppBar();
+        readAndRenderNote();
+        String message = updatedCount + " " + taskCountWord(updatedCount)
+                + " отложено на " + snoozeMinutes + " мин";
+        if (skippedCount > 0) {
+            message += ", пропущено: " + skippedCount;
+        }
+        if (recordResult != null && recordResult.hasFailures()) {
+            message += ", счетчик записан не полностью";
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private void confirmBulkDeleteSelected() {
+        List<ObsidianTask> tasks = selectedTasks();
+        if (tasks.isEmpty()) {
+            exitSelectionMode();
+            return;
+        }
+
+        Set<String> sourceNames = new LinkedHashSet<>();
+        for (ObsidianTask task : tasks) {
+            sourceNames.add(task.getSourceName());
+        }
+        String message = "Будет удалено: " + tasks.size() + " " + taskCountWord(tasks.size()) + ".";
+        if (sourceNames.size() > 1) {
+            message += "\nЗадачи находятся в разных markdown-файлах.";
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Удалить выбранные задачи?")
+                .setMessage(message)
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Удалить", (dialog, which) -> bulkDeleteSelected())
+                .show();
+    }
+
+    private void bulkDeleteSelected() {
+        List<String> taskKeys = selectedTaskKeyList();
+        if (taskKeys.isEmpty()) {
+            exitSelectionMode();
+            return;
+        }
+
+        NoteStore.BulkEditResult result = NoteStore.deleteTaskLines(this, taskKeys);
+        for (String taskKey : result.getUpdatedTaskKeys()) {
+            ReminderScheduler.cancelReminder(this, taskKey);
+        }
+        finishBulkOperation(result, "удалено");
+    }
+
+    private List<String> selectedTaskKeyList() {
+        return new ArrayList<>(selectedTaskKeys);
+    }
+
+    private void finishBulkOperation(NoteStore.BulkEditResult result, String successAction) {
+        selectedTaskKeys.clear();
+        if (result.hasUpdates()) {
+            NoteChangeMonitor.syncNow(this, true);
+        }
+        refreshTopAppBar();
+        readAndRenderNote();
+        Toast.makeText(this, formatBulkResult(result, successAction), Toast.LENGTH_LONG).show();
+    }
+
+    private String formatBulkResult(NoteStore.BulkEditResult result, String successAction) {
+        StringBuilder message = new StringBuilder();
+        message.append(result.getUpdatedCount())
+                .append(' ')
+                .append(taskCountWord(result.getUpdatedCount()))
+                .append(' ')
+                .append(successAction);
+        if (result.getSkippedCount() > 0) {
+            message.append(", пропущено: ").append(result.getSkippedCount());
+        }
+        int failed = result.getFailedCount() + result.getNotFoundCount();
+        if (failed > 0) {
+            message.append(", не удалось: ").append(failed);
+        }
+        return message.toString();
     }
 
     private void markTaskDone(ObsidianTask task) {

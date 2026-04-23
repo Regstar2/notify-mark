@@ -395,20 +395,7 @@ public final class NoteStore {
     }
 
     public static TaskEditResult markTaskDone(Context context, String taskKey) {
-        return editActiveTaskLine(context, taskKey, line -> {
-            Matcher matcher = ACTIVE_TASK_MARKER.matcher(line);
-            if (matcher.find()) {
-                return matcher.group(1) + "x" + matcher.group(2);
-            }
-
-            Matcher bulletMatcher = NON_CHECKBOX_BULLET_MARKER.matcher(line);
-            if (bulletMatcher.find()) {
-                return bulletMatcher.group(1) + "[x] " + bulletMatcher.group(2);
-            }
-
-            String trimmed = line == null ? "" : line.trim();
-            return trimmed.isEmpty() ? null : "- [x] " + trimmed;
-        });
+        return editActiveTaskLine(context, taskKey, NoteStore::markDoneLine);
     }
 
     public static TaskEditResult incrementSnoozeCount(Context context, String taskKey) {
@@ -526,6 +513,42 @@ public final class NoteStore {
         );
     }
 
+    public static BulkEditResult markTasksDone(Context context, List<String> taskKeys) {
+        return editTaskLinesBulk(
+                context,
+                taskKeys,
+                false,
+                false,
+                line -> {
+                    String updatedLine = markDoneLine(line);
+                    return updatedLine == null ? null : TaskLineMutation.replace(updatedLine);
+                },
+                "Не удалось массово отметить markdown-задачи выполненными"
+        );
+    }
+
+    public static BulkEditResult deleteTaskLines(Context context, List<String> taskKeys) {
+        return editTaskLinesBulk(
+                context,
+                taskKeys,
+                true,
+                true,
+                line -> TaskLineMutation.delete(),
+                "Не удалось массово удалить markdown-задачи"
+        );
+    }
+
+    public static BulkEditResult incrementSnoozeCounts(Context context, List<String> taskKeys) {
+        return editTaskLinesBulk(
+                context,
+                taskKeys,
+                false,
+                false,
+                line -> TaskLineMutation.replace(incrementSnoozedMarker(line)),
+                "Не удалось массово записать счетчик отложений"
+        );
+    }
+
     public static String sourceLabel(Context context) {
         List<NoteSource> sources = getSavedSources(context);
         if (sources.isEmpty()) {
@@ -608,6 +631,127 @@ public final class NoteStore {
         }
     }
 
+    private static BulkEditResult editTaskLinesBulk(
+            Context context,
+            List<String> taskKeys,
+            boolean allowCompleted,
+            boolean allowSkipped,
+            TaskLineMutationEditor editor,
+            String errorMessage
+    ) {
+        Map<String, Boolean> remainingTaskKeys = new LinkedHashMap<>();
+        if (taskKeys != null) {
+            for (String taskKey : taskKeys) {
+                if (taskKey != null && !taskKey.trim().isEmpty()) {
+                    remainingTaskKeys.put(taskKey, Boolean.TRUE);
+                }
+            }
+        }
+
+        int totalCount = remainingTaskKeys.size();
+        if (totalCount == 0) {
+            return new BulkEditResult(0, 0, 0, 0, 0, 0, new ArrayList<>());
+        }
+
+        int updatedCount = 0;
+        int skippedCount = 0;
+        int failedCount = 0;
+        int touchedFileCount = 0;
+        List<String> updatedTaskKeys = new ArrayList<>();
+
+        try {
+            TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
+            for (NoteDocument document : readDocuments(context)) {
+                if (remainingTaskKeys.isEmpty()) {
+                    break;
+                }
+
+                String[] lines = document.getMarkdown().split("\n", -1);
+                TaskParseResult result = TaskParser.parseDocument(
+                        document.getMarkdown(),
+                        LocalDate.now(),
+                        document.getDisplayName(),
+                        formatSettings
+                );
+                Map<Integer, TaskLineMutation> mutations = new LinkedHashMap<>();
+                List<String> documentUpdatedTaskKeys = new ArrayList<>();
+
+                for (ObsidianTask task : result.getTasks()) {
+                    String taskKey = task.getTaskKey();
+                    if (!remainingTaskKeys.containsKey(taskKey)) {
+                        continue;
+                    }
+
+                    remainingTaskKeys.remove(taskKey);
+                    if (task.isCompleted() && !allowCompleted) {
+                        skippedCount++;
+                        continue;
+                    }
+                    if (task.isSkipped() && !allowSkipped) {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    int index = task.getLineNumber() - 1;
+                    if (index < 0 || index >= lines.length) {
+                        failedCount++;
+                        continue;
+                    }
+
+                    TaskLineMutation mutation = editor.edit(lines[index]);
+                    if (mutation == null) {
+                        failedCount++;
+                        continue;
+                    }
+                    if (!mutation.isDelete()
+                            && mutation.getLine() != null
+                            && mutation.getLine().equals(lines[index])) {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    mutations.put(index, mutation);
+                    documentUpdatedTaskKeys.add(taskKey);
+                }
+
+                if (mutations.isEmpty()) {
+                    continue;
+                }
+
+                try {
+                    String latestMarkdown = readMarkdown(context, document.getUri());
+                    if (!latestMarkdown.equals(document.getMarkdown())) {
+                        failedCount += documentUpdatedTaskKeys.size();
+                        continue;
+                    }
+
+                    writeMarkdown(context, document.getUri(), applyLineMutations(lines, mutations));
+                    updatedCount += documentUpdatedTaskKeys.size();
+                    updatedTaskKeys.addAll(documentUpdatedTaskKeys);
+                    touchedFileCount++;
+                } catch (IOException | RuntimeException exception) {
+                    failedCount += documentUpdatedTaskKeys.size();
+                    ErrorLog.record(context, errorMessage, exception);
+                }
+            }
+        } catch (IOException | RuntimeException exception) {
+            failedCount += remainingTaskKeys.size();
+            remainingTaskKeys.clear();
+            ErrorLog.record(context, errorMessage, exception);
+        }
+
+        int notFoundCount = remainingTaskKeys.size();
+        return new BulkEditResult(
+                totalCount,
+                updatedCount,
+                skippedCount,
+                failedCount,
+                notFoundCount,
+                touchedFileCount,
+                updatedTaskKeys
+        );
+    }
+
     private static TaskEditResult editTaskLine(
             Context context,
             String taskKey,
@@ -681,6 +825,21 @@ public final class NoteStore {
         return line + " @snoozed(1)";
     }
 
+    private static String markDoneLine(String line) {
+        Matcher matcher = ACTIVE_TASK_MARKER.matcher(line);
+        if (matcher.find()) {
+            return matcher.group(1) + "x" + matcher.group(2);
+        }
+
+        Matcher bulletMatcher = NON_CHECKBOX_BULLET_MARKER.matcher(line);
+        if (bulletMatcher.find()) {
+            return bulletMatcher.group(1) + "[x] " + bulletMatcher.group(2);
+        }
+
+        String trimmed = line == null ? "" : line.trim();
+        return trimmed.isEmpty() ? null : "- [x] " + trimmed;
+    }
+
     private static String appendSkippedMarker(String line) {
         String safeLine = line == null ? "" : line.trim();
         if (safeLine.isEmpty() || SKIPPED_MARKER.matcher(line).find()) {
@@ -715,6 +874,24 @@ public final class NoteStore {
                 builder.append('\n');
             }
             builder.append(lines[i]);
+        }
+        return builder.toString();
+    }
+
+    private static String applyLineMutations(
+            String[] lines,
+            Map<Integer, TaskLineMutation> mutations
+    ) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            TaskLineMutation mutation = mutations.get(i);
+            if (mutation != null && mutation.isDelete()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(mutation == null ? lines[i] : mutation.getLine());
         }
         return builder.toString();
     }
@@ -848,6 +1025,72 @@ public final class NoteStore {
             return uri.toString();
         }
         return uri.toString();
+    }
+
+    public static final class BulkEditResult {
+        private final int totalCount;
+        private final int updatedCount;
+        private final int skippedCount;
+        private final int failedCount;
+        private final int notFoundCount;
+        private final int touchedFileCount;
+        private final List<String> updatedTaskKeys;
+
+        private BulkEditResult(
+                int totalCount,
+                int updatedCount,
+                int skippedCount,
+                int failedCount,
+                int notFoundCount,
+                int touchedFileCount,
+                List<String> updatedTaskKeys
+        ) {
+            this.totalCount = totalCount;
+            this.updatedCount = updatedCount;
+            this.skippedCount = skippedCount;
+            this.failedCount = failedCount;
+            this.notFoundCount = notFoundCount;
+            this.touchedFileCount = touchedFileCount;
+            this.updatedTaskKeys = new ArrayList<>(updatedTaskKeys == null
+                    ? new ArrayList<>()
+                    : updatedTaskKeys);
+        }
+
+        public int getTotalCount() {
+            return totalCount;
+        }
+
+        public int getUpdatedCount() {
+            return updatedCount;
+        }
+
+        public int getSkippedCount() {
+            return skippedCount;
+        }
+
+        public int getFailedCount() {
+            return failedCount;
+        }
+
+        public int getNotFoundCount() {
+            return notFoundCount;
+        }
+
+        public int getTouchedFileCount() {
+            return touchedFileCount;
+        }
+
+        public List<String> getUpdatedTaskKeys() {
+            return new ArrayList<>(updatedTaskKeys);
+        }
+
+        public boolean hasFailures() {
+            return failedCount > 0 || notFoundCount > 0;
+        }
+
+        public boolean hasUpdates() {
+            return updatedCount > 0;
+        }
     }
 
     public static final class NoteSource {
