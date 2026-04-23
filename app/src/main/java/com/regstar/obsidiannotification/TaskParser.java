@@ -94,6 +94,7 @@ public final class TaskParser {
                 : formatSettings;
         List<ObsidianTask> tasks = new ArrayList<>();
         List<TaskParseError> errors = new ArrayList<>();
+        List<ParsedTaskRecord> taskStack = new ArrayList<>();
         String[] lines = markdown.split("\\R", -1);
         boolean inFencedCodeBlock = false;
 
@@ -102,6 +103,7 @@ public final class TaskParser {
             String trimmedLine = line.trim();
             Matcher taskMatcher = TASK.matcher(line);
             int lineNumber = i + 1;
+            int indentLevel = leadingIndentLevel(line);
             if (trimmedLine.startsWith("```") || trimmedLine.startsWith("~~~")) {
                 inFencedCodeBlock = !inFencedCodeBlock;
                 continue;
@@ -123,6 +125,10 @@ public final class TaskParser {
             }
 
             ParsedTaskFields fields = parseFields(body, defaultDate, format);
+            ParsedTaskRecord parentRecord = parentForIndent(taskStack, indentLevel);
+            if (parentRecord != null && !fields.groupExplicit) {
+                fields.group = parentRecord.task.getGroup();
+            }
             if (!checkboxTask && fields.reminderAt == null) {
                 addParseWarnings(errors, sourceName, lineNumber, body, fields, format);
                 continue;
@@ -133,7 +139,7 @@ public final class TaskParser {
 
             addParseWarnings(errors, sourceName, lineNumber, body, fields, format);
 
-            tasks.add(new ObsidianTask(
+            ObsidianTask task = new ObsidianTask(
                     ObsidianTask.createTaskKey(
                             sourceName,
                             lineNumber,
@@ -151,13 +157,57 @@ public final class TaskParser {
                     fields.repeatMode,
                     completed,
                     fields.skipped,
+                    parentRecord == null ? "" : parentRecord.task.getTaskKey(),
+                    parentRecord == null ? 0 : parentRecord.task.getLineNumber(),
+                    indentLevel,
                     fields.tags,
                     fields.priority,
                     fields.group
-            ));
+            );
+            tasks.add(task);
+            if (parentRecord != null) {
+                parentRecord.task.addSubtask(task);
+            }
+            pushTaskRecord(taskStack, new ParsedTaskRecord(task, indentLevel));
         }
 
         return new TaskParseResult(tasks, errors);
+    }
+
+    private static int leadingIndentLevel(String line) {
+        if (line == null || line.isEmpty()) {
+            return 0;
+        }
+        int columns = 0;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == ' ') {
+                columns++;
+            } else if (c == '\t') {
+                columns += 4;
+            } else {
+                break;
+            }
+        }
+        return columns;
+    }
+
+    private static ParsedTaskRecord parentForIndent(List<ParsedTaskRecord> taskStack, int indentLevel) {
+        for (int i = taskStack.size() - 1; i >= 0; i--) {
+            ParsedTaskRecord record = taskStack.get(i);
+            if (record.indentLevel < indentLevel) {
+                return record;
+            }
+        }
+        return null;
+    }
+
+    private static void pushTaskRecord(List<ParsedTaskRecord> taskStack, ParsedTaskRecord record) {
+        while (!taskStack.isEmpty()
+                && taskStack.get(taskStack.size() - 1).indentLevel >= record.indentLevel) {
+            taskStack.remove(taskStack.size() - 1);
+        }
+        taskStack.add(record);
     }
 
     private static String nonCheckboxReminderBody(String line, TaskFormatSettings format) {
@@ -194,6 +244,7 @@ public final class TaskParser {
         fields.skipped = SKIPPED_MARKER.matcher(body).find();
         fields.tags = parseTags(body, format);
         fields.priority = parsePriority(body, format, fields);
+        fields.groupExplicit = hasGroupFunction(body, format);
         fields.group = parseGroup(body, format);
         return fields;
     }
@@ -427,6 +478,10 @@ public final class TaskParser {
         return ObsidianTask.normalizeGroup(groupValue);
     }
 
+    private static boolean hasGroupFunction(String body, TaskFormatSettings format) {
+        return findFunctionValue(body, format.groupKeywords()) != null;
+    }
+
     private static void addParseWarnings(
             List<TaskParseError> errors,
             String sourceName,
@@ -601,8 +656,19 @@ public final class TaskParser {
         private TaskPriority priority = TaskPriority.NONE;
         private String group = ObsidianTask.DEFAULT_GROUP;
         private boolean skipped;
+        private boolean groupExplicit;
         private boolean dueFunctionInvalid;
         private boolean repeatFunctionInvalid;
         private boolean priorityFunctionInvalid;
+    }
+
+    private static final class ParsedTaskRecord {
+        private final ObsidianTask task;
+        private final int indentLevel;
+
+        private ParsedTaskRecord(ObsidianTask task, int indentLevel) {
+            this.task = task;
+            this.indentLevel = indentLevel;
+        }
     }
 }

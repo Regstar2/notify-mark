@@ -39,7 +39,8 @@
             android:exported="false" />
         <activity
             android:name=".TaskEditActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/TaskEditSheetTheme" />
         <activity
             android:name=".MarkdownFileEditActivity"
             android:exported="false" />

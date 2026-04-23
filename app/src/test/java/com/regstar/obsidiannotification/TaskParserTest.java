@@ -315,4 +315,33 @@ public final class TaskParserTest {
         assertNull(tasks.get(0).getRepeatInterval());
         assertEquals(RepeatMode.NONE, tasks.get(0).getRepeatMode());
     }
+
+    @Test
+    public void parse_linksNestedChecklistItemsAsSubtasks() {
+        String markdown = ""
+                + "- [ ] Parent @due(2026-04-20 10:00) @group(home)\n"
+                + "  - [x] First child @due(2026-04-20 11:00)\n"
+                + "  - [ ] Second child @repeat(15m) @priority(high)\n"
+                + "- [ ] Next root @due(2026-04-21 10:00)\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        assertEquals(4, result.getTasks().size());
+        ObsidianTask parent = result.getTasks().get(0);
+        ObsidianTask firstChild = result.getTasks().get(1);
+        ObsidianTask secondChild = result.getTasks().get(2);
+        assertEquals(2, parent.getSubtasks().size());
+        assertTrue(firstChild.isSubtask());
+        assertTrue(secondChild.isSubtask());
+        assertEquals(parent.getTaskKey(), firstChild.getParentTaskKey());
+        assertEquals(parent.getTaskKey(), secondChild.getParentTaskKey());
+        assertEquals("home", firstChild.getGroup());
+        assertEquals("home", secondChild.getGroup());
+        assertEquals(TaskPriority.HIGH, secondChild.getPriority());
+        assertEquals("Next root", result.getTasks().get(3).getTitle());
+    }
 }

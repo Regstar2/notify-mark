@@ -517,6 +517,26 @@ public final class NoteStore {
         }
     }
 
+    public static TaskEditResult appendTaskBlock(Context context, String rawBlock) {
+        String safeBlock = sanitizeMarkdownBlock(rawBlock);
+        if (safeBlock.isEmpty()) {
+            return TaskEditResult.conflict("блок уведомления пустой");
+        }
+
+        try {
+            NoteDocument document = findDefaultWriteDocument(context);
+            String latestMarkdown = readMarkdown(context, document.getUri());
+            String separator = latestMarkdown.isEmpty() || latestMarkdown.endsWith("\n")
+                    ? ""
+                    : "\n";
+            writeMarkdown(context, document.getUri(), latestMarkdown + separator + safeBlock + "\n");
+            return TaskEditResult.updated("изменения сохранены");
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось добавить markdown-блок уведомления", exception);
+            return TaskEditResult.writeFailed(exception.getMessage());
+        }
+    }
+
     public static TaskEditResult replaceTaskLine(Context context, String taskKey, String rawLine) {
         String safeLine = sanitizeSingleLine(rawLine);
         if (safeLine.isEmpty()) {
@@ -530,13 +550,20 @@ public final class NoteStore {
         );
     }
 
+    public static TaskEditResult replaceTaskBlock(Context context, String taskKey, String rawBlock) {
+        String safeBlock = sanitizeMarkdownBlock(rawBlock);
+        if (safeBlock.isEmpty()) {
+            return TaskEditResult.conflict("блок уведомления пустой");
+        }
+        return editTaskBlock(context, taskKey, safeBlock);
+    }
+
     public static TaskEditResult deleteTaskLine(Context context, String taskKey) {
-        return editTaskLine(
-                context,
-                taskKey,
-                true,
-                line -> TaskLineMutation.delete()
-        );
+        return deleteTaskBlock(context, taskKey);
+    }
+
+    public static TaskEditResult deleteTaskBlock(Context context, String taskKey) {
+        return editTaskBlock(context, taskKey, null);
     }
 
     public static BulkEditResult markTasksDone(Context context, List<String> taskKeys) {
@@ -848,6 +875,57 @@ public final class NoteStore {
         }
     }
 
+    private static TaskEditResult editTaskBlock(
+            Context context,
+            String taskKey,
+            String block
+    ) {
+        if (taskKey == null || taskKey.trim().isEmpty()) {
+            return TaskEditResult.notFound("ключ задачи пустой");
+        }
+
+        try {
+            TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
+            for (NoteDocument document : readDocuments(context)) {
+                TaskParseResult result = TaskParser.parseDocument(
+                        document.getMarkdown(),
+                        LocalDate.now(),
+                        document.getDisplayName(),
+                        formatSettings
+                );
+                for (ObsidianTask task : result.getTasks()) {
+                    if (!task.getTaskKey().equals(taskKey)) {
+                        continue;
+                    }
+
+                    String[] lines = document.getMarkdown().split("\n", -1);
+                    int index = task.getLineNumber() - 1;
+                    if (index < 0 || index >= lines.length) {
+                        return TaskEditResult.conflict("строка задачи изменилась");
+                    }
+
+                    String latestMarkdown = readMarkdown(context, document.getUri());
+                    if (!latestMarkdown.equals(document.getMarkdown())) {
+                        return TaskEditResult.conflict("файл изменился во время записи");
+                    }
+
+                    int endExclusive = taskBlockEnd(lines, index);
+                    String updatedMarkdown = block == null
+                            ? replaceLineRange(lines, index, endExclusive, "")
+                            : replaceLineRange(lines, index, endExclusive, block);
+                    writeMarkdown(context, document.getUri(), updatedMarkdown);
+                    return TaskEditResult.updated(block == null
+                            ? "уведомление удалено"
+                            : "изменения сохранены");
+                }
+            }
+            return TaskEditResult.notFound("задача не найдена или уже изменилась");
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось изменить markdown-блок уведомления", exception);
+            return TaskEditResult.writeFailed(exception.getMessage());
+        }
+    }
+
     private static String incrementSnoozedMarker(String line) {
         Matcher matcher = SNOOZED_COUNT.matcher(line);
         if (matcher.find()) {
@@ -954,10 +1032,93 @@ public final class NoteStore {
         return builder.toString();
     }
 
+    private static int taskBlockEnd(String[] lines, int startIndex) {
+        int parentIndent = leadingIndentLevel(lines[startIndex]);
+        int end = startIndex + 1;
+        while (end < lines.length) {
+            String line = lines[end];
+            if (line == null || line.trim().isEmpty()) {
+                end++;
+                continue;
+            }
+            if (leadingIndentLevel(line) <= parentIndent) {
+                break;
+            }
+            end++;
+        }
+        return end;
+    }
+
+    private static int leadingIndentLevel(String line) {
+        if (line == null || line.isEmpty()) {
+            return 0;
+        }
+        int columns = 0;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == ' ') {
+                columns++;
+            } else if (c == '\t') {
+                columns += 4;
+            } else {
+                break;
+            }
+        }
+        return columns;
+    }
+
+    private static String replaceLineRange(
+            String[] lines,
+            int startIndex,
+            int endExclusive,
+            String replacementBlock
+    ) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i == startIndex) {
+                if (replacementBlock != null && !replacementBlock.isEmpty()) {
+                    appendWithSeparator(builder, replacementBlock);
+                }
+            }
+            if (i >= startIndex && i < endExclusive) {
+                continue;
+            }
+            appendWithSeparator(builder, lines[i]);
+        }
+        return builder.toString();
+    }
+
+    private static void appendWithSeparator(StringBuilder builder, String value) {
+        if (builder.length() > 0) {
+            builder.append('\n');
+        }
+        builder.append(value == null ? "" : value);
+    }
+
     private static String sanitizeSingleLine(String rawLine) {
         return rawLine == null
                 ? ""
                 : rawLine.replace('\r', ' ').replace('\n', ' ').trim();
+    }
+
+    private static String sanitizeMarkdownBlock(String rawBlock) {
+        if (rawBlock == null) {
+            return "";
+        }
+        String normalized = rawBlock.replace("\r\n", "\n").replace('\r', '\n').trim();
+        String[] lines = normalized.split("\n", -1);
+        StringBuilder builder = new StringBuilder();
+        for (String line : lines) {
+            String cleanLine = line.replaceAll("[ \t]+$", "");
+            if (cleanLine.trim().isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append(cleanLine);
+        }
+        return builder.toString();
     }
 
     private static List<NoteDocument> readFolderDocuments(

@@ -43,6 +43,18 @@ public final class ThemePreferences {
         }
     }
 
+    public static void applySheet(Activity activity) {
+        String mode = getThemeMode(activity);
+        applySystemNightMode(activity, mode);
+        if (MODE_LIGHT.equals(mode)) {
+            activity.setTheme(R.style.TaskEditSheetThemeLight);
+        } else if (MODE_DARK.equals(mode)) {
+            activity.setTheme(R.style.TaskEditSheetThemeDark);
+        } else {
+            activity.setTheme(R.style.TaskEditSheetTheme);
+        }
+    }
+
     private static String normalize(String mode) {
         if (MODE_LIGHT.equals(mode) || MODE_DARK.equals(mode)) {
             return mode;

@@ -19,6 +19,10 @@ public final class ObsidianTask {
     private final RepeatMode repeatMode;
     private final boolean completed;
     private final boolean skipped;
+    private final String parentTaskKey;
+    private final int parentLineNumber;
+    private final int indentLevel;
+    private final List<ObsidianTask> subtasks;
     private final List<String> tags;
     private final TaskPriority priority;
     private final String group;
@@ -52,6 +56,9 @@ public final class ObsidianTask {
                 repeatMode,
                 false,
                 false,
+                "",
+                0,
+                0,
                 Collections.emptyList(),
                 TaskPriority.NONE,
                 DEFAULT_GROUP
@@ -80,6 +87,9 @@ public final class ObsidianTask {
                 repeatMode,
                 completed,
                 false,
+                "",
+                0,
+                0,
                 Collections.emptyList(),
                 TaskPriority.NONE,
                 DEFAULT_GROUP
@@ -110,6 +120,9 @@ public final class ObsidianTask {
                 repeatMode,
                 completed,
                 false,
+                "",
+                0,
+                0,
                 tags,
                 priority,
                 DEFAULT_GROUP
@@ -141,6 +154,9 @@ public final class ObsidianTask {
                 repeatMode,
                 completed,
                 false,
+                "",
+                0,
+                0,
                 tags,
                 priority,
                 group
@@ -162,6 +178,44 @@ public final class ObsidianTask {
             TaskPriority priority,
             String group
     ) {
+        this(
+                taskKey,
+                sourceName,
+                lineNumber,
+                title,
+                rawLine,
+                reminderAt,
+                repeatInterval,
+                repeatMode,
+                completed,
+                skipped,
+                "",
+                0,
+                0,
+                tags,
+                priority,
+                group
+        );
+    }
+
+    public ObsidianTask(
+            String taskKey,
+            String sourceName,
+            int lineNumber,
+            String title,
+            String rawLine,
+            LocalDateTime reminderAt,
+            Duration repeatInterval,
+            RepeatMode repeatMode,
+            boolean completed,
+            boolean skipped,
+            String parentTaskKey,
+            int parentLineNumber,
+            int indentLevel,
+            List<String> tags,
+            TaskPriority priority,
+            String group
+    ) {
         this.taskKey = taskKey;
         this.sourceName = sourceName == null ? "" : sourceName;
         this.lineNumber = lineNumber;
@@ -172,6 +226,10 @@ public final class ObsidianTask {
         this.repeatMode = repeatMode == null ? RepeatMode.NONE : repeatMode;
         this.completed = completed;
         this.skipped = skipped;
+        this.parentTaskKey = parentTaskKey == null ? "" : parentTaskKey;
+        this.parentLineNumber = Math.max(0, parentLineNumber);
+        this.indentLevel = Math.max(0, indentLevel);
+        this.subtasks = new ArrayList<>();
         this.tags = Collections.unmodifiableList(new ArrayList<>(tags == null
                 ? Collections.emptyList()
                 : tags));
@@ -217,6 +275,32 @@ public final class ObsidianTask {
 
     public boolean isSkipped() {
         return skipped;
+    }
+
+    public String getParentTaskKey() {
+        return parentTaskKey;
+    }
+
+    public int getParentLineNumber() {
+        return parentLineNumber;
+    }
+
+    public int getIndentLevel() {
+        return indentLevel;
+    }
+
+    public boolean isSubtask() {
+        return !parentTaskKey.isEmpty();
+    }
+
+    public List<ObsidianTask> getSubtasks() {
+        return Collections.unmodifiableList(subtasks);
+    }
+
+    void addSubtask(ObsidianTask subtask) {
+        if (subtask != null) {
+            subtasks.add(subtask);
+        }
     }
 
     public List<String> getTags() {

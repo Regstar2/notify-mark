@@ -78,6 +78,7 @@ public final class MainActivity extends Activity {
     private TextView sourceErrorText;
     private LinearLayout sourceStatsRow;
     private LinearLayout groupFilterRow;
+    private View groupFilterContainerView;
     private TextView nextReminderTimeText;
     private TextView nextReminderTitleText;
     private TextView nextReminderMetaText;
@@ -103,6 +104,7 @@ public final class MainActivity extends Activity {
     private LinearLayout filterSheetOptions;
     private List<ObsidianTask> latestTasks = new ArrayList<>();
     private final Set<String> selectedTaskKeys = new LinkedHashSet<>();
+    private final Set<String> expandedTaskKeys = new LinkedHashSet<>();
     private YearMonth displayedCalendarMonth = YearMonth.now();
     private LocalDate selectedCalendarDate = LocalDate.now();
     private int calendarMode = CALENDAR_MODE_MONTH;
@@ -583,14 +585,10 @@ public final class MainActivity extends Activity {
 
         ImageButton topRefreshButton = createPlainIconButton(R.drawable.ic_refresh, "Обновить");
         topRefreshButton.setEnabled(noteUri != null);
-        topRefreshButton.setOnClickListener(view -> readAndRenderNote());
+        topRefreshButton.setOnClickListener(view -> refreshFromTopBar());
         refreshButton = topRefreshButton;
-        if (selectedSection == SECTION_CALENDAR) {
-            appBar.addView(createTaskFilterButton(), new LinearLayout.LayoutParams(dp(40), dp(40)));
-        } else {
-            appBar.addView(topRefreshButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
-            appBar.addView(createTaskFilterButton(), new LinearLayout.LayoutParams(dp(40), dp(40)));
-        }
+        appBar.addView(topRefreshButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        appBar.addView(createTaskFilterButton(), new LinearLayout.LayoutParams(dp(40), dp(40)));
     }
 
     private void populateSelectionTopAppBar(LinearLayout appBar) {
@@ -633,6 +631,7 @@ public final class MainActivity extends Activity {
         LinearLayout groupFilterContainer = new LinearLayout(this);
         groupFilterContainer.setOrientation(LinearLayout.HORIZONTAL);
         groupFilterContainer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        groupFilterContainerView = groupFilterContainer;
 
         HorizontalScrollView groupScroll = new HorizontalScrollView(this);
         groupScroll.setHorizontalScrollBarEnabled(false);
@@ -986,20 +985,15 @@ public final class MainActivity extends Activity {
         header.setPadding(dp(8), dp(6), dp(8), dp(8));
 
         ImageView icon = new ImageView(this);
-        icon.setImageResource(R.drawable.ic_launcher_original);
-        header.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+        icon.setImageResource(R.drawable.ic_drawer_transparent);
+        header.addView(icon, new LinearLayout.LayoutParams(dp(52), dp(52)));
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        TextView title = createText("ObsidianNotification", 17, R.color.text_primary, true);
+        TextView title = createText("ObsidianNotification", 20, R.color.text_primary, true);
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         texts.addView(title, fullWidth());
-
-        TextView subtitle = createText("Локальные markdown-напоминания", 12, R.color.text_secondary, false);
-        subtitle.setSingleLine(true);
-        subtitle.setEllipsize(TextUtils.TruncateAt.END);
-        texts.addView(subtitle, fullWidthWithTopMargin(dp(2)));
 
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
                 0,
@@ -1601,6 +1595,11 @@ public final class MainActivity extends Activity {
         snackbarView = null;
     }
 
+    private void refreshFromTopBar() {
+        readAndRenderNote();
+        showSnackbar("Источник обновлен", null, null);
+    }
+
     @SuppressWarnings("deprecation")
     private void openNotePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -1835,16 +1834,17 @@ public final class MainActivity extends Activity {
         updateGroupFilterRow(tasks);
         showTaskSourceNames = hasMultipleSources(tasks);
         List<ObsidianTask> visibleTasks = filterVisibleTasks(tasks);
-        visibleTasks.sort(this::compareTasksForDisplay);
-        updateTaskSectionHeader(visibleTasks.size());
-        if (visibleTasks.isEmpty()) {
+        List<ObsidianTask> displayTasks = rootTasksForDisplay(tasks, visibleTasks);
+        displayTasks.sort(this::compareTasksForDisplay);
+        updateTaskSectionHeader(displayTasks.size());
+        if (displayTasks.isEmpty()) {
             renderEmptyState("В выбранных markdown-файлах нет уведомлений с @due(...) для текущего фильтра.");
             return;
         }
 
         String currentSource = null;
         boolean showGroupHeaders = showTaskSourceNames;
-        for (ObsidianTask task : visibleTasks) {
+        for (ObsidianTask task : displayTasks) {
             String sourceName = task.getSourceName();
             if (showGroupHeaders && !sourceName.equals(currentSource)) {
                 currentSource = sourceName;
@@ -1856,6 +1856,29 @@ public final class MainActivity extends Activity {
 
     private boolean isSelectionMode() {
         return !selectedTaskKeys.isEmpty();
+    }
+
+    private List<ObsidianTask> rootTasksForDisplay(List<ObsidianTask> allTasks, List<ObsidianTask> visibleTasks) {
+        Map<String, ObsidianTask> tasksByKey = new HashMap<>();
+        for (ObsidianTask task : allTasks) {
+            tasksByKey.put(task.getTaskKey(), task);
+        }
+
+        List<ObsidianTask> roots = new ArrayList<>();
+        Set<String> addedKeys = new LinkedHashSet<>();
+        for (ObsidianTask task : visibleTasks) {
+            ObsidianTask displayTask = task;
+            if (task.isSubtask()) {
+                ObsidianTask parent = tasksByKey.get(task.getParentTaskKey());
+                if (parent != null) {
+                    displayTask = parent;
+                }
+            }
+            if (addedKeys.add(displayTask.getTaskKey())) {
+                roots.add(displayTask);
+            }
+        }
+        return roots;
     }
 
     private void enterSelectionMode(ObsidianTask task) {
@@ -2667,11 +2690,26 @@ public final class MainActivity extends Activity {
 
         Set<String> groups = new LinkedHashSet<>();
         for (ObsidianTask task : tasks) {
-            groups.add(taskGroupLabel(task));
+            String group = taskGroupLabel(task);
+            if (!group.isEmpty() && !ObsidianTask.DEFAULT_GROUP.equals(group)) {
+                groups.add(group);
+            }
         }
 
         groupFilterRow.removeAllViews();
         String selectedGroup = UserPreferences.getTaskGroup(this);
+        if (groups.isEmpty()) {
+            if (selectedGroup != null && !selectedGroup.isEmpty()) {
+                UserPreferences.setTaskGroup(this, "");
+            }
+            if (groupFilterContainerView != null) {
+                groupFilterContainerView.setVisibility(View.GONE);
+            }
+            return;
+        }
+        if (groupFilterContainerView != null) {
+            groupFilterContainerView.setVisibility(View.VISIBLE);
+        }
         if (selectedGroup != null && !selectedGroup.isEmpty() && !groups.contains(selectedGroup)) {
             UserPreferences.setTaskGroup(this, "");
         }
@@ -2898,6 +2936,13 @@ public final class MainActivity extends Activity {
         completeParams.setMargins(0, 0, dp(10), 0);
         titleRow.addView(completeButton, completeParams);
 
+        if (!task.getSubtasks().isEmpty()) {
+            TextView expandButton = createSubtaskExpandButton(task);
+            LinearLayout.LayoutParams expandParams = new LinearLayout.LayoutParams(dp(28), dp(28));
+            expandParams.setMargins(0, 0, dp(8), 0);
+            titleRow.addView(expandButton, expandParams);
+        }
+
         TextView title = createText(task.getTitle(), 16, R.color.text_primary, true);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
@@ -2945,6 +2990,15 @@ public final class MainActivity extends Activity {
             secondaryMeta.setMaxLines(2);
             secondaryMeta.setEllipsize(TextUtils.TruncateAt.END);
             item.addView(secondaryMeta, fullWidthWithTopMargin(dp(8)));
+        }
+
+        if (!task.getSubtasks().isEmpty()) {
+            TextView progress = createText(formatSubtaskProgress(task), 12, R.color.text_secondary, false);
+            progress.setSingleLine(true);
+            item.addView(progress, fullWidthWithTopMargin(dp(8)));
+            if (expandedTaskKeys.contains(task.getTaskKey())) {
+                item.addView(createSubtaskList(task), fullWidthWithTopMargin(dp(8)));
+            }
         }
 
         wrapper.addView(item, new FrameLayout.LayoutParams(
@@ -3005,6 +3059,98 @@ public final class MainActivity extends Activity {
         );
         background.addView(deleteAction, deleteParams);
         return background;
+    }
+
+    private TextView createSubtaskExpandButton(ObsidianTask task) {
+        boolean expanded = expandedTaskKeys.contains(task.getTaskKey());
+        TextView button = createText(expanded ? "⌄" : "›", 21, R.color.text_secondary, true);
+        button.setGravity(android.view.Gravity.CENTER);
+        button.setContentDescription(expanded ? "Свернуть подзадачи" : "Показать подзадачи");
+        button.setBackground(createCircleOutlineBackground(
+                Color.TRANSPARENT,
+                getColor(R.color.chip_stroke)
+        ));
+        button.setOnClickListener(view -> {
+            if (expandedTaskKeys.contains(task.getTaskKey())) {
+                expandedTaskKeys.remove(task.getTaskKey());
+            } else {
+                expandedTaskKeys.add(task.getTaskKey());
+            }
+            renderTasks(latestTasks);
+        });
+        return button;
+    }
+
+    private String formatSubtaskProgress(ObsidianTask task) {
+        int total = task.getSubtasks().size();
+        int completed = 0;
+        for (ObsidianTask subtask : task.getSubtasks()) {
+            if (subtask.isCompleted()) {
+                completed++;
+            }
+        }
+        return completed + "/" + total + " подзадач выполнено";
+    }
+
+    private LinearLayout createSubtaskList(ObsidianTask task) {
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(12), dp(4), 0, 0);
+        for (ObsidianTask subtask : task.getSubtasks()) {
+            list.addView(createSubtaskRow(subtask), fullWidthWithBottomMargin(dp(6)));
+        }
+        return list;
+    }
+
+    private LinearLayout createSubtaskRow(ObsidianTask subtask) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(10), dp(8), dp(8), dp(8));
+        row.setBackground(createRoundedBackground(
+                getColor(R.color.chip_background),
+                getColor(R.color.chip_stroke),
+                8
+        ));
+        row.setClickable(true);
+        row.setOnClickListener(view -> openPreferredTaskEditor(subtask));
+
+        TextView status = createCompletionButton(subtask);
+        row.addView(status, new LinearLayout.LayoutParams(dp(26), dp(26)));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        TextView title = createText(subtask.getTitle(), 13, R.color.text_primary, true);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        texts.addView(title, fullWidth());
+        String meta = subtaskMeta(subtask);
+        if (!meta.isEmpty()) {
+            TextView metaView = createText(meta, 11, R.color.text_secondary, false);
+            metaView.setSingleLine(true);
+            metaView.setEllipsize(TextUtils.TruncateAt.END);
+            texts.addView(metaView, fullWidthWithTopMargin(dp(1)));
+        }
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        textParams.setMargins(dp(10), 0, 0, 0);
+        row.addView(texts, textParams);
+        return row;
+    }
+
+    private String subtaskMeta(ObsidianTask subtask) {
+        List<String> parts = new ArrayList<>();
+        if (subtask.getReminderAt() != null) {
+            parts.add(DATE_TIME_FORMAT.format(subtask.getReminderAt()));
+        }
+        if (subtask.getRepeatInterval() != null) {
+            parts.add(formatRepeat(subtask));
+        }
+        parts.add(formatStatus(taskStatus(subtask)));
+        return TextUtils.join(" · ", parts);
     }
 
     private TextView createSwipeActionLabel(String text, int backgroundColor, int textColor) {
@@ -3924,6 +4070,12 @@ public final class MainActivity extends Activity {
     private LinearLayout.LayoutParams fullWidthWithBottomMargin() {
         LinearLayout.LayoutParams params = fullWidth();
         params.setMargins(0, 0, 0, dp(12));
+        return params;
+    }
+
+    private LinearLayout.LayoutParams fullWidthWithBottomMargin(int bottomMargin) {
+        LinearLayout.LayoutParams params = fullWidth();
+        params.setMargins(0, 0, 0, bottomMargin);
         return params;
     }
 
