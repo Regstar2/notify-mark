@@ -235,6 +235,10 @@ public final class ObsidianTask {
         return TaskStatus.forTask(this, now);
     }
 
+    public TaskStatus getStatus(LocalDateTime now, Duration overdueGracePeriod) {
+        return TaskStatus.forTask(this, now, overdueGracePeriod);
+    }
+
     public long getRepeatIntervalMillis() {
         return repeatInterval == null ? 0L : repeatInterval.toMillis();
     }

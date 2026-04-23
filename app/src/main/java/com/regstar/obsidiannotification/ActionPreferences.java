@@ -6,9 +6,13 @@ public final class ActionPreferences {
     private static final String PREFS_NAME = "obsidian_notification_action_preferences";
     private static final String KEY_SNOOZE_MINUTES = "snooze_minutes";
     private static final String KEY_RECORD_SNOOZE_COUNT = "record_snooze_count";
+    private static final String KEY_OVERDUE_GRACE_MINUTES = "overdue_grace_minutes";
     private static final int DEFAULT_SNOOZE_MINUTES = 10;
+    private static final int DEFAULT_OVERDUE_GRACE_MINUTES = 0;
     private static final int MIN_SNOOZE_MINUTES = 1;
     private static final int MAX_SNOOZE_MINUTES = 24 * 60;
+    private static final int MIN_OVERDUE_GRACE_MINUTES = 0;
+    private static final int MAX_OVERDUE_GRACE_MINUTES = 7 * 24 * 60;
 
     private ActionPreferences() {
     }
@@ -30,6 +34,18 @@ public final class ActionPreferences {
                 .getBoolean(KEY_RECORD_SNOOZE_COUNT, false);
     }
 
+    public static int getOverdueGraceMinutes(Context context) {
+        return clampOverdueGraceMinutes(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_OVERDUE_GRACE_MINUTES, DEFAULT_OVERDUE_GRACE_MINUTES));
+    }
+
+    public static void setOverdueGraceMinutes(Context context, int minutes) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_OVERDUE_GRACE_MINUTES, clampOverdueGraceMinutes(minutes))
+                .apply();
+    }
+
     public static void setRecordSnoozeCount(Context context, boolean enabled) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
@@ -43,6 +59,16 @@ public final class ActionPreferences {
         }
         if (minutes > MAX_SNOOZE_MINUTES) {
             return MAX_SNOOZE_MINUTES;
+        }
+        return minutes;
+    }
+
+    public static int clampOverdueGraceMinutes(int minutes) {
+        if (minutes < MIN_OVERDUE_GRACE_MINUTES) {
+            return MIN_OVERDUE_GRACE_MINUTES;
+        }
+        if (minutes > MAX_OVERDUE_GRACE_MINUTES) {
+            return MAX_OVERDUE_GRACE_MINUTES;
         }
         return minutes;
     }

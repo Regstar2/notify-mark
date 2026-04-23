@@ -46,6 +46,7 @@ public final class SettingsActivity extends Activity {
     private EditText priorityKeywordInput;
     private EditText groupKeywordInput;
     private EditText snoozeMinutesInput;
+    private EditText overdueGraceMinutesInput;
     private EditText includePatternsInput;
     private EditText excludePatternsInput;
     private EditText maxFilesInput;
@@ -611,6 +612,13 @@ public final class SettingsActivity extends Activity {
         );
         snoozeMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
 
+        overdueGraceMinutesInput = addKeywordInput(
+                root,
+                "Считать просроченной через минут",
+                String.valueOf(ActionPreferences.getOverdueGraceMinutes(this))
+        );
+        overdueGraceMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+
         recordSnoozeCountCheckbox = new CheckBox(this);
         recordSnoozeCountCheckbox.setText("Записывать количество отложений в заметку");
         recordSnoozeCountCheckbox.setTextColor(getColor(R.color.text_secondary));
@@ -772,9 +780,18 @@ public final class SettingsActivity extends Activity {
             snoozeMinutes = ActionPreferences.getSnoozeMinutes(this);
         }
 
+        int overdueGraceMinutes;
+        try {
+            overdueGraceMinutes = Integer.parseInt(overdueGraceMinutesInput.getText().toString().trim());
+        } catch (NumberFormatException exception) {
+            overdueGraceMinutes = ActionPreferences.getOverdueGraceMinutes(this);
+        }
+
         ActionPreferences.setSnoozeMinutes(this, snoozeMinutes);
+        ActionPreferences.setOverdueGraceMinutes(this, overdueGraceMinutes);
         ActionPreferences.setRecordSnoozeCount(this, recordSnoozeCountCheckbox.isChecked());
         snoozeMinutesInput.setText(String.valueOf(ActionPreferences.getSnoozeMinutes(this)));
+        overdueGraceMinutesInput.setText(String.valueOf(ActionPreferences.getOverdueGraceMinutes(this)));
         Toast.makeText(this, "Действия уведомления сохранены", Toast.LENGTH_SHORT).show();
         updateStatus();
     }
@@ -945,6 +962,7 @@ public final class SettingsActivity extends Activity {
                 + "\nНапоминания: точные "
                 + (ReminderScheduler.canScheduleExactAlarms(this) ? "да" : "нет")
                 + " · отложить " + ActionPreferences.getSnoozeMinutes(this) + " мин."
+                + " · просрочка +" + ActionPreferences.getOverdueGraceMinutes(this) + " мин."
                 + " · счетчик: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "вкл." : "выкл.")
                 + "\nРедактирование: " + formatEditMode(EditPreferences.getEditMode(this))
                 + " · тема: " + formatThemeMode(ThemePreferences.getThemeMode(this))

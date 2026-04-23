@@ -25,7 +25,6 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -96,6 +95,8 @@ public final class MainActivity extends Activity {
     private FrameLayout drawerLayer;
     private View drawerScrim;
     private View drawerPanel;
+    private FrameLayout appRootContainer;
+    private View snackbarView;
     private FrameLayout filterSheetLayer;
     private View filterSheetScrim;
     private View filterSheetPanel;
@@ -472,6 +473,8 @@ public final class MainActivity extends Activity {
         notificationPermissionButton = null;
         exactAlarmPermissionButton = null;
         drawerOpen = false;
+        appRootContainer = null;
+        snackbarView = null;
         filterSheetOpen = false;
         filterSheetLayer = null;
         filterSheetScrim = null;
@@ -513,6 +516,7 @@ public final class MainActivity extends Activity {
         frame.addView(bottomOverlay, bottomParams);
 
         FrameLayout appRoot = new FrameLayout(this);
+        appRootContainer = appRoot;
         appRoot.addView(frame, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -611,6 +615,10 @@ public final class MainActivity extends Activity {
         ImageButton doneButton = createPlainIconButton(R.drawable.ic_check, "Отметить выполненными");
         doneButton.setOnClickListener(view -> bulkMarkSelectedDone());
         appBar.addView(doneButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        ImageButton skipButton = createPlainIconButton(R.drawable.ic_skip, "Пропустить");
+        skipButton.setOnClickListener(view -> bulkSkipSelected());
+        appBar.addView(skipButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         ImageButton snoozeButton = createPlainIconButton(R.drawable.ic_clock, "Отложить");
         snoozeButton.setOnClickListener(view -> bulkSnoozeSelected());
@@ -1525,6 +1533,74 @@ public final class MainActivity extends Activity {
         return textView;
     }
 
+    private void showSnackbar(String message, String actionLabel, Runnable action) {
+        if (appRootContainer == null) {
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (snackbarView != null) {
+            appRootContainer.removeView(snackbarView);
+            snackbarView = null;
+        }
+
+        LinearLayout snackbar = new LinearLayout(this);
+        snackbar.setOrientation(LinearLayout.HORIZONTAL);
+        snackbar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        snackbar.setPadding(dp(14), dp(10), dp(8), dp(10));
+        snackbar.setBackground(createRoundedBackground(
+                getColor(R.color.secondary_button_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+
+        TextView text = createText(message, 14, R.color.text_primary, false);
+        text.setMaxLines(2);
+        text.setEllipsize(TextUtils.TruncateAt.END);
+        snackbar.addView(text, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        if (actionLabel != null && action != null) {
+            Button button = new Button(this);
+            button.setText(actionLabel);
+            button.setAllCaps(false);
+            button.setTextSize(13);
+            button.setTextColor(getColor(R.color.accent));
+            button.setBackgroundColor(Color.TRANSPARENT);
+            button.setOnClickListener(view -> {
+                hideSnackbar();
+                action.run();
+            });
+            snackbar.addView(button, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    dp(42)
+            ));
+        }
+
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM
+        );
+        params.setMargins(dp(16), 0, dp(16), dp(178));
+        snackbarView = snackbar;
+        appRootContainer.addView(snackbar, params);
+        noteRefreshHandler.postDelayed(() -> {
+            if (snackbarView == snackbar) {
+                hideSnackbar();
+            }
+        }, 5000L);
+    }
+
+    private void hideSnackbar() {
+        if (appRootContainer != null && snackbarView != null) {
+            appRootContainer.removeView(snackbarView);
+        }
+        snackbarView = null;
+    }
+
     @SuppressWarnings("deprecation")
     private void openNotePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -2366,9 +2442,8 @@ public final class MainActivity extends Activity {
     }
 
     private void addTaskToSummary(CalendarTaskSummary summary, ObsidianTask task) {
-        LocalDateTime now = LocalDateTime.now();
         summary.totalTaskCount++;
-        TaskStatus status = task.getStatus(now);
+        TaskStatus status = taskStatus(task);
         if (status == TaskStatus.COMPLETED) {
             summary.completedCount++;
         } else if (status == TaskStatus.SKIPPED) {
@@ -2464,7 +2539,7 @@ public final class MainActivity extends Activity {
         if (showTaskSourceNames) {
             parts.add(compactName(task.getSourceName()));
         }
-        parts.add(formatStatus(task.getStatus(LocalDateTime.now())));
+        parts.add(formatStatus(taskStatus(task)));
         return TextUtils.join(" · ", parts);
     }
 
@@ -2491,12 +2566,19 @@ public final class MainActivity extends Activity {
         private int overdueCount;
     }
 
+    private Duration overdueGracePeriod() {
+        return Duration.ofMinutes(ActionPreferences.getOverdueGraceMinutes(this));
+    }
+
+    private TaskStatus taskStatus(ObsidianTask task) {
+        return task.getStatus(LocalDateTime.now(), overdueGracePeriod());
+    }
+
     private List<ObsidianTask> filterVisibleTasks(List<ObsidianTask> tasks) {
         String filter = UserPreferences.getTaskFilter(this);
         String selectedGroup = UserPreferences.getTaskGroup(this);
         String privateMarker = UserPreferences.getPrivateMarker(this);
         ArrayList<ObsidianTask> visibleTasks = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
         for (ObsidianTask task : tasks) {
             if (selectedGroup != null
                     && !selectedGroup.isEmpty()
@@ -2511,7 +2593,7 @@ public final class MainActivity extends Activity {
                 visibleTasks.add(task);
                 continue;
             }
-            TaskStatus status = task.getStatus(now);
+            TaskStatus status = taskStatus(task);
             if (UserPreferences.FILTER_ACTIVE.equals(filter)
                     && status != TaskStatus.COMPLETED
                     && status != TaskStatus.SKIPPED) {
@@ -2796,7 +2878,13 @@ public final class MainActivity extends Activity {
                         openPreferredTaskEditor(task);
                     }
                 },
-                () -> skipTask(task),
+                () -> {
+                    if (task.isSkipped()) {
+                        unskipTask(task);
+                    } else {
+                        skipTask(task);
+                    }
+                },
                 () -> deleteTask(task),
                 () -> enterSelectionMode(task)
         ));
@@ -2819,7 +2907,7 @@ public final class MainActivity extends Activity {
                 1
         ));
 
-        TextView statusChip = createStatusChip(task.getStatus(LocalDateTime.now()));
+        TextView statusChip = createStatusChip(taskStatus(task));
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 dp(22)
@@ -2882,13 +2970,19 @@ public final class MainActivity extends Activity {
         ));
 
         TextView skipAction = createSwipeActionLabel(
-                "Пропустить",
+                task.isSkipped() ? "Отменить" : "Пропустить",
                 R.color.status_skipped_background,
                 R.color.status_skipped_text
         );
         skipAction.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.LEFT);
         skipAction.setPadding(dp(16), 0, dp(16), 0);
-        skipAction.setOnClickListener(view -> skipTask(task));
+        skipAction.setOnClickListener(view -> {
+            if (task.isSkipped()) {
+                unskipTask(task);
+            } else {
+                skipTask(task);
+            }
+        });
         FrameLayout.LayoutParams skipParams = new FrameLayout.LayoutParams(
                 dp(132),
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -3035,18 +3129,15 @@ public final class MainActivity extends Activity {
     }
 
     private TextView createCompletionButton(ObsidianTask task) {
-        TextView button = createText(task.isCompleted() ? "✓" : "", 16, R.color.accent, true);
+        TaskStatus status = taskStatus(task);
+        TextView button = createText(statusIcon(status), 16, statusIconColor(status), true);
         button.setGravity(android.view.Gravity.CENTER);
         button.setContentDescription(isSelectionMode()
                 ? "Выбрать"
-                : task.isCompleted() ? "Задача выполнена" : "Выполнить");
+                : statusIconDescription(status));
         button.setBackground(createCircleOutlineBackground(
-                task.isCompleted()
-                        ? getColor(R.color.status_completed_background)
-                        : Color.TRANSPARENT,
-                task.isCompleted()
-                        ? getColor(R.color.status_completed_text)
-                        : getColor(R.color.text_secondary)
+                getColor(statusIconBackground(status)),
+                getColor(statusIconStroke(status))
         ));
         button.setOnLongClickListener(view -> {
             enterSelectionMode(task);
@@ -3057,11 +3148,71 @@ public final class MainActivity extends Activity {
                 toggleTaskSelection(task);
                 return;
             }
-            if (!task.isCompleted()) {
+            if (status == TaskStatus.COMPLETED) {
+                unmarkTaskDone(task);
+            } else if (status == TaskStatus.SKIPPED) {
+                unskipTask(task);
+            } else {
                 markTaskDone(task);
             }
         });
         return button;
+    }
+
+    private String statusIcon(TaskStatus status) {
+        if (status == TaskStatus.COMPLETED) {
+            return "✓";
+        }
+        if (status == TaskStatus.SKIPPED) {
+            return "×";
+        }
+        if (status == TaskStatus.OVERDUE) {
+            return "!";
+        }
+        return "";
+    }
+
+    private int statusIconBackground(TaskStatus status) {
+        if (status == TaskStatus.COMPLETED) {
+            return R.color.status_completed_background;
+        }
+        if (status == TaskStatus.SKIPPED) {
+            return R.color.status_skipped_background;
+        }
+        if (status == TaskStatus.OVERDUE) {
+            return R.color.status_overdue_background;
+        }
+        return android.R.color.transparent;
+    }
+
+    private int statusIconStroke(TaskStatus status) {
+        if (status == TaskStatus.COMPLETED) {
+            return R.color.status_completed_text;
+        }
+        if (status == TaskStatus.SKIPPED) {
+            return R.color.status_skipped_text;
+        }
+        if (status == TaskStatus.OVERDUE) {
+            return R.color.status_overdue_text;
+        }
+        return R.color.text_secondary;
+    }
+
+    private int statusIconColor(TaskStatus status) {
+        return statusIconStroke(status);
+    }
+
+    private String statusIconDescription(TaskStatus status) {
+        if (status == TaskStatus.COMPLETED) {
+            return "Снять выполнение";
+        }
+        if (status == TaskStatus.SKIPPED) {
+            return "Отменить пропуск";
+        }
+        if (status == TaskStatus.OVERDUE) {
+            return "Выполнить просроченную задачу";
+        }
+        return "Выполнить";
     }
 
     private TextView createStatusChip(TaskStatus status) {
@@ -3116,42 +3267,113 @@ public final class MainActivity extends Activity {
     }
 
     private void showTaskMenu(View anchor, ObsidianTask task) {
-        PopupMenu popupMenu = new PopupMenu(this, anchor);
-        popupMenu.getMenu().add(0, 1, 0, "Выполнить");
-        popupMenu.getMenu().add(0, 2, 1, "Пропустить");
-        popupMenu.getMenu().add(0, 3, 2, "Отложить");
-        popupMenu.getMenu().add(0, 4, 3, "Редактировать через UI");
-        popupMenu.getMenu().add(0, 5, 4, "Открыть markdown");
-        popupMenu.getMenu().add(0, 6, 5, "Удалить");
-        popupMenu.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            if (id == 1) {
-                markTaskDone(task);
-                return true;
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(4), dp(8), dp(4), dp(4));
+
+        final AlertDialog[] dialogRef = new AlertDialog[1];
+        TaskStatus status = taskStatus(task);
+
+        addTaskMenuSectionLabel(content, "Основные действия");
+        if (status == TaskStatus.COMPLETED) {
+            addTaskMenuAction(content, R.drawable.ic_undo, "Снять выполнение", R.color.text_primary,
+                    () -> unmarkTaskDone(task), dialogRef);
+        } else {
+            addTaskMenuAction(content, R.drawable.ic_check, "Выполнить", R.color.text_primary,
+                    () -> markTaskDone(task), dialogRef);
+        }
+
+        if (task.isSkipped()) {
+            addTaskMenuAction(content, R.drawable.ic_undo, "Отменить пропуск", R.color.text_primary,
+                    () -> unskipTask(task), dialogRef);
+        } else {
+            addTaskMenuAction(content, R.drawable.ic_skip, "Пропустить", R.color.text_primary,
+                    () -> skipTask(task), dialogRef);
+        }
+
+        if (status != TaskStatus.COMPLETED && status != TaskStatus.SKIPPED) {
+            addTaskMenuAction(content, R.drawable.ic_clock, "Отложить", R.color.text_primary,
+                    () -> snoozeTask(task), dialogRef);
+        }
+
+        addTaskMenuDivider(content);
+        addTaskMenuSectionLabel(content, "Редактирование");
+        addTaskMenuAction(content, R.drawable.ic_edit, "Редактировать через UI", R.color.text_primary,
+                () -> openTaskEditor(task), dialogRef);
+        addTaskMenuAction(content, R.drawable.ic_file, "Открыть markdown", R.color.text_primary,
+                () -> openMarkdownEditor(task), dialogRef);
+
+        addTaskMenuDivider(content);
+        addTaskMenuAction(content, R.drawable.ic_delete, "Удалить", R.color.error_text,
+                () -> deleteTask(task), dialogRef);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Действия задачи")
+                .setView(content)
+                .create();
+        dialogRef[0] = dialog;
+        dialog.show();
+    }
+
+    private void addTaskMenuSectionLabel(LinearLayout content, String label) {
+        TextView text = createText(label, 12, R.color.text_secondary, true);
+        text.setPadding(dp(12), dp(8), dp(12), dp(4));
+        content.addView(text, fullWidth());
+    }
+
+    private void addTaskMenuAction(
+            LinearLayout content,
+            int iconRes,
+            String label,
+            int textColor,
+            Runnable action,
+            AlertDialog[] dialogRef
+    ) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setClickable(true);
+        row.setPadding(dp(12), 0, dp(12), 0);
+        row.setBackground(createRoundedBackground(getColor(R.color.card_background), 0, 8));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setColorFilter(getColor(textColor));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(22), dp(22)));
+
+        TextView text = createText(label, 15, textColor, false);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        textParams.setMargins(dp(14), 0, 0, 0);
+        row.addView(text, textParams);
+
+        row.setOnClickListener(view -> {
+            if (dialogRef[0] != null) {
+                dialogRef[0].dismiss();
             }
-            if (id == 2) {
-                skipTask(task);
-                return true;
-            }
-            if (id == 3) {
-                snoozeTask(task);
-                return true;
-            }
-            if (id == 4) {
-                openTaskEditor(task);
-                return true;
-            }
-            if (id == 5) {
-                openMarkdownEditor(task);
-                return true;
-            }
-            if (id == 6) {
-                deleteTask(task);
-                return true;
-            }
-            return false;
+            action.run();
         });
-        popupMenu.show();
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(50)
+        );
+        params.setMargins(0, dp(1), 0, dp(1));
+        content.addView(row, params);
+    }
+
+    private void addTaskMenuDivider(LinearLayout content) {
+        View divider = new View(this);
+        divider.setBackgroundColor(getColor(R.color.card_stroke));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(1)
+        );
+        params.setMargins(dp(12), dp(8), dp(12), dp(6));
+        content.addView(divider, params);
     }
 
     @SuppressWarnings("deprecation")
@@ -3202,6 +3424,20 @@ public final class MainActivity extends Activity {
         finishBulkOperation(result, "отмечено выполненными");
     }
 
+    private void bulkSkipSelected() {
+        List<String> taskKeys = selectedTaskKeyList();
+        if (taskKeys.isEmpty()) {
+            exitSelectionMode();
+            return;
+        }
+
+        NoteStore.BulkEditResult result = NoteStore.markTasksSkipped(this, taskKeys);
+        for (String taskKey : result.getUpdatedTaskKeys()) {
+            ReminderScheduler.cancelReminder(this, taskKey);
+        }
+        finishBulkOperation(result, "пропущено");
+    }
+
     private void bulkSnoozeSelected() {
         List<ObsidianTask> tasks = selectedTasks();
         if (tasks.isEmpty()) {
@@ -3248,7 +3484,7 @@ public final class MainActivity extends Activity {
         if (recordResult != null && recordResult.hasFailures()) {
             message += ", счетчик записан не полностью";
         }
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        showSnackbar(message, null, null);
     }
 
     private void confirmBulkDeleteSelected() {
@@ -3300,7 +3536,7 @@ public final class MainActivity extends Activity {
         }
         refreshTopAppBar();
         readAndRenderNote();
-        Toast.makeText(this, formatBulkResult(result, successAction), Toast.LENGTH_LONG).show();
+        showSnackbar(formatBulkResult(result, successAction), null, null);
     }
 
     private String formatBulkResult(NoteStore.BulkEditResult result, String successAction) {
@@ -3327,7 +3563,16 @@ public final class MainActivity extends Activity {
             NoteChangeMonitor.syncNow(this, true);
             readAndRenderNote();
         }
-        Toast.makeText(this, result.getMessage(), Toast.LENGTH_LONG).show();
+        showSnackbar(result.getMessage(), null, null);
+    }
+
+    private void unmarkTaskDone(ObsidianTask task) {
+        TaskEditResult result = NoteStore.unmarkTaskDone(this, task.getTaskKey());
+        if (result.isUpdated()) {
+            NoteChangeMonitor.syncNow(this, true);
+            readAndRenderNote();
+        }
+        showSnackbar(result.isUpdated() ? "Выполнение снято" : result.getMessage(), null, null);
     }
 
     private void snoozeTask(ObsidianTask task) {
@@ -3344,7 +3589,7 @@ public final class MainActivity extends Activity {
         if (ActionPreferences.shouldRecordSnoozeCount(this)) {
             NoteStore.incrementSnoozeCount(this, task.getTaskKey());
         }
-        Toast.makeText(this, "Уведомление отложено", Toast.LENGTH_SHORT).show();
+        showSnackbar("Уведомление отложено", null, null);
         readAndRenderNote();
     }
 
@@ -3355,7 +3600,20 @@ public final class MainActivity extends Activity {
             NoteChangeMonitor.syncNow(this, true);
             readAndRenderNote();
         }
-        Toast.makeText(this, result.isUpdated() ? "Уведомление пропущено" : result.getMessage(), Toast.LENGTH_LONG).show();
+        if (result.isUpdated()) {
+            showSnackbar("Задача пропущена", "Отменить", () -> unskipTask(task));
+        } else {
+            showSnackbar(result.getMessage(), null, null);
+        }
+    }
+
+    private void unskipTask(ObsidianTask task) {
+        TaskEditResult result = NoteStore.unmarkTaskSkipped(this, task.getTaskKey());
+        if (result.isUpdated()) {
+            NoteChangeMonitor.syncNow(this, true);
+            readAndRenderNote();
+        }
+        showSnackbar(result.isUpdated() ? "Пропуск отменен" : result.getMessage(), null, null);
     }
 
     private void deleteTask(ObsidianTask task) {
@@ -3365,7 +3623,7 @@ public final class MainActivity extends Activity {
             NoteChangeMonitor.syncNow(this, true);
             readAndRenderNote();
         }
-        Toast.makeText(this, result.getMessage(), Toast.LENGTH_LONG).show();
+        showSnackbar(result.getMessage(), null, null);
     }
 
     private void openNoteForTask(ObsidianTask task) {
@@ -3415,7 +3673,7 @@ public final class MainActivity extends Activity {
 
     private String formatMeta(ObsidianTask task) {
         StringBuilder builder = new StringBuilder();
-        builder.append(formatStatus(task.getStatus(LocalDateTime.now())));
+        builder.append(formatStatus(taskStatus(task)));
         if (!task.getSourceName().isEmpty()) {
             builder.append(" · ").append(task.getSourceName());
         }

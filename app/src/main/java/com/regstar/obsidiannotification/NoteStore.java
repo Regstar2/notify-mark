@@ -37,6 +37,8 @@ public final class NoteStore {
     private static final String KEY_SOURCES = "sources";
     private static final Pattern ACTIVE_TASK_MARKER =
             Pattern.compile("^(\\s*[-*+]\\s+\\[)[ xX](\\].*)$");
+    private static final Pattern DONE_TASK_MARKER =
+            Pattern.compile("^(\\s*[-*+]\\s+\\[)[xX](\\].*)$");
     private static final Pattern NON_CHECKBOX_BULLET_MARKER =
             Pattern.compile("^(\\s*[-*+]\\s+)(?!\\[[ xX]\\]\\s+)(.+)$");
     private static final Pattern SNOOZED_COUNT =
@@ -398,12 +400,36 @@ public final class NoteStore {
         return editActiveTaskLine(context, taskKey, NoteStore::markDoneLine);
     }
 
+    public static TaskEditResult unmarkTaskDone(Context context, String taskKey) {
+        return editTaskLine(
+                context,
+                taskKey,
+                true,
+                line -> {
+                    String updatedLine = unmarkDoneLine(line);
+                    return updatedLine == null ? null : TaskLineMutation.replace(updatedLine);
+                }
+        );
+    }
+
     public static TaskEditResult incrementSnoozeCount(Context context, String taskKey) {
         return editActiveTaskLine(context, taskKey, NoteStore::incrementSnoozedMarker);
     }
 
     public static TaskEditResult markTaskSkipped(Context context, String taskKey) {
         return editActiveTaskLine(context, taskKey, NoteStore::appendSkippedMarker);
+    }
+
+    public static TaskEditResult unmarkTaskSkipped(Context context, String taskKey) {
+        return editTaskLine(
+                context,
+                taskKey,
+                true,
+                line -> {
+                    String updatedLine = removeSkippedMarker(line);
+                    return updatedLine == null ? null : TaskLineMutation.replace(updatedLine);
+                }
+        );
     }
 
     public static NoteDocument findDefaultWriteDocument(Context context) throws IOException {
@@ -524,6 +550,17 @@ public final class NoteStore {
                     return updatedLine == null ? null : TaskLineMutation.replace(updatedLine);
                 },
                 "Не удалось массово отметить markdown-задачи выполненными"
+        );
+    }
+
+    public static BulkEditResult markTasksSkipped(Context context, List<String> taskKeys) {
+        return editTaskLinesBulk(
+                context,
+                taskKeys,
+                false,
+                false,
+                line -> TaskLineMutation.replace(appendSkippedMarker(line)),
+                "Не удалось массово пропустить markdown-задачи"
         );
     }
 
@@ -840,12 +877,33 @@ public final class NoteStore {
         return trimmed.isEmpty() ? null : "- [x] " + trimmed;
     }
 
+    private static String unmarkDoneLine(String line) {
+        if (line == null) {
+            return null;
+        }
+        Matcher matcher = DONE_TASK_MARKER.matcher(line);
+        if (!matcher.find()) {
+            return null;
+        }
+        return matcher.group(1) + " " + matcher.group(2);
+    }
+
     private static String appendSkippedMarker(String line) {
         String safeLine = line == null ? "" : line.trim();
         if (safeLine.isEmpty() || SKIPPED_MARKER.matcher(line).find()) {
             return line;
         }
         return line + " @skipped";
+    }
+
+    private static String removeSkippedMarker(String line) {
+        if (line == null || !SKIPPED_MARKER.matcher(line).find()) {
+            return null;
+        }
+        String updated = SKIPPED_MARKER.matcher(line).replaceAll("");
+        updated = updated.replaceAll("(?<=\\S)[ \\t]{2,}(?=\\S)", " ");
+        updated = updated.replaceAll("[ \\t]+$", "");
+        return updated.equals(line) ? null : updated;
     }
 
     private static String joinLines(String[] lines) {
