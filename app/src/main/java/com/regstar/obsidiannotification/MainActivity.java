@@ -50,8 +50,9 @@ import java.util.Set;
 public final class MainActivity extends Activity {
     private static final int SECTION_TASKS = 0;
     private static final int SECTION_CALENDAR = 1;
-    private static final int CALENDAR_MODE_MONTH = 0;
-    private static final int CALENDAR_MODE_WEEK = 1;
+    private static final int CALENDAR_MODE_WEEK = 0;
+    private static final int CALENDAR_MODE_MONTH = 1;
+    private static final int CALENDAR_MODE_YEAR = 2;
     private static final int REQUEST_OPEN_NOTE = 1001;
     private static final int REQUEST_NOTIFICATIONS = 1002;
     private static final int REQUEST_EDIT_TASK = 1003;
@@ -66,6 +67,8 @@ public final class MainActivity extends Activity {
             DateTimeFormatter.ofPattern("d MMMM, EEEE", new Locale("ru"));
     private static final DateTimeFormatter CALENDAR_WEEK_DAY_FORMAT =
             DateTimeFormatter.ofPattern("d MMMM", new Locale("ru"));
+    private static final DateTimeFormatter CALENDAR_MONTH_NAME_FORMAT =
+            DateTimeFormatter.ofPattern("LLLL", new Locale("ru"));
 
     private Uri noteUri;
     private TextView statusText;
@@ -528,7 +531,7 @@ public final class MainActivity extends Activity {
         appBar.addView(menuButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         TextView title = createText(selectedSection == SECTION_CALENDAR ? "Календарь" : "Задачи",
-                21,
+                selectedSection == SECTION_TASKS ? 19 : 21,
                 R.color.text_primary,
                 true);
         if (selectedSection == SECTION_TASKS) {
@@ -820,29 +823,43 @@ public final class MainActivity extends Activity {
 
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(16), dp(20), dp(16), dp(16));
-        panel.setBackgroundColor(getColor(R.color.card_background));
+        panel.setPadding(dp(14), dp(18), dp(14), dp(14));
+        panel.setBackground(createRightRoundedBackground(getColor(R.color.card_background), 24));
         panel.setTranslationX(-drawerWidth);
 
-        TextView appName = createText("ObsidianNotification", 18, R.color.text_primary, true);
-        panel.addView(appName, fullWidth());
+        panel.addView(createDrawerHeader(), fullWidthWithBottomMargin());
 
-        TextView subtitle = createText("Меню приложения", 13, R.color.text_secondary, false);
-        panel.addView(subtitle, fullWidthWithTopMargin(dp(4)));
-
-        View divider = new View(this);
-        divider.setBackgroundColor(getColor(R.color.card_stroke));
-        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(1)
-        );
-        dividerParams.setMargins(0, dp(16), 0, dp(8));
-        panel.addView(divider, dividerParams);
-
+        panel.addView(createDrawerItem(
+                R.drawable.ic_task_list,
+                "Задачи",
+                "",
+                selectedSection == SECTION_TASKS,
+                () -> {
+                    closeDrawer();
+                    if (selectedSection != SECTION_TASKS) {
+                        selectedSection = SECTION_TASKS;
+                        rebuildAndRenderCurrentSection();
+                    }
+                }
+        ));
+        panel.addView(createDrawerItem(
+                R.drawable.ic_calendar,
+                "Календарь",
+                "",
+                selectedSection == SECTION_CALENDAR,
+                () -> {
+                    closeDrawer();
+                    if (selectedSection != SECTION_CALENDAR) {
+                        selectedSection = SECTION_CALENDAR;
+                        rebuildAndRenderCurrentSection();
+                    }
+                }
+        ));
         panel.addView(createDrawerItem(
                 R.drawable.ic_file,
                 "Источники",
                 "Файлы и папки с задачами",
+                false,
                 () -> {
                     closeDrawer();
                     openSourceManagement();
@@ -852,29 +869,30 @@ public final class MainActivity extends Activity {
                 R.drawable.ic_settings,
                 "Настройки",
                 "Формат, уведомления, внешний вид",
+                false,
                 () -> {
                     closeDrawer();
                     openSettings();
                 }
         ));
         panel.addView(createDrawerItem(
-                R.drawable.ic_refresh,
-                "Обновить",
-                "Перечитать markdown сейчас",
-                () -> {
-                    closeDrawer();
-                    readAndRenderNote();
-                }
-        ));
-        panel.addView(createDrawerItem(
                 R.drawable.ic_info,
                 "О приложении",
-                "ObsidianNotification",
+                "",
+                false,
                 () -> {
                     closeDrawer();
                     showAboutDialog();
                 }
         ));
+
+        View spacer = new View(this);
+        panel.addView(spacer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1
+        ));
+        panel.addView(createDrawerFooter(), fullWidth());
 
         drawerPanel = panel;
         FrameLayout.LayoutParams panelParams = new FrameLayout.LayoutParams(
@@ -886,33 +904,90 @@ public final class MainActivity extends Activity {
         return drawerLayer;
     }
 
+    private LinearLayout createDrawerHeader() {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(8), dp(6), dp(8), dp(8));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_launcher_original);
+        header.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        TextView title = createText("ObsidianNotification", 17, R.color.text_primary, true);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        texts.addView(title, fullWidth());
+
+        TextView subtitle = createText("Локальные markdown-напоминания", 12, R.color.text_secondary, false);
+        subtitle.setSingleLine(true);
+        subtitle.setEllipsize(TextUtils.TruncateAt.END);
+        texts.addView(subtitle, fullWidthWithTopMargin(dp(2)));
+
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        textParams.setMargins(dp(12), 0, 0, 0);
+        header.addView(texts, textParams);
+        return header;
+    }
+
+    private TextView createDrawerFooter() {
+        TextView footer = createText("v" + appVersionName(), 12, R.color.text_secondary, false);
+        footer.setGravity(android.view.Gravity.CENTER);
+        footer.setPadding(0, dp(10), 0, dp(2));
+        return footer;
+    }
+
+    private String appVersionName() {
+        try {
+            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception exception) {
+            return "1.1.0";
+        }
+    }
+
     private LinearLayout createDrawerItem(
             int iconRes,
             String title,
             String subtitle,
+            boolean selected,
             Runnable action
     ) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
         row.setClickable(true);
-        row.setPadding(dp(10), dp(10), dp(10), dp(10));
-        row.setBackground(createRoundedBackground(Color.TRANSPARENT, 0, 8));
+        row.setPadding(dp(12), dp(9), dp(12), dp(9));
+        row.setBackground(createRoundedBackground(
+                getColor(selected ? R.color.chip_selected_background : android.R.color.transparent),
+                0,
+                24
+        ));
         row.setOnClickListener(view -> action.run());
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconRes);
-        icon.setColorFilter(getColor(R.color.text_secondary));
+        icon.setColorFilter(getColor(selected ? R.color.chip_selected_text : R.color.text_secondary));
         row.addView(icon, new LinearLayout.LayoutParams(dp(24), dp(24)));
 
         LinearLayout textColumn = new LinearLayout(this);
         textColumn.setOrientation(LinearLayout.VERTICAL);
-        TextView titleView = createText(title, 15, R.color.text_primary, true);
-        TextView subtitleView = createText(subtitle, 12, R.color.text_secondary, false);
-        subtitleView.setSingleLine(true);
-        subtitleView.setEllipsize(TextUtils.TruncateAt.END);
+        TextView titleView = createText(title,
+                15,
+                selected ? R.color.chip_selected_text : R.color.text_primary,
+                selected);
         textColumn.addView(titleView, fullWidth());
-        textColumn.addView(subtitleView, fullWidthWithTopMargin(dp(2)));
+        if (subtitle != null && !subtitle.trim().isEmpty()) {
+            TextView subtitleView = createText(subtitle, 12, R.color.text_secondary, false);
+            subtitleView.setSingleLine(true);
+            subtitleView.setEllipsize(TextUtils.TruncateAt.END);
+            textColumn.addView(subtitleView, fullWidthWithTopMargin(dp(2)));
+        }
 
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
                 0,
@@ -924,9 +999,9 @@ public final class MainActivity extends Activity {
 
         LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
+                subtitle == null || subtitle.trim().isEmpty() ? dp(50) : ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        rowParams.setMargins(0, dp(2), 0, dp(2));
+        rowParams.setMargins(0, dp(2), 0, dp(4));
         row.setLayoutParams(rowParams);
         return row;
     }
@@ -1173,6 +1248,130 @@ public final class MainActivity extends Activity {
         sourceErrorText.setVisibility(View.GONE);
         card.addView(sourceErrorText, fullWidthWithTopMargin(dp(8)));
         statusText = sourceMetaText;
+        return card;
+    }
+
+    private LinearLayout createCalendarYearGrid(List<ObsidianTask> visibleTasks) {
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+
+        Map<YearMonth, CalendarTaskSummary> monthSummaries = summarizeTasksByMonth(visibleTasks);
+        int year = displayedCalendarMonth.getYear();
+        for (int rowIndex = 0; rowIndex < 6; rowIndex++) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int column = 0; column < 2; column++) {
+                int month = rowIndex * 2 + column + 1;
+                YearMonth yearMonth = YearMonth.of(year, month);
+                CalendarTaskSummary summary = monthSummaries.get(yearMonth);
+                if (summary == null) {
+                    summary = new CalendarTaskSummary();
+                }
+
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                        0,
+                        dp(164),
+                        1
+                );
+                if (column > 0) {
+                    params.setMargins(dp(8), 0, 0, 0);
+                }
+                row.addView(createYearMonthCard(yearMonth, summary), params);
+            }
+
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            if (rowIndex > 0) {
+                rowParams.setMargins(0, dp(8), 0, 0);
+            }
+            grid.addView(row, rowParams);
+        }
+        return grid;
+    }
+
+    private LinearLayout createYearMonthCard(YearMonth month, CalendarTaskSummary summary) {
+        boolean currentMonth = YearMonth.now().equals(month);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setClickable(true);
+        card.setBackground(createRoundedBackground(
+                getColor(currentMonth ? R.color.calendar_today_background : R.color.card_background),
+                currentMonth ? getColor(R.color.chip_selected_stroke) : getColor(R.color.card_stroke),
+                8
+        ));
+        card.setOnClickListener(view -> openMonthFromYear(month));
+
+        TextView title = createText(capitalize(CALENDAR_MONTH_NAME_FORMAT.format(month.atDay(1))),
+                15,
+                R.color.text_primary,
+                true);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        card.addView(title, fullWidth());
+
+        TextView total = createText(summary.totalTaskCount + " " + taskCountWord(summary.totalTaskCount),
+                13,
+                summary.totalTaskCount > 0 ? R.color.text_primary : R.color.text_secondary,
+                summary.totalTaskCount > 0);
+        card.addView(total, fullWidthWithTopMargin(dp(5)));
+
+        card.addView(createYearStatusLine("выполнено", summary.completedCount,
+                R.color.calendar_indicator_completed), fullWidthWithTopMargin(dp(8)));
+        card.addView(createYearStatusLine("активные", summary.activeCount,
+                R.color.calendar_indicator_active), fullWidthWithTopMargin(dp(4)));
+        card.addView(createYearStatusLine("пропущено", summary.skippedCount,
+                R.color.calendar_indicator_skipped), fullWidthWithTopMargin(dp(4)));
+        card.addView(createYearStatusLine("просрочено", summary.overdueCount,
+                R.color.calendar_indicator_overdue), fullWidthWithTopMargin(dp(4)));
+        return card;
+    }
+
+    private LinearLayout createYearStatusLine(String label, int count, int colorRes) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        View dot = new View(this);
+        dot.setBackground(createCircleBackground(getColor(count > 0
+                ? colorRes
+                : R.color.calendar_indicator_inactive)));
+        row.addView(dot, new LinearLayout.LayoutParams(dp(7), dp(7)));
+
+        TextView text = createText(count + " " + label,
+                12,
+                count > 0 ? R.color.text_primary : R.color.text_secondary,
+                false);
+        text.setSingleLine(true);
+        text.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        textParams.setMargins(dp(7), 0, 0, 0);
+        row.addView(text, textParams);
+        return row;
+    }
+
+    private LinearLayout createCalendarYearEmptyState() {
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+
+        TextView title = createText("В этом году нет задач", 15, R.color.text_primary, true);
+        title.setGravity(android.view.Gravity.CENTER);
+        card.addView(title, fullWidth());
+
+        TextView body = createText("Попробуйте сменить группу или создать новую задачу",
+                13,
+                R.color.text_secondary,
+                false);
+        body.setGravity(android.view.Gravity.CENTER);
+        body.setPadding(0, dp(5), 0, 0);
+        card.addView(body, fullWidth());
         return card;
     }
 
@@ -1519,31 +1718,45 @@ public final class MainActivity extends Activity {
         taskList.removeAllViews();
         showTaskSourceNames = hasMultipleSources(tasks);
 
-        List<ObsidianTask> visibleTasks = filterVisibleTasks(tasks);
+        List<ObsidianTask> visibleTasks = calendarMode == CALENDAR_MODE_YEAR
+                ? filterCalendarContextTasks(tasks)
+                : filterVisibleTasks(tasks);
         Map<LocalDate, List<ObsidianTask>> tasksByDate = tasksByDate(visibleTasks);
 
         taskList.addView(createCalendarModeToggle(), fullWidthWithBottomMargin());
         taskList.addView(createCalendarPeriodHeader(tasksByDate), fullWidthWithBottomMargin());
-        if (calendarMode == CALENDAR_MODE_WEEK) {
+        if (calendarMode == CALENDAR_MODE_YEAR) {
+            taskList.addView(createCalendarYearGrid(visibleTasks), fullWidthWithBottomMargin());
+            if (periodTaskCount(tasksByDate) == 0) {
+                taskList.addView(createCalendarYearEmptyState(), fullWidthWithBottomMargin());
+            }
+        } else if (calendarMode == CALENDAR_MODE_WEEK) {
             taskList.addView(createCalendarWeekGrid(tasksByDate), fullWidthWithBottomMargin());
+            taskList.addView(createSelectedDayTaskList(tasksByDate), fullWidthWithBottomMargin());
         } else {
             taskList.addView(createCalendarGrid(tasksByDate), fullWidthWithBottomMargin());
+            taskList.addView(createSelectedDayTaskList(tasksByDate), fullWidthWithBottomMargin());
         }
-        taskList.addView(createSelectedDayTaskList(tasksByDate), fullWidthWithBottomMargin());
     }
 
     private LinearLayout createCalendarModeToggle() {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        row.addView(createCalendarModeButton("Месяц", CALENDAR_MODE_MONTH), new LinearLayout.LayoutParams(
+
+        row.addView(createCalendarModeButton("Неделя", CALENDAR_MODE_WEEK), new LinearLayout.LayoutParams(
                 0,
                 dp(38),
                 1
         ));
-        LinearLayout.LayoutParams weekParams = new LinearLayout.LayoutParams(0, dp(38), 1);
-        weekParams.setMargins(dp(8), 0, 0, 0);
-        row.addView(createCalendarModeButton("Неделя", CALENDAR_MODE_WEEK), weekParams);
+
+        LinearLayout.LayoutParams monthParams = new LinearLayout.LayoutParams(0, dp(38), 1);
+        monthParams.setMargins(dp(7), 0, 0, 0);
+        row.addView(createCalendarModeButton("Месяц", CALENDAR_MODE_MONTH), monthParams);
+
+        LinearLayout.LayoutParams yearParams = new LinearLayout.LayoutParams(0, dp(38), 1);
+        yearParams.setMargins(dp(7), 0, 0, 0);
+        row.addView(createCalendarModeButton("Год", CALENDAR_MODE_YEAR), yearParams);
         return row;
     }
 
@@ -1578,9 +1791,11 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        TextView previous = createMonthNavButton("‹", calendarMode == CALENDAR_MODE_WEEK
-                ? "Предыдущая неделя"
-                : "Предыдущий месяц");
+        TextView previous = createMonthNavButton("‹", calendarMode == CALENDAR_MODE_YEAR
+                ? "Предыдущий год"
+                : calendarMode == CALENDAR_MODE_WEEK
+                        ? "Предыдущая неделя"
+                        : "Предыдущий месяц");
         previous.setOnClickListener(view -> moveCalendarPeriod(-1));
         row.addView(previous, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
@@ -1595,15 +1810,21 @@ public final class MainActivity extends Activity {
                 1
         ));
 
-        TextView next = createMonthNavButton("›", calendarMode == CALENDAR_MODE_WEEK
-                ? "Следующая неделя"
-                : "Следующий месяц");
+        TextView next = createMonthNavButton("›", calendarMode == CALENDAR_MODE_YEAR
+                ? "Следующий год"
+                : calendarMode == CALENDAR_MODE_WEEK
+                        ? "Следующая неделя"
+                        : "Следующий месяц");
         next.setOnClickListener(view -> moveCalendarPeriod(1));
         row.addView(next, new LinearLayout.LayoutParams(dp(42), dp(42)));
         card.addView(row, fullWidth());
 
         int taskCount = periodTaskCount(tasksByDate);
-        String periodLabel = calendarMode == CALENDAR_MODE_WEEK ? "на этой неделе" : "в этом месяце";
+        String periodLabel = calendarMode == CALENDAR_MODE_YEAR
+                ? "в этом году"
+                : calendarMode == CALENDAR_MODE_WEEK
+                        ? "на этой неделе"
+                        : "в этом месяце";
         TextView meta = createText(taskCount == 0
                         ? "Нет задач по текущим фильтрам"
                         : taskCount + " " + taskCountWord(taskCount) + " " + periodLabel,
@@ -1697,7 +1918,8 @@ public final class MainActivity extends Activity {
     }
 
     private View createDayCell(LocalDate date, Map<LocalDate, List<ObsidianTask>> tasksByDate) {
-        boolean inDisplayedMonth = YearMonth.from(date).equals(displayedCalendarMonth);
+        boolean inDisplayedMonth = calendarMode == CALENDAR_MODE_WEEK
+                || YearMonth.from(date).equals(displayedCalendarMonth);
         boolean selected = date.equals(selectedCalendarDate);
         boolean today = date.equals(LocalDate.now());
 
@@ -1713,7 +1935,7 @@ public final class MainActivity extends Activity {
         ));
         cell.setOnClickListener(view -> selectCalendarDate(date));
 
-        CalendarDaySummary summary = summarizeCalendarDay(tasksByDate.get(date));
+        CalendarTaskSummary summary = summarizeCalendarDay(tasksByDate.get(date));
         TextView dayNumber = createText(String.valueOf(date.getDayOfMonth()),
                 14,
                 inDisplayedMonth || selected ? R.color.text_primary : R.color.text_secondary,
@@ -1721,8 +1943,7 @@ public final class MainActivity extends Activity {
         dayNumber.setGravity(android.view.Gravity.CENTER);
         cell.addView(dayNumber, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                0,
-                1
+                dp(24)
         ));
 
         TextView count = createText(String.valueOf(summary.totalTaskCount),
@@ -1732,17 +1953,17 @@ public final class MainActivity extends Activity {
         count.setGravity(android.view.Gravity.CENTER);
         cell.addView(count, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(14)
+                dp(12)
         ));
 
         cell.addView(createDayStatusIndicators(summary), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(12)
+                dp(10)
         ));
         return cell;
     }
 
-    private LinearLayout createDayStatusIndicators(CalendarDaySummary summary) {
+    private LinearLayout createDayStatusIndicators(CalendarTaskSummary summary) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER);
@@ -1905,6 +2126,17 @@ public final class MainActivity extends Activity {
     }
 
     private void moveCalendarPeriod(int delta) {
+        if (calendarMode == CALENDAR_MODE_YEAR) {
+            displayedCalendarMonth = displayedCalendarMonth.plusYears(delta);
+            LocalDate selected = selectedCalendarDate == null ? LocalDate.now() : selectedCalendarDate;
+            YearMonth selectedMonth = YearMonth.of(displayedCalendarMonth.getYear(), selected.getMonthValue());
+            selectedCalendarDate = selectedMonth.atDay(Math.min(
+                    selected.getDayOfMonth(),
+                    selectedMonth.lengthOfMonth()
+            ));
+            renderCalendar(latestTasks);
+            return;
+        }
         if (calendarMode == CALENDAR_MODE_WEEK) {
             LocalDate selected = selectedCalendarDate == null ? LocalDate.now() : selectedCalendarDate;
             selectedCalendarDate = selected.plusWeeks(delta);
@@ -1913,6 +2145,13 @@ public final class MainActivity extends Activity {
             return;
         }
         moveCalendarMonth(delta);
+    }
+
+    private void openMonthFromYear(YearMonth month) {
+        calendarMode = CALENDAR_MODE_MONTH;
+        displayedCalendarMonth = month;
+        selectedCalendarDate = bestCalendarSelectionForMonth(month, filterVisibleTasks(latestTasks));
+        renderCalendar(latestTasks);
     }
 
     private LocalDate bestCalendarSelectionForMonth(YearMonth month, List<ObsidianTask> visibleTasks) {
@@ -1946,65 +2185,57 @@ public final class MainActivity extends Activity {
         return first.getTitle().compareToIgnoreCase(second.getTitle());
     }
 
-    private TaskStatus aggregateDayStatus(List<ObsidianTask> tasks) {
-        boolean hasOverdue = false;
-        boolean hasActive = false;
-        boolean hasSkipped = false;
-        boolean allCompleted = !tasks.isEmpty();
-        LocalDateTime now = LocalDateTime.now();
-        for (ObsidianTask task : tasks) {
-            TaskStatus status = task.getStatus(now);
-            if (status == TaskStatus.OVERDUE) {
-                hasOverdue = true;
-            }
-            if (status == TaskStatus.WAITING || status == TaskStatus.OVERDUE) {
-                hasActive = true;
-            }
-            if (status == TaskStatus.SKIPPED) {
-                hasSkipped = true;
-            }
-            if (status != TaskStatus.COMPLETED) {
-                allCompleted = false;
-            }
-        }
-        if (hasOverdue) {
-            return TaskStatus.OVERDUE;
-        }
-        if (hasActive) {
-            return TaskStatus.WAITING;
-        }
-        if (allCompleted) {
-            return TaskStatus.COMPLETED;
-        }
-        if (hasSkipped) {
-            return TaskStatus.SKIPPED;
-        }
-        return TaskStatus.WAITING;
-    }
-
-    private CalendarDaySummary summarizeCalendarDay(List<ObsidianTask> tasks) {
-        CalendarDaySummary summary = new CalendarDaySummary();
+    private CalendarTaskSummary summarizeCalendarDay(List<ObsidianTask> tasks) {
+        CalendarTaskSummary summary = new CalendarTaskSummary();
         if (tasks == null || tasks.isEmpty()) {
             return summary;
         }
-        LocalDateTime now = LocalDateTime.now();
         for (ObsidianTask task : tasks) {
-            summary.totalTaskCount++;
-            TaskStatus status = task.getStatus(now);
-            if (status == TaskStatus.COMPLETED) {
-                summary.completedCount++;
-            } else if (status == TaskStatus.SKIPPED) {
-                summary.skippedCount++;
-            } else if (status == TaskStatus.OVERDUE) {
-                summary.overdueCount++;
-            } else {
-                summary.activeCount++;
-            }
+            addTaskToSummary(summary, task);
         }
         return summary;
     }
 
+    private Map<YearMonth, CalendarTaskSummary> summarizeTasksByMonth(List<ObsidianTask> tasks) {
+        Map<YearMonth, CalendarTaskSummary> summaries = new HashMap<>();
+        int displayedYear = displayedCalendarMonth.getYear();
+        for (ObsidianTask task : tasks) {
+            if (task.getReminderAt() == null) {
+                continue;
+            }
+            YearMonth month = YearMonth.from(task.getReminderAt());
+            if (month.getYear() != displayedYear) {
+                continue;
+            }
+            CalendarTaskSummary summary = summaries.get(month);
+            if (summary == null) {
+                summary = new CalendarTaskSummary();
+                summaries.put(month, summary);
+            }
+            addTaskToSummary(summary, task);
+        }
+        return summaries;
+    }
+
+    private void addTaskToSummary(CalendarTaskSummary summary, ObsidianTask task) {
+        LocalDateTime now = LocalDateTime.now();
+        summary.totalTaskCount++;
+        TaskStatus status = task.getStatus(now);
+        if (status == TaskStatus.COMPLETED) {
+            summary.completedCount++;
+        } else if (status == TaskStatus.SKIPPED) {
+            summary.skippedCount++;
+        } else if (status == TaskStatus.OVERDUE) {
+            summary.overdueCount++;
+        } else {
+            summary.activeCount++;
+        }
+    }
+
     private String calendarPeriodTitle() {
+        if (calendarMode == CALENDAR_MODE_YEAR) {
+            return String.valueOf(displayedCalendarMonth.getYear());
+        }
         if (calendarMode == CALENDAR_MODE_WEEK) {
             LocalDate start = currentWeekStart();
             LocalDate end = start.plusDays(6);
@@ -2015,6 +2246,15 @@ public final class MainActivity extends Activity {
 
     private int periodTaskCount(Map<LocalDate, List<ObsidianTask>> tasksByDate) {
         int count = 0;
+        if (calendarMode == CALENDAR_MODE_YEAR) {
+            int year = displayedCalendarMonth.getYear();
+            for (Map.Entry<LocalDate, List<ObsidianTask>> entry : tasksByDate.entrySet()) {
+                if (entry.getKey().getYear() == year) {
+                    count += entry.getValue().size();
+                }
+            }
+            return count;
+        }
         if (calendarMode == CALENDAR_MODE_WEEK) {
             LocalDate start = currentWeekStart();
             LocalDate end = start.plusDays(6);
@@ -2095,7 +2335,7 @@ public final class MainActivity extends Activity {
         return "задач";
     }
 
-    private static final class CalendarDaySummary {
+    private static final class CalendarTaskSummary {
         private int totalTaskCount;
         private int completedCount;
         private int activeCount;
@@ -2135,6 +2375,25 @@ public final class MainActivity extends Activity {
             } else if (UserPreferences.FILTER_SKIPPED.equals(filter) && status == TaskStatus.SKIPPED) {
                 visibleTasks.add(task);
             }
+        }
+        return visibleTasks;
+    }
+
+    private List<ObsidianTask> filterCalendarContextTasks(List<ObsidianTask> tasks) {
+        String selectedGroup = UserPreferences.getTaskGroup(this);
+        String privateMarker = UserPreferences.getPrivateMarker(this);
+        ArrayList<ObsidianTask> visibleTasks = new ArrayList<>();
+        for (ObsidianTask task : tasks) {
+            if (selectedGroup != null
+                    && !selectedGroup.isEmpty()
+                    && !selectedGroup.equals(taskGroupLabel(task))) {
+                continue;
+            }
+            if ((selectedGroup == null || selectedGroup.isEmpty())
+                    && isPrivateTask(task, privateMarker)) {
+                continue;
+            }
+            visibleTasks.add(task);
         }
         return visibleTasks;
     }
@@ -3107,6 +3366,19 @@ public final class MainActivity extends Activity {
         if (strokeColor != 0) {
             drawable.setStroke(dp(1), strokeColor);
         }
+        return drawable;
+    }
+
+    private GradientDrawable createRightRoundedBackground(int color, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        float radius = dp(radiusDp);
+        drawable.setCornerRadii(new float[]{
+                0f, 0f,
+                radius, radius,
+                radius, radius,
+                0f, 0f
+        });
         return drawable;
     }
 
