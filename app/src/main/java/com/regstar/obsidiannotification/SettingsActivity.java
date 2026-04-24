@@ -46,6 +46,7 @@ public final class SettingsActivity extends Activity {
     private EditText priorityKeywordInput;
     private EditText groupKeywordInput;
     private EditText snoozeMinutesInput;
+    private EditText repeatUntilDoneMinutesInput;
     private EditText overdueGraceMinutesInput;
     private EditText includePatternsInput;
     private EditText excludePatternsInput;
@@ -612,6 +613,13 @@ public final class SettingsActivity extends Activity {
         );
         snoozeMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
 
+        repeatUntilDoneMinutesInput = addKeywordInput(
+                root,
+                "РџРѕРІС‚РѕСЂ РґРѕ РІС‹РїРѕР»РЅРµРЅРёСЏ, РјРёРЅСѓС‚",
+                String.valueOf(ActionPreferences.getRepeatUntilDoneMinutes(this))
+        );
+        repeatUntilDoneMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+
         overdueGraceMinutesInput = addKeywordInput(
                 root,
                 "Считать просроченной через минут",
@@ -787,10 +795,19 @@ public final class SettingsActivity extends Activity {
             overdueGraceMinutes = ActionPreferences.getOverdueGraceMinutes(this);
         }
 
+        int repeatUntilDoneMinutes;
+        try {
+            repeatUntilDoneMinutes = Integer.parseInt(repeatUntilDoneMinutesInput.getText().toString().trim());
+        } catch (NumberFormatException exception) {
+            repeatUntilDoneMinutes = ActionPreferences.getRepeatUntilDoneMinutes(this);
+        }
+
         ActionPreferences.setSnoozeMinutes(this, snoozeMinutes);
+        ActionPreferences.setRepeatUntilDoneMinutes(this, repeatUntilDoneMinutes);
         ActionPreferences.setOverdueGraceMinutes(this, overdueGraceMinutes);
         ActionPreferences.setRecordSnoozeCount(this, recordSnoozeCountCheckbox.isChecked());
         snoozeMinutesInput.setText(String.valueOf(ActionPreferences.getSnoozeMinutes(this)));
+        repeatUntilDoneMinutesInput.setText(String.valueOf(ActionPreferences.getRepeatUntilDoneMinutes(this)));
         overdueGraceMinutesInput.setText(String.valueOf(ActionPreferences.getOverdueGraceMinutes(this)));
         Toast.makeText(this, "Действия уведомления сохранены", Toast.LENGTH_SHORT).show();
         updateStatus();

@@ -20,7 +20,9 @@ public enum TaskStatus {
         if (task.isSkipped()) {
             return SKIPPED;
         }
-        Duration safeGracePeriod = overdueGracePeriod == null ? Duration.ZERO : overdueGracePeriod;
+        Duration safeGracePeriod = task.getOverdueGracePeriod() != null
+                ? task.getOverdueGracePeriod()
+                : (overdueGracePeriod == null ? Duration.ZERO : overdueGracePeriod);
         LocalDateTime overdueAt = task.getReminderAt() == null
                 ? null
                 : task.getReminderAt().plus(safeGracePeriod);

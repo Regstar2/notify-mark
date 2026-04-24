@@ -108,14 +108,14 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
                 intent.getStringExtra(ReminderScheduler.EXTRA_REPEAT_MODE)
         );
 
-        int snoozeMinutes = ActionPreferences.getSnoozeMinutes(context);
+        Duration snoozeDuration = resolveSnoozeDuration(context, taskKey);
         ReminderScheduler.scheduleSnooze(
                 context,
                 taskKey,
                 notificationId,
                 lineNumber,
                 title,
-                Duration.ofMinutes(snoozeMinutes),
+                snoozeDuration,
                 repeatIntervalMillis,
                 repeatMode
         );
@@ -126,6 +126,23 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
             }
         }
         cancelNotification(context, intent);
+    }
+
+    private Duration resolveSnoozeDuration(Context context, String taskKey) {
+        if (taskKey != null && !taskKey.trim().isEmpty()) {
+            try {
+                NoteStore.TaskDocumentMatch match = NoteStore.findTaskDocument(context, taskKey);
+                if (match != null
+                        && match.getTask() != null
+                        && match.getTask().getSnoozeDuration() != null
+                        && !match.getTask().getSnoozeDuration().isZero()) {
+                    return match.getTask().getSnoozeDuration();
+                }
+            } catch (IOException | RuntimeException exception) {
+                ErrorLog.record(context, "Не удалось определить интервал отложения задачи", exception);
+            }
+        }
+        return Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(context));
     }
 
     private void skip(Context context, Intent intent) {

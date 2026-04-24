@@ -16,6 +16,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class TaskParser {
+    private static final String OVERDUE_GRACE_KEYWORD = "grace";
+    private static final String SNOOZE_KEYWORD = "snooze";
     private static final Pattern TASK =
             Pattern.compile("^\\s*[-*+]\\s+\\[([ xX])\\]\\s+(.+)$");
     private static final Pattern NON_CHECKBOX_BULLET =
@@ -162,7 +164,9 @@ public final class TaskParser {
                     indentLevel,
                     fields.tags,
                     fields.priority,
-                    fields.group
+                    fields.group,
+                    fields.snoozeDuration,
+                    fields.overdueGracePeriod
             );
             tasks.add(task);
             if (parentRecord != null) {
@@ -246,6 +250,8 @@ public final class TaskParser {
         fields.priority = parsePriority(body, format, fields);
         fields.groupExplicit = hasGroupFunction(body, format);
         fields.group = parseGroup(body, format);
+        fields.snoozeDuration = parseSnooze(body, fields);
+        fields.overdueGracePeriod = parseOverdueGrace(body, fields);
         return fields;
     }
 
@@ -381,6 +387,26 @@ public final class TaskParser {
         return parseDuration(matcher.group(1), matcher.group(2));
     }
 
+    private static Duration parseOverdueGrace(String body, ParsedTaskFields fields) {
+        String graceValue = findFunctionValue(body, List.of(OVERDUE_GRACE_KEYWORD));
+        if (graceValue == null) {
+            return null;
+        }
+        Duration grace = parseDurationValueAllowZero(graceValue);
+        fields.overdueGraceFunctionInvalid = grace == null;
+        return grace;
+    }
+
+    private static Duration parseSnooze(String body, ParsedTaskFields fields) {
+        String snoozeValue = findFunctionValue(body, List.of(SNOOZE_KEYWORD));
+        if (snoozeValue == null) {
+            return null;
+        }
+        Duration snooze = parseDurationValue(snoozeValue);
+        fields.snoozeFunctionInvalid = snooze == null;
+        return snooze;
+    }
+
     private static RepeatMode parseRepeatMode(
             String body,
             Duration repeatInterval,
@@ -406,7 +432,20 @@ public final class TaskParser {
         return parseDuration(matcher.group(1), matcher.group(2));
     }
 
+    private static Duration parseDurationValueAllowZero(String rawValue) {
+        String value = rawValue == null ? "" : rawValue.trim();
+        Matcher matcher = DURATION_VALUE.matcher(value);
+        if (!matcher.find()) {
+            return null;
+        }
+        return parseDuration(matcher.group(1), matcher.group(2), true);
+    }
+
     private static Duration parseDuration(String rawAmount, String rawUnit) {
+        return parseDuration(rawAmount, rawUnit, false);
+    }
+
+    private static Duration parseDuration(String rawAmount, String rawUnit, boolean allowZero) {
         long amount;
         try {
             amount = Long.parseLong(rawAmount);
@@ -414,7 +453,7 @@ public final class TaskParser {
             return null;
         }
 
-        if (amount <= 0) {
+        if (amount < 0 || (!allowZero && amount == 0)) {
             return null;
         }
 
@@ -546,6 +585,21 @@ public final class TaskParser {
                             + "(urgent)"
             ));
         }
+
+        if (fields.overdueGraceFunctionInvalid) {
+            errors.add(new TaskParseError(
+                    sourceName,
+                    lineNumber,
+                    "не удалось разобрать @grace(...). Используйте @grace(10m), @grace(1h) или @grace(0m)"
+            ));
+        }
+        if (fields.snoozeFunctionInvalid) {
+            errors.add(new TaskParseError(
+                    sourceName,
+                    lineNumber,
+                    "не удалось разобрать @snooze(...). Используйте @snooze(10m), @snooze(1h) или @snooze(1d)"
+            ));
+        }
     }
 
     private static boolean hasSuspiciousReminderToken(String body, TaskFormatSettings format) {
@@ -581,6 +635,8 @@ public final class TaskParser {
         cleaned = removeFunctions(cleaned, format.tagKeywords());
         cleaned = removeFunctions(cleaned, format.priorityKeywords());
         cleaned = removeFunctions(cleaned, format.groupKeywords());
+        cleaned = removeFunctions(cleaned, List.of(SNOOZE_KEYWORD));
+        cleaned = removeFunctions(cleaned, List.of(OVERDUE_GRACE_KEYWORD));
         cleaned = SNOOZED_COUNT.matcher(cleaned).replaceAll(" ");
         cleaned = SKIPPED_MARKER.matcher(cleaned).replaceAll(" ");
         cleaned = ISO_REMINDER.matcher(cleaned).replaceAll(" ");
@@ -636,7 +692,9 @@ public final class TaskParser {
                 || startsWithFunction(normalized, format.repeatUntilDoneKeywords())
                 || startsWithFunction(normalized, format.tagKeywords())
                 || startsWithFunction(normalized, format.priorityKeywords())
-                || startsWithFunction(normalized, format.groupKeywords());
+                || startsWithFunction(normalized, format.groupKeywords())
+                || startsWithFunction(normalized, List.of(SNOOZE_KEYWORD))
+                || startsWithFunction(normalized, List.of(OVERDUE_GRACE_KEYWORD));
     }
 
     private static boolean startsWithFunction(String token, List<String> keywords) {
@@ -655,11 +713,15 @@ public final class TaskParser {
         private List<String> tags = new ArrayList<>();
         private TaskPriority priority = TaskPriority.NONE;
         private String group = ObsidianTask.DEFAULT_GROUP;
+        private Duration snoozeDuration;
+        private Duration overdueGracePeriod;
         private boolean skipped;
         private boolean groupExplicit;
         private boolean dueFunctionInvalid;
         private boolean repeatFunctionInvalid;
         private boolean priorityFunctionInvalid;
+        private boolean snoozeFunctionInvalid;
+        private boolean overdueGraceFunctionInvalid;
     }
 
     private static final class ParsedTaskRecord {

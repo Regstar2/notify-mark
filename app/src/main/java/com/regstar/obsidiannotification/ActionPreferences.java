@@ -7,10 +7,14 @@ public final class ActionPreferences {
     private static final String KEY_SNOOZE_MINUTES = "snooze_minutes";
     private static final String KEY_RECORD_SNOOZE_COUNT = "record_snooze_count";
     private static final String KEY_OVERDUE_GRACE_MINUTES = "overdue_grace_minutes";
+    private static final String KEY_REPEAT_UNTIL_DONE_MINUTES = "repeat_until_done_minutes";
     private static final int DEFAULT_SNOOZE_MINUTES = 10;
+    private static final int DEFAULT_REPEAT_UNTIL_DONE_MINUTES = 15;
     private static final int DEFAULT_OVERDUE_GRACE_MINUTES = 0;
     private static final int MIN_SNOOZE_MINUTES = 1;
+    private static final int MIN_REPEAT_UNTIL_DONE_MINUTES = 1;
     private static final int MAX_SNOOZE_MINUTES = 24 * 60;
+    private static final int MAX_REPEAT_UNTIL_DONE_MINUTES = 24 * 60;
     private static final int MIN_OVERDUE_GRACE_MINUTES = 0;
     private static final int MAX_OVERDUE_GRACE_MINUTES = 7 * 24 * 60;
 
@@ -26,6 +30,18 @@ public final class ActionPreferences {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putInt(KEY_SNOOZE_MINUTES, clampSnoozeMinutes(minutes))
+                .apply();
+    }
+
+    public static int getRepeatUntilDoneMinutes(Context context) {
+        return clampRepeatUntilDoneMinutes(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getInt(KEY_REPEAT_UNTIL_DONE_MINUTES, DEFAULT_REPEAT_UNTIL_DONE_MINUTES));
+    }
+
+    public static void setRepeatUntilDoneMinutes(Context context, int minutes) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(KEY_REPEAT_UNTIL_DONE_MINUTES, clampRepeatUntilDoneMinutes(minutes))
                 .apply();
     }
 
@@ -59,6 +75,16 @@ public final class ActionPreferences {
         }
         if (minutes > MAX_SNOOZE_MINUTES) {
             return MAX_SNOOZE_MINUTES;
+        }
+        return minutes;
+    }
+
+    public static int clampRepeatUntilDoneMinutes(int minutes) {
+        if (minutes < MIN_REPEAT_UNTIL_DONE_MINUTES) {
+            return MIN_REPEAT_UNTIL_DONE_MINUTES;
+        }
+        if (minutes > MAX_REPEAT_UNTIL_DONE_MINUTES) {
+            return MAX_REPEAT_UNTIL_DONE_MINUTES;
         }
         return minutes;
     }

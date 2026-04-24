@@ -26,6 +26,8 @@ public final class ObsidianTask {
     private final List<String> tags;
     private final TaskPriority priority;
     private final String group;
+    private final Duration snoozeDuration;
+    private final Duration overdueGracePeriod;
 
     public ObsidianTask(
             int lineNumber,
@@ -61,7 +63,9 @@ public final class ObsidianTask {
                 0,
                 Collections.emptyList(),
                 TaskPriority.NONE,
-                DEFAULT_GROUP
+                DEFAULT_GROUP,
+                null,
+                null
         );
     }
 
@@ -92,7 +96,9 @@ public final class ObsidianTask {
                 0,
                 Collections.emptyList(),
                 TaskPriority.NONE,
-                DEFAULT_GROUP
+                DEFAULT_GROUP,
+                null,
+                null
         );
     }
 
@@ -125,7 +131,9 @@ public final class ObsidianTask {
                 0,
                 tags,
                 priority,
-                DEFAULT_GROUP
+                DEFAULT_GROUP,
+                null,
+                null
         );
     }
 
@@ -159,7 +167,9 @@ public final class ObsidianTask {
                 0,
                 tags,
                 priority,
-                group
+                group,
+                null,
+                null
         );
     }
 
@@ -194,7 +204,9 @@ public final class ObsidianTask {
                 0,
                 tags,
                 priority,
-                group
+                group,
+                null,
+                null
         );
     }
 
@@ -214,7 +226,9 @@ public final class ObsidianTask {
             int indentLevel,
             List<String> tags,
             TaskPriority priority,
-            String group
+            String group,
+            Duration snoozeDuration,
+            Duration overdueGracePeriod
     ) {
         this.taskKey = taskKey;
         this.sourceName = sourceName == null ? "" : sourceName;
@@ -235,6 +249,8 @@ public final class ObsidianTask {
                 : tags));
         this.priority = priority == null ? TaskPriority.NONE : priority;
         this.group = normalizeGroup(group);
+        this.snoozeDuration = snoozeDuration;
+        this.overdueGracePeriod = overdueGracePeriod;
     }
 
     public String getTaskKey() {
@@ -313,6 +329,14 @@ public final class ObsidianTask {
 
     public String getGroup() {
         return group;
+    }
+
+    public Duration getSnoozeDuration() {
+        return snoozeDuration;
+    }
+
+    public Duration getOverdueGracePeriod() {
+        return overdueGracePeriod;
     }
 
     public TaskStatus getStatus(LocalDateTime now) {

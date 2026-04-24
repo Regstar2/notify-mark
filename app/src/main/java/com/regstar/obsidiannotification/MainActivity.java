@@ -2268,6 +2268,12 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private View createCalendarTaskView(ObsidianTask task) {
+        FrameLayout wrapper = new FrameLayout(this);
+        wrapper.addView(createSwipeActionBackground(task), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -2277,7 +2283,27 @@ public final class MainActivity extends AppCompatActivity {
                 8
         ));
         item.setClickable(true);
-        item.setOnClickListener(view -> openPreferredTaskEditor(task));
+        item.setOnTouchListener(createSwipeTouchListener(
+                item,
+                () -> {
+                    if (isSelectionMode()) {
+                        toggleTaskSelection(task);
+                    } else {
+                        openPreferredTaskEditor(task);
+                    }
+                },
+                () -> {
+                    if (task.isSkipped()) {
+                        unskipTask(task);
+                    } else {
+                        skipTask(task);
+                    }
+                },
+                () -> deleteTask(task),
+                () -> enterSelectionMode(task),
+                task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, true),
+                task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, false)
+        ));
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2301,6 +2327,14 @@ public final class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
+
+        if (!task.getSubtasks().isEmpty()) {
+            TextView expandButton = createSubtaskExpandButton(task);
+            LinearLayout.LayoutParams expandParams = new LinearLayout.LayoutParams(dp(30), dp(30));
+            expandParams.setMargins(dp(8), 0, 0, 0);
+            row.addView(expandButton, expandParams);
+        }
+
         item.addView(row, fullWidth());
 
         String meta = calendarTaskMeta(task);
@@ -2310,7 +2344,21 @@ public final class MainActivity extends AppCompatActivity {
             metaView.setEllipsize(TextUtils.TruncateAt.END);
             item.addView(metaView, fullWidthWithTopMargin(dp(6)));
         }
-        return item;
+
+        if (!task.getSubtasks().isEmpty()) {
+            TextView progress = createText(formatSubtaskProgress(task), 12, R.color.text_secondary, false);
+            progress.setSingleLine(true);
+            item.addView(progress, fullWidthWithTopMargin(dp(8)));
+            if (expandedTaskKeys.contains(task.getTaskKey())) {
+                item.addView(createSubtaskList(task), fullWidthWithTopMargin(dp(8)));
+            }
+        }
+
+        wrapper.addView(item, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        return wrapper;
     }
 
     private Map<LocalDate, List<ObsidianTask>> tasksByDate(List<ObsidianTask> tasks) {
@@ -2897,7 +2945,9 @@ public final class MainActivity extends AppCompatActivity {
                     }
                 },
                 () -> deleteTask(task),
-                () -> enterSelectionMode(task)
+                () -> enterSelectionMode(task),
+                task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, true),
+                task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, false)
         ));
 
         LinearLayout titleRow = new LinearLayout(this);
@@ -2908,13 +2958,6 @@ public final class MainActivity extends AppCompatActivity {
         LinearLayout.LayoutParams completeParams = new LinearLayout.LayoutParams(dp(30), dp(30));
         completeParams.setMargins(0, 0, dp(10), 0);
         titleRow.addView(completeButton, completeParams);
-
-        if (!task.getSubtasks().isEmpty()) {
-            TextView expandButton = createSubtaskExpandButton(task);
-            LinearLayout.LayoutParams expandParams = new LinearLayout.LayoutParams(dp(28), dp(28));
-            expandParams.setMargins(0, 0, dp(8), 0);
-            titleRow.addView(expandButton, expandParams);
-        }
 
         TextView title = createText(task.getTitle(), 16, R.color.text_primary, true);
         title.setMaxLines(2);
@@ -2932,6 +2975,13 @@ public final class MainActivity extends AppCompatActivity {
         );
         statusParams.setMargins(dp(8), 0, 0, 0);
         titleRow.addView(statusChip, statusParams);
+
+        if (!task.getSubtasks().isEmpty()) {
+            TextView expandButton = createSubtaskExpandButton(task);
+            LinearLayout.LayoutParams expandParams = new LinearLayout.LayoutParams(dp(30), dp(30));
+            expandParams.setMargins(dp(8), 0, 0, 0);
+            titleRow.addView(expandButton, expandParams);
+        }
 
         item.addView(titleRow, fullWidth());
         item.addView(createMetaLine(R.drawable.ic_clock, task.getReminderAt() == null
@@ -3026,21 +3076,13 @@ public final class MainActivity extends AppCompatActivity {
 
     private TextView createSubtaskExpandButton(ObsidianTask task) {
         boolean expanded = expandedTaskKeys.contains(task.getTaskKey());
-        TextView button = createText(expanded ? "⌄" : "›", 21, R.color.text_secondary, true);
+        TextView button = createText(expanded ? "\u2304" : "\u203a", 22, R.color.text_secondary, true);
         button.setGravity(android.view.Gravity.CENTER);
-        button.setContentDescription(expanded ? "Свернуть подзадачи" : "Показать подзадачи");
-        button.setBackground(createCircleOutlineBackground(
-                Color.TRANSPARENT,
-                getColor(R.color.chip_stroke)
-        ));
-        button.setOnClickListener(view -> {
-            if (expandedTaskKeys.contains(task.getTaskKey())) {
-                expandedTaskKeys.remove(task.getTaskKey());
-            } else {
-                expandedTaskKeys.add(task.getTaskKey());
-            }
-            renderTasks(latestTasks);
-        });
+        button.setContentDescription(expanded
+                ? "\u0421\u0432\u0435\u0440\u043d\u0443\u0442\u044c \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438"
+                : "\u041f\u043e\u043a\u0430\u0437\u0430\u0442\u044c \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438");
+        button.setBackgroundColor(Color.TRANSPARENT);
+        button.setOnClickListener(view -> toggleTaskExpanded(task));
         return button;
     }
 
@@ -3055,6 +3097,41 @@ public final class MainActivity extends AppCompatActivity {
         return completed + "/" + total + " подзадач выполнено";
     }
 
+    private void toggleTaskExpanded(ObsidianTask task) {
+        if (task == null || task.getSubtasks().isEmpty()) {
+            return;
+        }
+        if (expandedTaskKeys.contains(task.getTaskKey())) {
+            expandedTaskKeys.remove(task.getTaskKey());
+        } else {
+            expandedTaskKeys.add(task.getTaskKey());
+        }
+        rerenderCurrentSection();
+    }
+
+    private void setTaskExpanded(ObsidianTask task, boolean expanded) {
+        if (task == null || task.getSubtasks().isEmpty()) {
+            return;
+        }
+        boolean changed;
+        if (expanded) {
+            changed = expandedTaskKeys.add(task.getTaskKey());
+        } else {
+            changed = expandedTaskKeys.remove(task.getTaskKey());
+        }
+        if (changed) {
+            rerenderCurrentSection();
+        }
+    }
+
+    private void rerenderCurrentSection() {
+        if (selectedSection == SECTION_CALENDAR) {
+            renderCalendar(latestTasks);
+        } else {
+            renderTasks(latestTasks);
+        }
+    }
+
     private LinearLayout createSubtaskList(ObsidianTask task) {
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
@@ -3065,7 +3142,13 @@ public final class MainActivity extends AppCompatActivity {
         return list;
     }
 
-    private LinearLayout createSubtaskRow(ObsidianTask subtask) {
+    private View createSubtaskRow(ObsidianTask subtask) {
+        FrameLayout wrapper = new FrameLayout(this);
+        wrapper.addView(createSwipeActionBackground(subtask), new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -3076,7 +3159,19 @@ public final class MainActivity extends AppCompatActivity {
                 8
         ));
         row.setClickable(true);
-        row.setOnClickListener(view -> openPreferredTaskEditor(subtask));
+        row.setOnTouchListener(createSwipeTouchListener(
+                row,
+                () -> openPreferredTaskEditor(subtask),
+                () -> {
+                    if (subtask.isSkipped()) {
+                        unskipTask(subtask);
+                    } else {
+                        skipTask(subtask);
+                    }
+                },
+                () -> deleteTask(subtask),
+                () -> enterSelectionMode(subtask)
+        ));
 
         TextView status = createCompletionButton(subtask);
         row.addView(status, new LinearLayout.LayoutParams(dp(26), dp(26)));
@@ -3101,7 +3196,12 @@ public final class MainActivity extends AppCompatActivity {
         );
         textParams.setMargins(dp(10), 0, 0, 0);
         row.addView(texts, textParams);
-        return row;
+
+        wrapper.addView(row, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        return wrapper;
     }
 
     private String subtaskMeta(ObsidianTask subtask) {
@@ -3130,9 +3230,30 @@ public final class MainActivity extends AppCompatActivity {
             Runnable leftAction,
             Runnable longPressAction
     ) {
+        return createSwipeTouchListener(
+                foreground,
+                clickAction,
+                rightAction,
+                leftAction,
+                longPressAction,
+                null,
+                null
+        );
+    }
+
+    private View.OnTouchListener createSwipeTouchListener(
+            View foreground,
+            Runnable clickAction,
+            Runnable rightAction,
+            Runnable leftAction,
+            Runnable longPressAction,
+            Runnable swipeDownAction,
+            Runnable swipeUpAction
+    ) {
         int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
         int actionWidth = dp(132);
         int revealThreshold = dp(56);
+        int verticalThreshold = dp(48);
         int longPressTimeout = ViewConfiguration.getLongPressTimeout();
 
         return new View.OnTouchListener() {
@@ -3140,6 +3261,8 @@ public final class MainActivity extends AppCompatActivity {
             private float downY;
             private float startTranslationX;
             private boolean dragging;
+            private boolean horizontalDragging;
+            private boolean verticalDragging;
             private boolean longPressed;
             private final Handler longPressHandler = new Handler(Looper.getMainLooper());
             private final Runnable longPressRunnable = () -> {
@@ -3157,6 +3280,8 @@ public final class MainActivity extends AppCompatActivity {
                     downY = event.getRawY();
                     startTranslationX = foreground.getTranslationX();
                     dragging = false;
+                    horizontalDragging = false;
+                    verticalDragging = false;
                     longPressed = false;
                     foreground.animate().cancel();
                     longPressHandler.postDelayed(longPressRunnable, longPressTimeout);
@@ -3173,15 +3298,26 @@ public final class MainActivity extends AppCompatActivity {
                         return true;
                     }
                     if (!dragging) {
-                        if (Math.abs(dx) <= touchSlop || Math.abs(dx) <= Math.abs(dy) * 1.2f) {
+                        boolean supportsVertical = swipeDownAction != null || swipeUpAction != null;
+                        if (Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                            dragging = true;
+                            horizontalDragging = true;
+                            view.getParent().requestDisallowInterceptTouchEvent(true);
+                        } else if (supportsVertical
+                                && Math.abs(dy) > verticalThreshold
+                                && Math.abs(dy) > Math.abs(dx) * 1.35f) {
+                            dragging = true;
+                            verticalDragging = true;
+                            view.getParent().requestDisallowInterceptTouchEvent(true);
+                        } else {
                             return true;
                         }
-                        dragging = true;
-                        view.getParent().requestDisallowInterceptTouchEvent(true);
                     }
 
-                    float target = clamp(startTranslationX + dx, -actionWidth, actionWidth);
-                    foreground.setTranslationX(target);
+                    if (horizontalDragging) {
+                        float target = clamp(startTranslationX + dx, -actionWidth, actionWidth);
+                        foreground.setTranslationX(target);
+                    }
                     return true;
                 }
 
@@ -3207,6 +3343,16 @@ public final class MainActivity extends AppCompatActivity {
                         animateSwipeTo(foreground, 0, null);
                     } else {
                         clickAction.run();
+                    }
+                    return true;
+                }
+
+                if (verticalDragging) {
+                    animateSwipeTo(foreground, 0, null);
+                    if (dy >= verticalThreshold && swipeDownAction != null) {
+                        swipeDownAction.run();
+                    } else if (dy <= -verticalThreshold && swipeUpAction != null) {
+                        swipeUpAction.run();
                     }
                     return true;
                 }
@@ -3444,7 +3590,6 @@ public final class MainActivity extends AppCompatActivity {
             return;
         }
 
-        int snoozeMinutes = ActionPreferences.getSnoozeMinutes(this);
         int updatedCount = 0;
         int skippedCount = 0;
         List<String> snoozedTaskKeys = new ArrayList<>();
@@ -3453,13 +3598,14 @@ public final class MainActivity extends AppCompatActivity {
                 skippedCount++;
                 continue;
             }
+            Duration snoozeDuration = effectiveSnoozeDuration(task);
             ReminderScheduler.scheduleSnooze(
                     this,
                     task.getTaskKey(),
                     notificationIdFor(task),
                     task.getLineNumber(),
                     task.getTitle(),
-                    Duration.ofMinutes(snoozeMinutes),
+                    snoozeDuration,
                     task.getRepeatIntervalMillis(),
                     task.getRepeatMode()
             );
@@ -3476,7 +3622,7 @@ public final class MainActivity extends AppCompatActivity {
         refreshTopAppBar();
         readAndRenderNote();
         String message = updatedCount + " " + taskCountWord(updatedCount)
-                + " отложено на " + snoozeMinutes + " мин";
+                + " отложено";
         if (skippedCount > 0) {
             message += ", пропущено: " + skippedCount;
         }
@@ -3581,7 +3727,7 @@ public final class MainActivity extends AppCompatActivity {
                 notificationIdFor(task),
                 task.getLineNumber(),
                 task.getTitle(),
-                Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(this)),
+                effectiveSnoozeDuration(task),
                 task.getRepeatIntervalMillis(),
                 task.getRepeatMode()
         );
@@ -3590,6 +3736,13 @@ public final class MainActivity extends AppCompatActivity {
         }
         showSnackbar("Уведомление отложено", null, null);
         readAndRenderNote();
+    }
+
+    private Duration effectiveSnoozeDuration(ObsidianTask task) {
+        if (task != null && task.getSnoozeDuration() != null && !task.getSnoozeDuration().isZero()) {
+            return task.getSnoozeDuration();
+        }
+        return Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(this));
     }
 
     private void skipTask(ObsidianTask task) {
@@ -3701,8 +3854,6 @@ public final class MainActivity extends AppCompatActivity {
         if (!task.getSourceName().isEmpty()) {
             builder.append(" · ").append(task.getSourceName());
         }
-        builder.append(" · строка ").append(task.getLineNumber());
-
         if (task.getReminderAt() != null) {
             builder.append(" · напомнить ").append(DATE_TIME_FORMAT.format(task.getReminderAt()));
         } else {
@@ -4067,10 +4218,6 @@ public final class MainActivity extends AppCompatActivity {
             }
             builder.append(formatTags(task.getTags()));
         }
-        if (builder.length() > 0) {
-            builder.append(" · ");
-        }
-        builder.append("строка ").append(task.getLineNumber());
         return builder.toString();
     }
 

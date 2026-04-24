@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.os.Build;
 
 import java.io.IOException;
+import java.time.Duration;
 
 public final class ReminderReceiver extends BroadcastReceiver {
     @Override
@@ -155,7 +156,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             );
             builder.addAction(
                     R.drawable.ic_repeat,
-                    "Отложить " + ActionPreferences.getSnoozeMinutes(context) + "м",
+                    snoozeActionLabel(context, taskKey),
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SNOOZE,
@@ -186,6 +187,43 @@ public final class ReminderReceiver extends BroadcastReceiver {
         }
 
         return builder.build();
+    }
+
+    private String snoozeActionLabel(Context context, String taskKey) {
+        Duration duration = resolveSnoozeDuration(context, taskKey);
+        return "Отложить " + formatDurationToken(duration);
+    }
+
+    private Duration resolveSnoozeDuration(Context context, String taskKey) {
+        if (taskKey != null && !taskKey.trim().isEmpty()) {
+            try {
+                NoteStore.TaskDocumentMatch match = NoteStore.findTaskDocument(context, taskKey);
+                if (match != null
+                        && match.getTask() != null
+                        && match.getTask().getSnoozeDuration() != null
+                        && !match.getTask().getSnoozeDuration().isNegative()
+                        && !match.getTask().getSnoozeDuration().isZero()) {
+                    return match.getTask().getSnoozeDuration();
+                }
+            } catch (IOException | RuntimeException exception) {
+                ErrorLog.record(context, "Не удалось определить подпись отложения для уведомления", exception);
+            }
+        }
+        return Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(context));
+    }
+
+    private String formatDurationToken(Duration duration) {
+        Duration safeDuration = duration == null || duration.isZero() || duration.isNegative()
+                ? Duration.ofMinutes(1)
+                : duration;
+        long minutes = safeDuration.toMinutes();
+        if (minutes % (24L * 60L) == 0L) {
+            return (minutes / (24L * 60L)) + "d";
+        }
+        if (minutes % 60L == 0L) {
+            return (minutes / 60L) + "h";
+        }
+        return minutes + "m";
     }
 
     private PendingIntent createOpenAppIntent(Context context) {
