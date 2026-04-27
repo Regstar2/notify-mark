@@ -30,6 +30,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,8 +38,10 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,6 +51,20 @@ public final class TaskEditActivity extends Activity {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+
+    private enum RepeatEditorMode {
+        NONE,
+        INTERVAL,
+        WEEKLY,
+        MONTHLY,
+        CUSTOM
+    }
+
+    private enum MonthRepeatMode {
+        SAME_DAY,
+        FIXED_DAY,
+        LAST_DAY
+    }
 
     private final List<SubtaskDraft> subtaskDrafts = new ArrayList<>();
 
@@ -304,18 +321,11 @@ public final class TaskEditActivity extends Activity {
         card.addView(row, fullWidthWithBottomMargin(dp(8)));
 
         repeatInput = createInput(initialRepeatToken());
-        repeatInput.setHint("15m, 2h, 1d");
         repeatInput.addTextChangedListener(previewWatcher());
-        card.addView(createInputBlock("\u041f\u043e\u0432\u0442\u043e\u0440", repeatInput), fullWidthWithBottomMargin(dp(8)));
-
-        LinearLayout quickRow = new LinearLayout(this);
-        quickRow.setOrientation(LinearLayout.HORIZONTAL);
-        addSmallValueButton(quickRow, "5m", "5m", 0);
-        addSmallValueButton(quickRow, "10m", "10m", dp(6));
-        addSmallValueButton(quickRow, "15m", "15m", dp(6));
-        addSmallValueButton(quickRow, "1h", "1h", dp(6));
-        addSmallValueButton(quickRow, "1d", "1d", dp(6));
-        card.addView(quickRow, fullWidthWithBottomMargin(dp(8)));
+        card.addView(
+                new RepeatEditorController(repeatInput, this::updatePreview).createView(),
+                fullWidthWithBottomMargin(dp(8))
+        );
 
         repeatUntilDoneInput = new CheckBox(this);
         repeatUntilDoneInput.setText("\u041f\u043e\u0432\u0442\u043e\u0440\u044f\u0442\u044c \u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f");
@@ -793,6 +803,41 @@ public final class TaskEditActivity extends Activity {
         return block;
     }
 
+    private LinearLayout createInputBlockWithSuffix(String label, EditText input, String suffix) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.addView(createLabel(label), fullWidthWithBottomMargin(dp(3)));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
+                0,
+                dp(44),
+                1
+        );
+        row.addView(input, inputParams);
+
+        TextView suffixView = createText(suffix, 13, R.color.text_secondary, true);
+        suffixView.setGravity(Gravity.CENTER);
+        suffixView.setPadding(dp(12), 0, dp(12), 0);
+        suffixView.setBackground(createRoundedBackground(
+                getColor(R.color.background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+        LinearLayout.LayoutParams suffixParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(44)
+        );
+        suffixParams.setMargins(dp(8), 0, 0, 0);
+        row.addView(suffixView, suffixParams);
+
+        block.addView(row, fullWidth());
+        return block;
+    }
+
     private TextView createLabel(String text) {
         return createText(text, 12, R.color.text_secondary, false);
     }
@@ -832,6 +877,397 @@ public final class TaskEditActivity extends Activity {
         );
         params.setMargins(leftMargin, 0, 0, 0);
         row.addView(button, params);
+    }
+
+    private EditText createNumberInput(String value, String hint) {
+        EditText input = createInput(value);
+        input.setHint(hint);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        return input;
+    }
+
+    private String dayToken(DayOfWeek dayOfWeek) {
+        switch (dayOfWeek) {
+            case MONDAY:
+                return "mon";
+            case TUESDAY:
+                return "tue";
+            case WEDNESDAY:
+                return "wed";
+            case THURSDAY:
+                return "thu";
+            case FRIDAY:
+                return "fri";
+            case SATURDAY:
+                return "sat";
+            case SUNDAY:
+                return "sun";
+            default:
+                return "";
+        }
+    }
+
+    private String dayLabel(DayOfWeek dayOfWeek) {
+        switch (dayOfWeek) {
+            case MONDAY:
+                return "Пн";
+            case TUESDAY:
+                return "Вт";
+            case WEDNESDAY:
+                return "Ср";
+            case THURSDAY:
+                return "Чт";
+            case FRIDAY:
+                return "Пт";
+            case SATURDAY:
+                return "Сб";
+            case SUNDAY:
+                return "Вс";
+            default:
+                return "";
+        }
+    }
+
+    private final class RepeatEditorController {
+        private final EditText backingInput;
+        private final Runnable onChanged;
+        private final EnumSet<DayOfWeek> weeklyDays = EnumSet.noneOf(DayOfWeek.class);
+
+        private RepeatEditorMode mode = RepeatEditorMode.NONE;
+        private RepeatRule.Unit intervalUnit = RepeatRule.Unit.DAYS;
+        private MonthRepeatMode monthMode = MonthRepeatMode.SAME_DAY;
+
+        private LinearLayout modeRow;
+        private LinearLayout contentContainer;
+        private EditText intervalAmountInput;
+        private EditText weeklyIntervalInput;
+        private EditText monthlyIntervalInput;
+        private EditText monthlyDayInput;
+        private EditText customInput;
+        private String intervalAmountValue = "1";
+        private String weeklyIntervalValue = "1";
+        private String monthlyIntervalValue = "1";
+        private String monthlyDayValue = "1";
+        private String customValue = "";
+
+        private RepeatEditorController(EditText backingInput, Runnable onChanged) {
+            this.backingInput = backingInput;
+            this.onChanged = onChanged;
+            initializeFromBacking();
+        }
+
+        private LinearLayout createView() {
+            LinearLayout block = new LinearLayout(TaskEditActivity.this);
+            block.setOrientation(LinearLayout.VERTICAL);
+            block.addView(createLabel("Повтор"), fullWidthWithBottomMargin(dp(3)));
+
+            modeRow = new LinearLayout(TaskEditActivity.this);
+            modeRow.setOrientation(LinearLayout.HORIZONTAL);
+            block.addView(modeRow, fullWidthWithBottomMargin(dp(8)));
+
+            contentContainer = new LinearLayout(TaskEditActivity.this);
+            contentContainer.setOrientation(LinearLayout.VERTICAL);
+            block.addView(contentContainer, fullWidth());
+
+            rebuildModeRow();
+            rebuildContent();
+            return block;
+        }
+
+        private void initializeFromBacking() {
+            String raw = valueOf(backingInput);
+            if (raw.isEmpty()) {
+                mode = RepeatEditorMode.NONE;
+                return;
+            }
+
+            RepeatRule rule = RepeatRule.parseStoredSpec(raw);
+            if (rule == null) {
+                mode = RepeatEditorMode.CUSTOM;
+                customValue = raw;
+                return;
+            }
+
+            if (rule.getUnit() == RepeatRule.Unit.WEEKS && rule.hasDaySelector()) {
+                mode = RepeatEditorMode.WEEKLY;
+                weeklyDays.clear();
+                weeklyDays.addAll(rule.getDaysOfWeek());
+                weeklyIntervalValue = String.valueOf(rule.getAmount());
+                return;
+            }
+
+            if (rule.getUnit() == RepeatRule.Unit.MONTHS) {
+                mode = RepeatEditorMode.MONTHLY;
+                monthlyIntervalValue = String.valueOf(rule.getAmount());
+                if (rule.getMonthDaySelector() == RepeatRule.MonthDaySelector.LAST_DAY) {
+                    monthMode = MonthRepeatMode.LAST_DAY;
+                } else if (rule.getDayOfMonth() != null) {
+                    monthMode = MonthRepeatMode.FIXED_DAY;
+                    monthlyDayValue = String.valueOf(rule.getDayOfMonth());
+                } else {
+                    monthMode = MonthRepeatMode.SAME_DAY;
+                }
+                return;
+            }
+
+            mode = RepeatEditorMode.INTERVAL;
+            intervalUnit = rule.getUnit();
+            intervalAmountValue = String.valueOf(rule.getAmount());
+        }
+
+        private void rebuildModeRow() {
+            modeRow.removeAllViews();
+            addCompactButton(modeRow, createModeButton("Нет", RepeatEditorMode.NONE), 0);
+            addCompactButton(modeRow, createModeButton("Интервал", RepeatEditorMode.INTERVAL), dp(6));
+            addCompactButton(modeRow, createModeButton("Неделя", RepeatEditorMode.WEEKLY), dp(6));
+            addCompactButton(modeRow, createModeButton("Месяц", RepeatEditorMode.MONTHLY), dp(6));
+            if (mode == RepeatEditorMode.CUSTOM) {
+                addCompactButton(modeRow, createModeButton("Текст", RepeatEditorMode.CUSTOM), dp(6));
+            }
+        }
+
+        private Button createModeButton(String text, RepeatEditorMode targetMode) {
+            Button button = createSegmentButton(text, mode == targetMode);
+            button.setOnClickListener(view -> selectMode(targetMode));
+            return button;
+        }
+
+        private void selectMode(RepeatEditorMode targetMode) {
+            mode = targetMode;
+            if (mode == RepeatEditorMode.INTERVAL && intervalUnit == null) {
+                intervalUnit = RepeatRule.Unit.DAYS;
+            }
+            if (mode == RepeatEditorMode.WEEKLY && weeklyDays.isEmpty()) {
+                weeklyDays.add(DayOfWeek.MONDAY);
+            }
+            if (mode == RepeatEditorMode.MONTHLY) {
+                if (monthMode == null) {
+                    monthMode = MonthRepeatMode.SAME_DAY;
+                }
+                if (monthlyIntervalValue == null || monthlyIntervalValue.trim().isEmpty()) {
+                    monthlyIntervalValue = "1";
+                }
+                if (monthMode == MonthRepeatMode.FIXED_DAY
+                        && (monthlyDayValue == null || monthlyDayValue.trim().isEmpty())) {
+                    monthlyDayValue = "1";
+                }
+            }
+            rebuildModeRow();
+            rebuildContent();
+            pushValue();
+        }
+
+        private void rebuildContent() {
+            contentContainer.removeAllViews();
+            switch (mode) {
+                case NONE:
+                    contentContainer.addView(
+                            createText("Без повторения", 12, R.color.text_secondary, false),
+                            fullWidth()
+                    );
+                    break;
+                case INTERVAL:
+                    buildIntervalContent();
+                    break;
+                case WEEKLY:
+                    buildWeeklyContent();
+                    break;
+                case MONTHLY:
+                    buildMonthlyContent();
+                    break;
+                case CUSTOM:
+                    buildCustomContent();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void buildIntervalContent() {
+            intervalAmountInput = createNumberInput(intervalAmountValue, "1");
+            intervalAmountInput.addTextChangedListener(simpleWatcher(() -> {
+                intervalAmountValue = valueOf(intervalAmountInput);
+                pushValue();
+            }));
+            contentContainer.addView(
+                    createInputBlockWithSuffix("Интервал", intervalAmountInput, intervalUnit.getToken()),
+                    fullWidthWithBottomMargin(dp(4))
+            );
+            LinearLayout unitsRow = new LinearLayout(TaskEditActivity.this);
+            unitsRow.setOrientation(LinearLayout.HORIZONTAL);
+            addCompactButton(unitsRow, createIntervalUnitButton("m", RepeatRule.Unit.MINUTES), 0);
+            addCompactButton(unitsRow, createIntervalUnitButton("h", RepeatRule.Unit.HOURS), dp(6));
+            addCompactButton(unitsRow, createIntervalUnitButton("d", RepeatRule.Unit.DAYS), dp(6));
+            addCompactButton(unitsRow, createIntervalUnitButton("w", RepeatRule.Unit.WEEKS), dp(6));
+            addCompactButton(unitsRow, createIntervalUnitButton("mo", RepeatRule.Unit.MONTHS), dp(6));
+            contentContainer.addView(unitsRow, fullWidth());
+        }
+
+        private Button createIntervalUnitButton(String label, RepeatRule.Unit unit) {
+            Button button = createSegmentButton(label, intervalUnit == unit);
+            button.setOnClickListener(view -> {
+                intervalUnit = unit;
+                pushValue();
+                rebuildContent();
+            });
+            return button;
+        }
+
+        private void buildWeeklyContent() {
+            if (weeklyDays.isEmpty()) {
+                weeklyDays.add(DayOfWeek.MONDAY);
+            }
+
+            weeklyIntervalInput = createNumberInput(weeklyIntervalValue, "1");
+            weeklyIntervalInput.addTextChangedListener(simpleWatcher(() -> {
+                weeklyIntervalValue = valueOf(weeklyIntervalInput);
+                pushValue();
+            }));
+            contentContainer.addView(
+                    createInputBlockWithSuffix("Интервал", weeklyIntervalInput, "нед."),
+                    fullWidthWithBottomMargin(dp(8))
+            );
+
+            LinearLayout firstRow = new LinearLayout(TaskEditActivity.this);
+            firstRow.setOrientation(LinearLayout.HORIZONTAL);
+            addCompactButton(firstRow, createWeekdayButton(DayOfWeek.MONDAY), 0);
+            addCompactButton(firstRow, createWeekdayButton(DayOfWeek.TUESDAY), dp(6));
+            addCompactButton(firstRow, createWeekdayButton(DayOfWeek.WEDNESDAY), dp(6));
+            addCompactButton(firstRow, createWeekdayButton(DayOfWeek.THURSDAY), dp(6));
+            contentContainer.addView(firstRow, fullWidthWithBottomMargin(dp(6)));
+
+            LinearLayout secondRow = new LinearLayout(TaskEditActivity.this);
+            secondRow.setOrientation(LinearLayout.HORIZONTAL);
+            addCompactButton(secondRow, createWeekdayButton(DayOfWeek.FRIDAY), 0);
+            addCompactButton(secondRow, createWeekdayButton(DayOfWeek.SATURDAY), dp(6));
+            addCompactButton(secondRow, createWeekdayButton(DayOfWeek.SUNDAY), dp(6));
+            contentContainer.addView(secondRow, fullWidth());
+        }
+
+        private Button createWeekdayButton(DayOfWeek dayOfWeek) {
+            Button button = createSegmentButton(dayLabel(dayOfWeek), weeklyDays.contains(dayOfWeek));
+            button.setOnClickListener(view -> {
+                if (weeklyDays.contains(dayOfWeek)) {
+                    if (weeklyDays.size() == 1) {
+                        return;
+                    }
+                    weeklyDays.remove(dayOfWeek);
+                } else {
+                    weeklyDays.add(dayOfWeek);
+                }
+                pushValue();
+                rebuildContent();
+            });
+            return button;
+        }
+
+        private void buildMonthlyContent() {
+            monthlyIntervalInput = createNumberInput(monthlyIntervalValue, "1");
+            monthlyIntervalInput.addTextChangedListener(simpleWatcher(() -> {
+                monthlyIntervalValue = valueOf(monthlyIntervalInput);
+                pushValue();
+            }));
+            contentContainer.addView(
+                    createInputBlockWithSuffix("Интервал", monthlyIntervalInput, "мес."),
+                    fullWidthWithBottomMargin(dp(8))
+            );
+
+            LinearLayout modeButtons = new LinearLayout(TaskEditActivity.this);
+            modeButtons.setOrientation(LinearLayout.HORIZONTAL);
+            addCompactButton(modeButtons, createMonthModeButton("Как в сроке", MonthRepeatMode.SAME_DAY), 0);
+            addCompactButton(modeButtons, createMonthModeButton("День", MonthRepeatMode.FIXED_DAY), dp(6));
+            addCompactButton(modeButtons, createMonthModeButton("Последний", MonthRepeatMode.LAST_DAY), dp(6));
+            contentContainer.addView(modeButtons, fullWidthWithBottomMargin(dp(8)));
+
+            if (monthMode == MonthRepeatMode.FIXED_DAY) {
+                monthlyDayInput = createNumberInput(monthlyDayValue, "1..31");
+                monthlyDayInput.addTextChangedListener(simpleWatcher(() -> {
+                    monthlyDayValue = valueOf(monthlyDayInput);
+                    pushValue();
+                }));
+                contentContainer.addView(
+                        createInputBlock("День месяца", monthlyDayInput),
+                        fullWidth()
+                    );
+            }
+        }
+
+        private Button createMonthModeButton(String label, MonthRepeatMode targetMode) {
+            Button button = createSegmentButton(label, monthMode == targetMode);
+            button.setOnClickListener(view -> {
+                monthMode = targetMode;
+                if (monthMode == MonthRepeatMode.FIXED_DAY
+                        && (monthlyDayValue == null || monthlyDayValue.trim().isEmpty())) {
+                    monthlyDayValue = "1";
+                }
+                pushValue();
+                rebuildContent();
+            });
+            return button;
+        }
+
+        private void buildCustomContent() {
+            customInput = createInput(customValue);
+            customInput.setHint("1w @days(mon,wed,fri)");
+            customInput.addTextChangedListener(simpleWatcher(() -> {
+                customValue = valueOf(customInput);
+                pushValue();
+            }));
+            contentContainer.addView(
+                    createInputBlock("Свое правило", customInput),
+                    fullWidth()
+            );
+        }
+
+        private void pushValue() {
+            String nextValue = buildValue();
+            String current = valueOf(backingInput);
+            if (!nextValue.equals(current)) {
+                backingInput.setText(nextValue);
+            } else if (onChanged != null) {
+                onChanged.run();
+            }
+        }
+
+        private String buildValue() {
+            switch (mode) {
+                case NONE:
+                    return "";
+                case INTERVAL:
+                    return intervalAmountValue.isEmpty() ? "" : intervalAmountValue + intervalUnit.getToken();
+                case WEEKLY:
+                    if (weeklyIntervalValue.isEmpty()) {
+                        return "";
+                    }
+                    return weeklyIntervalValue + "w @days(" + formatSelectedDays() + ")";
+                case MONTHLY:
+                    if (monthlyIntervalValue.isEmpty()) {
+                        return "";
+                    }
+                    if (monthMode == MonthRepeatMode.SAME_DAY) {
+                        return monthlyIntervalValue + "mo";
+                    }
+                    if (monthMode == MonthRepeatMode.LAST_DAY) {
+                        return monthlyIntervalValue + "mo @monthday(last)";
+                    }
+                    return monthlyIntervalValue + "mo @monthday(" + monthlyDayValue + ")";
+                case CUSTOM:
+                    customValue = valueOf(customInput);
+                    return customValue;
+                default:
+                    return "";
+            }
+        }
+
+        private String formatSelectedDays() {
+            List<String> tokens = new ArrayList<>();
+            for (DayOfWeek dayOfWeek : DayOfWeek.values()) {
+                if (weeklyDays.contains(dayOfWeek)) {
+                    tokens.add(dayToken(dayOfWeek));
+                }
+            }
+            return TextUtils.join(",", tokens);
+        }
     }
 
     private void showDatePicker() {
@@ -1076,7 +1512,7 @@ public final class TaskEditActivity extends Activity {
     private String currentMarkdownBlock() {
         StringBuilder builder = new StringBuilder(currentParentMarkdownLine());
         for (SubtaskDraft draft : subtaskDrafts) {
-            String line = draft.toMarkdownLine();
+            String line = draft.toMarkdownLine(this);
             if (!line.isEmpty()) {
                 builder.append('\n').append("  ").append(line);
             }
@@ -1249,7 +1685,7 @@ public final class TaskEditActivity extends Activity {
         setStatusMessage(error);
     }
 
-    private TextWatcher previewWatcher() {
+    private TextWatcher simpleWatcher(Runnable callback) {
         return new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence text, int start, int count, int after) {
@@ -1257,13 +1693,19 @@ public final class TaskEditActivity extends Activity {
 
             @Override
             public void onTextChanged(CharSequence text, int start, int before, int count) {
-                updatePreview();
+                if (callback != null) {
+                    callback.run();
+                }
             }
 
             @Override
             public void afterTextChanged(Editable editable) {
             }
         };
+    }
+
+    private TextWatcher previewWatcher() {
+        return simpleWatcher(this::updatePreview);
     }
 
     private String sourceLabel() {
@@ -1606,7 +2048,7 @@ public final class TaskEditActivity extends Activity {
             this.index = index;
             this.workingCopy = index >= 0 ? new SubtaskDraft(subtaskDrafts.get(index)) : new SubtaskDraft();
             this.priority = taskPriorityFromToken(workingCopy.priority);
-            this.initialMarkdownLine = workingCopy.toMarkdownLine();
+            this.initialMarkdownLine = workingCopy.toMarkdownLine(TaskEditActivity.this);
         }
 
         private void show() {
@@ -1750,17 +2192,11 @@ public final class TaskEditActivity extends Activity {
             card.addView(row, fullWidthWithBottomMargin(dp(8)));
 
             repeatView = createInput(workingCopy.repeat);
-            repeatView.setHint("15m, 1h");
             repeatView.addTextChangedListener(localWatcher());
-            card.addView(createInputBlock("\u041f\u043e\u0432\u0442\u043e\u0440", repeatView), fullWidthWithBottomMargin(dp(8)));
-
-            LinearLayout quickRow = new LinearLayout(TaskEditActivity.this);
-            quickRow.setOrientation(LinearLayout.HORIZONTAL);
-            addQuickIntervalButton(quickRow, "5m", 0);
-            addQuickIntervalButton(quickRow, "10m", dp(6));
-            addQuickIntervalButton(quickRow, "15m", dp(6));
-            addQuickIntervalButton(quickRow, "1h", dp(6));
-            card.addView(quickRow, fullWidthWithBottomMargin(dp(8)));
+            card.addView(
+                    new RepeatEditorController(repeatView, this::updatePreview).createView(),
+                    fullWidthWithBottomMargin(dp(8))
+            );
 
             repeatUntilDoneView = new CheckBox(TaskEditActivity.this);
             repeatUntilDoneView.setText("\u041f\u043e\u0432\u0442\u043e\u0440\u044f\u0442\u044c \u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f");
@@ -2195,7 +2631,7 @@ public final class TaskEditActivity extends Activity {
             }
             draft.priority = priorityToToken(priority);
             draft.tags = localValue(tagsView);
-            return draft.toMarkdownLine();
+            return draft.toMarkdownLine(TaskEditActivity.this);
         }
 
         private void updatePreview() {
@@ -2311,7 +2747,11 @@ public final class TaskEditActivity extends Activity {
                 draft.date = DATE.format(task.getReminderAt().toLocalDate());
                 draft.time = TIME.format(task.getReminderAt().toLocalTime());
             }
-            draft.repeat = extractFunctionValueStatic(task.getRawLine(), settings.repeatKeywords());
+            if (task.getRepeatRule() != null) {
+                draft.repeat = task.getRepeatRule().formatForUi();
+            } else {
+                draft.repeat = extractFunctionValueStatic(task.getRawLine(), settings.repeatKeywords());
+            }
             draft.repeatUntilDoneValue = extractFunctionValueStatic(task.getRawLine(), settings.repeatUntilDoneKeywords());
             draft.repeatUntilDone = !draft.repeatUntilDoneValue.isEmpty() || task.getRepeatMode() == RepeatMode.UNTIL_DONE;
             if (draft.repeat.isEmpty() && task.getRepeatMode() == RepeatMode.ALWAYS) {
@@ -2332,7 +2772,7 @@ public final class TaskEditActivity extends Activity {
             return draft;
         }
 
-        private String toMarkdownLine() {
+        private String toMarkdownLine(TaskEditActivity activity) {
             String normalizedTitle = title == null ? "" : title.trim();
             if (normalizedTitle.isEmpty()) {
                 normalizedTitle = "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430";
@@ -2346,13 +2786,36 @@ public final class TaskEditActivity extends Activity {
                 builder.append(" @due(").append(due).append(")");
             }
             if (repeat != null && !repeat.trim().isEmpty()) {
-                builder.append(" @repeat(").append(repeat.trim()).append(")");
+                String repeatValue = repeat.trim();
+                String repeatKeyword = TaskSyntaxPreferences.useCompactSyntax(activity) ? "r" : "repeat";
+                int selectorIndex = repeatValue.indexOf(" @");
+                if (selectorIndex < 0) {
+                    selectorIndex = repeatValue.indexOf("@");
+                }
+                if (selectorIndex > 0) {
+                    builder.append(" @")
+                            .append(repeatKeyword)
+                            .append("(")
+                            .append(repeatValue.substring(0, selectorIndex).trim())
+                            .append(") ")
+                            .append(repeatValue.substring(selectorIndex).trim());
+                } else {
+                    builder.append(" @").append(repeatKeyword).append("(").append(repeatValue).append(")");
+                }
             }
             if (repeatUntilDone && repeatUntilDoneValue != null && !repeatUntilDoneValue.trim().isEmpty()) {
-                builder.append(" @repeatUntilDone(").append(repeatUntilDoneValue.trim()).append(")");
+                builder.append(" @")
+                        .append(TaskSyntaxPreferences.useCompactSyntax(activity) ? "rud" : "repeatUntilDone")
+                        .append("(")
+                        .append(repeatUntilDoneValue.trim())
+                        .append(")");
             }
             if (overdueGrace != null && !overdueGrace.trim().isEmpty()) {
-                builder.append(" @grace(").append(overdueGrace.trim()).append(")");
+                builder.append(" @")
+                        .append(TaskSyntaxPreferences.useCompactSyntax(activity) ? "g" : "grace")
+                        .append("(")
+                        .append(overdueGrace.trim())
+                        .append(")");
             }
             if (snooze != null && !snooze.trim().isEmpty()
                     && (snoozeExplicit || defaultSnooze == null || !snooze.trim().equals(defaultSnooze.trim()))) {
@@ -2362,7 +2825,18 @@ public final class TaskEditActivity extends Activity {
                 builder.append(" @priority(").append(priority.trim()).append(")");
             }
             if (tags != null && !tags.trim().isEmpty()) {
-                builder.append(" @tag(").append(tags.trim()).append(")");
+                if (TaskSyntaxPreferences.useHashTags(activity)) {
+                    String[] tokens = tags.trim().split("\\s+");
+                    for (String token : tokens) {
+                        if (token == null || token.trim().isEmpty()) {
+                            continue;
+                        }
+                        String clean = token.trim();
+                        builder.append(" ").append(clean.startsWith("#") ? clean : "#" + clean);
+                    }
+                } else {
+                    builder.append(" @tag(").append(tags.trim()).append(")");
+                }
             }
             if (skipped) {
                 builder.append(" @skipped");
