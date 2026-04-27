@@ -501,7 +501,7 @@ public final class ReminderScheduler {
                 .setData(Uri.parse(REMINDER_URI_PREFIX + notificationId));
     }
 
-    private static int notificationIdFor(ObsidianTask task) {
+    static int occurrenceNotificationIdFor(ObsidianTask task) {
         int hash = Objects.hash(task.getTaskKey());
         if (hash == Integer.MIN_VALUE) {
             hash = 0;
@@ -509,6 +509,10 @@ public final class ReminderScheduler {
 
         int id = Math.abs(hash);
         return id == 0 ? task.getLineNumber() + 1 : id;
+    }
+
+    private static int notificationIdFor(ObsidianTask task) {
+        return occurrenceNotificationIdFor(task);
     }
 
     private static void putScheduledState(Context context, ScheduledReminder reminder) {

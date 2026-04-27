@@ -44,7 +44,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
         );
 
         ActiveTaskLookup activeTaskLookup = ActiveTaskLookup.unknown();
-        if (repeatMode == RepeatMode.UNTIL_DONE) {
+        if (hasNagLoop(repeatIntervalMillis, repeatMode)) {
             activeTaskLookup = findActiveTask(context, taskKey);
             if (activeTaskLookup.isMissing()) {
                 ReminderScheduler.cancelReminder(context, taskKey);
@@ -56,7 +56,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 ObsidianTask activeTask = activeTaskLookup.getTask();
                 title = activeTask.getTitle();
                 lineNumber = activeTask.getLineNumber();
-                repeatIntervalMillis = activeTask.getRepeatIntervalMillis();
+                repeatIntervalMillis = activeTask.getResolvedRepeatUntilDoneIntervalMillis();
+                repeatMode = activeTask.getRepeatMode();
                 group = activeTask.getGroup();
             }
         }
@@ -64,7 +65,9 @@ public final class ReminderReceiver extends BroadcastReceiver {
         String dueLabel = buildDueLabel(triggerAtMillis, activeTaskLookup.getTask());
         long notificationWhenMillis = buildNotificationWhenMillis(
                 triggerAtMillis,
-                activeTaskLookup.getTask()
+                activeTaskLookup.getTask(),
+                repeatIntervalMillis,
+                repeatMode
         );
 
         NotificationManager notificationManager =
@@ -77,8 +80,13 @@ public final class ReminderReceiver extends BroadcastReceiver {
         int displayNotificationId = notificationIdForDisplay(
                 notificationId,
                 displayTimeMillis,
-                repeatMode
+                repeatMode,
+                repeatIntervalMillis
         );
+
+        if (shouldRepostNotification(repeatIntervalMillis, repeatMode)) {
+            notificationManager.cancel(displayNotificationId);
+        }
 
         notificationManager.notify(
                 displayNotificationId,
@@ -272,8 +280,14 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
     private long buildNotificationWhenMillis(
             long fallbackTriggerAtMillis,
-            ObsidianTask activeTask
+            ObsidianTask activeTask,
+            long repeatIntervalMillis,
+            RepeatMode repeatMode
     ) {
+        if (shouldRepostNotification(repeatIntervalMillis, repeatMode)) {
+            return fallbackTriggerAtMillis;
+        }
+
         if (activeTask != null && activeTask.getReminderAt() != null) {
             return activeTask.getReminderAt()
                     .atZone(ZoneId.systemDefault())
@@ -287,20 +301,10 @@ public final class ReminderReceiver extends BroadcastReceiver {
     private int notificationIdForDisplay(
             int scheduledNotificationId,
             long triggerAtMillis,
-            RepeatMode repeatMode
+            RepeatMode repeatMode,
+            long repeatIntervalMillis
     ) {
-        if (repeatMode == RepeatMode.NONE || repeatMode == RepeatMode.UNTIL_DONE) {
-            return scheduledNotificationId;
-        }
-
-        long mixed = 31L * scheduledNotificationId + triggerAtMillis;
-        int id = (int) (mixed ^ (mixed >>> 32));
-        if (id == Integer.MIN_VALUE) {
-            id = 0;
-        }
-
-        id = Math.abs(id);
-        return id == 0 ? scheduledNotificationId : id;
+        return scheduledNotificationId;
     }
 
     private void cancelDisplayedNotification(
@@ -318,7 +322,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
         int displayNotificationId = notificationIdForDisplay(
                 notificationId,
                 triggerAtMillis,
-                repeatMode
+                repeatMode,
+                0L
         );
 
         notificationManager.cancel(displayNotificationId);
@@ -365,7 +370,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             return;
         }
 
-        if (repeatIntervalMillis > 0 && repeatMode != RepeatMode.NONE) {
+        if (repeatIntervalMillis > 0) {
             ReminderScheduler.scheduleNextRepeat(
                     context,
                     taskKey,
@@ -376,6 +381,14 @@ public final class ReminderReceiver extends BroadcastReceiver {
                     repeatMode
             );
         }
+    }
+
+    static boolean hasNagLoop(long repeatIntervalMillis, RepeatMode repeatMode) {
+        return repeatIntervalMillis > 0L || repeatMode == RepeatMode.UNTIL_DONE;
+    }
+
+    static boolean shouldRepostNotification(long repeatIntervalMillis, RepeatMode repeatMode) {
+        return hasNagLoop(repeatIntervalMillis, repeatMode);
     }
 
     private static final class ActiveTaskLookup {

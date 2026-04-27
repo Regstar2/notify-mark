@@ -40,7 +40,7 @@ public final class TaskDefaultsResolver {
 
         Duration resolvedRepeatUntilDone = task.getExplicitRepeatUntilDoneInterval();
         if (resolvedRepeatUntilDone == null
-                && task.hasRepeatSchedule()
+                && task.getReminderAt() != null
                 && defaultRepeatUntilDone != null
                 && !defaultRepeatUntilDone.isNegative()
                 && !defaultRepeatUntilDone.isZero()) {

@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
@@ -127,6 +128,45 @@ public final class ReminderSchedulerTest {
     }
 
     @Test
+    public void buildScheduledReminder_keepsNagLoopForOneShotWithResolvedRepeatUntilDone() {
+        ObsidianTask rawTask = new ObsidianTask(
+                "tasks.md|1|Nag one-shot|2026-04-20T11:30||NONE",
+                "tasks.md",
+                1,
+                "Nag one-shot",
+                "- [ ] Nag one-shot @due(2026-04-20 11:30)",
+                LocalDateTime.of(2026, 4, 20, 11, 30),
+                null,
+                RepeatMode.NONE,
+                false,
+                java.util.Collections.emptyList(),
+                TaskPriority.NONE,
+                "work",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ""
+        );
+        ObsidianTask task = TaskDefaultsResolver.resolve(
+                rawTask,
+                Duration.ofMinutes(5),
+                Duration.ofMinutes(0)
+        );
+
+        ScheduledReminder reminder = ReminderScheduler.buildScheduledReminder(
+                task,
+                LocalDateTime.of(2026, 4, 20, 12, 1),
+                UTC
+        );
+
+        assertEquals(LocalDateTime.of(2026, 4, 20, 12, 5), reminder.getTriggerAt());
+        assertEquals(Duration.ofMinutes(5).toMillis(), reminder.getRepeatIntervalMillis());
+    }
+
+    @Test
     public void buildScheduledReminder_skipsPastReminderWithZeroRepeat() {
         ObsidianTask task = new ObsidianTask(
                 1,
@@ -144,5 +184,47 @@ public final class ReminderSchedulerTest {
         );
 
         assertNull(reminder);
+    }
+
+    @Test
+    public void occurrenceNotificationId_staysStableForSameOccurrence() {
+        ObsidianTask task = new ObsidianTask(
+                7,
+                "Stable occurrence",
+                "- [ ] Stable occurrence @2026-04-20 11:30",
+                LocalDateTime.of(2026, 4, 20, 11, 30),
+                Duration.ofMinutes(5),
+                RepeatMode.UNTIL_DONE
+        );
+
+        assertEquals(
+                ReminderScheduler.occurrenceNotificationIdFor(task),
+                ReminderScheduler.occurrenceNotificationIdFor(task)
+        );
+    }
+
+    @Test
+    public void occurrenceNotificationId_changesForNewOccurrence() {
+        ObsidianTask firstOccurrence = new ObsidianTask(
+                7,
+                "Same task",
+                "- [ ] Same task @2026-04-20 09:00",
+                LocalDateTime.of(2026, 4, 20, 9, 0),
+                Duration.ofMinutes(5),
+                RepeatMode.UNTIL_DONE
+        );
+        ObsidianTask nextOccurrence = new ObsidianTask(
+                7,
+                "Same task",
+                "- [ ] Same task @2026-04-20 09:05",
+                LocalDateTime.of(2026, 4, 20, 9, 5),
+                Duration.ofMinutes(5),
+                RepeatMode.UNTIL_DONE
+        );
+
+        assertNotEquals(
+                ReminderScheduler.occurrenceNotificationIdFor(firstOccurrence),
+                ReminderScheduler.occurrenceNotificationIdFor(nextOccurrence)
+        );
     }
 }
