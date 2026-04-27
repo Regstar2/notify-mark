@@ -587,6 +587,9 @@ public final class TaskEditActivity extends Activity {
     }
 
     private String initialRepeatToken() {
+        if (task != null && task.getRepeatRule() != null) {
+            return task.getRepeatRule().formatForUi();
+        }
         String rawRepeat = extractFunctionValue(
                 task == null ? null : task.getRawLine(),
                 TaskFormatSettings.load(this).repeatKeywords()
@@ -643,19 +646,19 @@ public final class TaskEditActivity extends Activity {
         if (!rawRepeat.isEmpty()) {
             return rawRepeat;
         }
-        if (task != null && task.getRepeatMode() == RepeatMode.UNTIL_DONE) {
-            return durationToToken(task.getRepeatInterval());
+        if (task != null && task.getExplicitRepeatUntilDoneInterval() != null) {
+            return durationToToken(task.getExplicitRepeatUntilDoneInterval());
         }
         return "";
     }
 
     private String initialOverdueGraceToken() {
-        String rawGrace = extractFunctionValue(task == null ? null : task.getRawLine(), Collections.singletonList("grace"));
+        String rawGrace = extractFunctionValue(task == null ? null : task.getRawLine(), java.util.Arrays.asList("grace", "g"));
         if (!rawGrace.isEmpty()) {
             return rawGrace;
         }
-        return task != null && task.getOverdueGracePeriod() != null
-                ? durationToTokenAllowZero(task.getOverdueGracePeriod())
+        return task != null && task.getExplicitOverdueGracePeriod() != null
+                ? durationToTokenAllowZero(task.getExplicitOverdueGracePeriod())
                 : "";
     }
 
@@ -1132,10 +1135,27 @@ public final class TaskEditActivity extends Activity {
 
     private void appendRepeat(StringBuilder builder, String repeat) {
         if (repeat != null && !repeat.trim().isEmpty()) {
+            String value = repeat.trim();
+            String keyword = TaskSyntaxPreferences.useCompactSyntax(this)
+                    ? "r"
+                    : TaskFormatSettings.load(this).getRepeatKeyword();
+            int selectorIndex = value.indexOf(" @");
+            if (selectorIndex < 0) {
+                selectorIndex = value.indexOf("@");
+            }
+            if (selectorIndex > 0) {
+                builder.append(" @")
+                        .append(keyword)
+                        .append("(")
+                        .append(value.substring(0, selectorIndex).trim())
+                        .append(") ")
+                        .append(value.substring(selectorIndex).trim());
+                return;
+            }
             builder.append(" @")
-                    .append(TaskFormatSettings.load(this).getRepeatKeyword())
+                    .append(keyword)
                     .append("(")
-                    .append(repeat.trim())
+                    .append(value)
                     .append(")");
         }
     }
@@ -1143,7 +1163,9 @@ public final class TaskEditActivity extends Activity {
     private void appendRepeatUntilDone(StringBuilder builder, String repeatUntilDone) {
         if (repeatUntilDone != null && !repeatUntilDone.trim().isEmpty()) {
             builder.append(" @")
-                    .append(TaskFormatSettings.load(this).getRepeatUntilDoneKeyword())
+                    .append(TaskSyntaxPreferences.useCompactSyntax(this)
+                            ? "rud"
+                            : TaskFormatSettings.load(this).getRepeatUntilDoneKeyword())
                     .append("(")
                     .append(repeatUntilDone.trim())
                     .append(")");
@@ -1174,6 +1196,15 @@ public final class TaskEditActivity extends Activity {
 
     private void appendTags(StringBuilder builder, String tags) {
         if (tags != null && !tags.trim().isEmpty()) {
+            if (TaskSyntaxPreferences.useHashTags(this)) {
+                for (String tag : tags.trim().split("[,;\\s]+")) {
+                    String cleanTag = tag.trim().replaceFirst("^#+", "");
+                    if (!cleanTag.isEmpty()) {
+                        builder.append(" #").append(cleanTag);
+                    }
+                }
+                return;
+            }
             builder.append(" @")
                     .append(TaskFormatSettings.load(this).getTagKeyword())
                     .append("(")
@@ -1184,7 +1215,11 @@ public final class TaskEditActivity extends Activity {
 
     private void appendOverdueGrace(StringBuilder builder, String graceValue) {
         if (graceValue != null && !graceValue.trim().isEmpty()) {
-            builder.append(" @grace(").append(graceValue.trim()).append(")");
+            builder.append(" @")
+                    .append(TaskSyntaxPreferences.useCompactSyntax(this) ? "g" : "grace")
+                    .append("(")
+                    .append(graceValue.trim())
+                    .append(")");
         }
     }
 

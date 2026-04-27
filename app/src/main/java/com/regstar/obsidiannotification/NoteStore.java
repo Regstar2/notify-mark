@@ -355,18 +355,27 @@ public final class NoteStore {
         for (NoteDocument document : readDocuments(context)) {
             documentCount++;
             totalCharacters += document.getMarkdown().length();
-            results.add(TaskParser.parseDocument(
-                    document.getMarkdown(),
-                    java.time.LocalDate.now(),
-                    document.getDisplayName(),
-                    formatSettings
-            ));
+            results.add(parseDocument(context, document, formatSettings));
         }
         return new TaskSnapshot(TaskParseResult.merge(results), documentCount, totalCharacters);
     }
 
     public static List<ObsidianTask> readTasks(Context context) throws IOException {
         return readTaskParseResult(context).getActiveTasks();
+    }
+
+    private static TaskParseResult parseDocument(
+            Context context,
+            NoteDocument document,
+            TaskFormatSettings formatSettings
+    ) {
+        TaskParseResult rawResult = TaskParser.parseDocument(
+                document.getMarkdown(),
+                java.time.LocalDate.now(),
+                document.getDisplayName(),
+                formatSettings
+        );
+        return rawResult.withTasks(TaskDefaultsResolver.resolve(context, rawResult.getTasks()));
     }
 
     public static ObsidianTask findActiveTask(Context context, String taskKey) throws IOException {
@@ -381,12 +390,7 @@ public final class NoteStore {
     public static TaskDocumentMatch findTaskDocument(Context context, String taskKey) throws IOException {
         TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
         for (NoteDocument document : readDocuments(context)) {
-            TaskParseResult result = TaskParser.parseDocument(
-                    document.getMarkdown(),
-                    LocalDate.now(),
-                    document.getDisplayName(),
-                    formatSettings
-            );
+            TaskParseResult result = parseDocument(context, document, formatSettings);
             for (ObsidianTask task : result.getTasks()) {
                 if (task.getTaskKey().equals(taskKey)) {
                     return new TaskDocumentMatch(document.getUri(), document.getDisplayName(), task);
@@ -403,12 +407,7 @@ public final class NoteStore {
 
         TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
         for (NoteDocument document : readDocuments(context)) {
-            TaskParseResult result = TaskParser.parseDocument(
-                    document.getMarkdown(),
-                    LocalDate.now(),
-                    document.getDisplayName(),
-                    formatSettings
-            );
+            TaskParseResult result = parseDocument(context, document, formatSettings);
             for (ObsidianTask task : result.getTasks()) {
                 if (!task.getTaskKey().equals(taskKey)) {
                     continue;
@@ -456,6 +455,10 @@ public final class NoteStore {
     }
 
     public static TaskEditResult markTaskDone(Context context, String taskKey) {
+        TaskEditResult seriesResult = advanceRepeatSeriesIfNeeded(context, taskKey, OccurrenceStatus.COMPLETED);
+        if (seriesResult != null) {
+            return seriesResult;
+        }
         return editActiveTaskLine(context, taskKey, NoteStore::markDoneLine);
     }
 
@@ -476,6 +479,10 @@ public final class NoteStore {
     }
 
     public static TaskEditResult markTaskSkipped(Context context, String taskKey) {
+        TaskEditResult seriesResult = advanceRepeatSeriesIfNeeded(context, taskKey, OccurrenceStatus.SKIPPED);
+        if (seriesResult != null) {
+            return seriesResult;
+        }
         return editActiveTaskLine(context, taskKey, NoteStore::appendSkippedMarker);
     }
 
@@ -503,12 +510,7 @@ public final class NoteStore {
         if (taskKey != null && !taskKey.trim().isEmpty()) {
             TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
             for (NoteDocument document : readDocuments(context)) {
-                TaskParseResult result = TaskParser.parseDocument(
-                        document.getMarkdown(),
-                        LocalDate.now(),
-                        document.getDisplayName(),
-                        formatSettings
-                );
+                TaskParseResult result = parseDocument(context, document, formatSettings);
                 for (ObsidianTask task : result.getTasks()) {
                     if (task.getTaskKey().equals(taskKey)) {
                         return new MarkdownDocument(
@@ -709,12 +711,7 @@ public final class NoteStore {
         try {
             TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
             for (NoteDocument document : readDocuments(context)) {
-                TaskParseResult result = TaskParser.parseDocument(
-                        document.getMarkdown(),
-                        LocalDate.now(),
-                        document.getDisplayName(),
-                        formatSettings
-                );
+                TaskParseResult result = parseDocument(context, document, formatSettings);
                 for (ObsidianTask task : result.getTasks()) {
                     if (!task.getTaskKey().equals(taskKey)) {
                         continue;
@@ -750,6 +747,26 @@ public final class NoteStore {
             return TaskEditResult.notFound("задача не найдена или уже изменилась");
         } catch (IOException | RuntimeException exception) {
             ErrorLog.record(context, "Не удалось обновить markdown-задачу", exception);
+            return TaskEditResult.writeFailed(exception.getMessage());
+        }
+    }
+
+    private static TaskEditResult advanceRepeatSeriesIfNeeded(
+            Context context,
+            String taskKey,
+            OccurrenceStatus resolutionStatus
+    ) {
+        if (taskKey == null || taskKey.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            TaskDocumentMatch match = findTaskDocument(context, taskKey);
+            if (match == null || match.getTask() == null || !match.getTask().hasRepeatSchedule()) {
+                return null;
+            }
+            return RepeatSeriesManager.advance(context, taskKey, resolutionStatus);
+        } catch (IOException | RuntimeException exception) {
+            ErrorLog.record(context, "Не удалось продвинуть repeat-серию", exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -790,12 +807,7 @@ public final class NoteStore {
                 }
 
                 String[] lines = document.getMarkdown().split("\n", -1);
-                TaskParseResult result = TaskParser.parseDocument(
-                        document.getMarkdown(),
-                        LocalDate.now(),
-                        document.getDisplayName(),
-                        formatSettings
-                );
+                TaskParseResult result = parseDocument(context, document, formatSettings);
                 Map<Integer, TaskLineMutation> mutations = new LinkedHashMap<>();
                 List<String> documentUpdatedTaskKeys = new ArrayList<>();
 
@@ -888,12 +900,7 @@ public final class NoteStore {
         try {
             TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
             for (NoteDocument document : readDocuments(context)) {
-                TaskParseResult result = TaskParser.parseDocument(
-                        document.getMarkdown(),
-                        LocalDate.now(),
-                        document.getDisplayName(),
-                        formatSettings
-                );
+                TaskParseResult result = parseDocument(context, document, formatSettings);
                 for (ObsidianTask task : result.getTasks()) {
                     if (!task.getTaskKey().equals(taskKey)) {
                         continue;
@@ -946,12 +953,7 @@ public final class NoteStore {
         try {
             TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
             for (NoteDocument document : readDocuments(context)) {
-                TaskParseResult result = TaskParser.parseDocument(
-                        document.getMarkdown(),
-                        LocalDate.now(),
-                        document.getDisplayName(),
-                        formatSettings
-                );
+                TaskParseResult result = parseDocument(context, document, formatSettings);
                 for (ObsidianTask task : result.getTasks()) {
                     if (!task.getTaskKey().equals(taskKey)) {
                         continue;

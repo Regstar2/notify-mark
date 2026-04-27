@@ -2579,7 +2579,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private String calendarTaskMeta(ObsidianTask task) {
         List<String> parts = new ArrayList<>();
-        if (task.getRepeatInterval() != null) {
+        if (hasRepeatInfo(task)) {
             parts.add(formatRepeat(task));
         }
         String group = taskGroupLabel(task);
@@ -2988,7 +2988,7 @@ public final class MainActivity extends AppCompatActivity {
                 ? "не указано"
                 : DATE_TIME_FORMAT.format(task.getReminderAt())), fullWidthWithTopMargin(dp(10)));
 
-        if (task.getRepeatInterval() != null) {
+        if (hasRepeatInfo(task)) {
             item.addView(createMetaLine(R.drawable.ic_repeat, formatRepeat(task)), fullWidthWithTopMargin(dp(6)));
         }
 
@@ -3209,7 +3209,7 @@ public final class MainActivity extends AppCompatActivity {
         if (subtask.getReminderAt() != null) {
             parts.add(DATE_TIME_FORMAT.format(subtask.getReminderAt()));
         }
-        if (subtask.getRepeatInterval() != null) {
+        if (hasRepeatInfo(subtask)) {
             parts.add(formatRepeat(subtask));
         }
         parts.add(formatStatus(taskStatus(subtask)));
@@ -3419,7 +3419,7 @@ public final class MainActivity extends AppCompatActivity {
             return "✓";
         }
         if (status == TaskStatus.SKIPPED) {
-            return "×";
+            return "Г—";
         }
         if (status == TaskStatus.OVERDUE) {
             return "!";
@@ -3860,7 +3860,7 @@ public final class MainActivity extends AppCompatActivity {
             builder.append(" · время не указано");
         }
 
-        if (task.getRepeatInterval() != null) {
+        if (hasRepeatInfo(task)) {
             builder.append(" · ").append(formatRepeat(task));
         }
 
@@ -3889,11 +3889,22 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private String formatRepeat(ObsidianTask task) {
-        if (task.getRepeatMode() == RepeatMode.UNTIL_DONE) {
-            return "повтор до выполнения " + formatDuration(task.getRepeatInterval());
+        List<String> parts = new ArrayList<>();
+        if (task.getRepeatRule() != null) {
+            parts.add("повтор " + task.getRepeatRule().formatForUi());
         }
+        if (task.getResolvedRepeatUntilDoneInterval() != null) {
+            parts.add("до выполнения " + formatDuration(task.getResolvedRepeatUntilDoneInterval()));
+        }
+        if (parts.isEmpty() && task.getRepeatInterval() != null) {
+            parts.add("повтор " + formatDuration(task.getRepeatInterval()));
+        }
+        return TextUtils.join(" · ", parts);
+    }
 
-        return "повтор " + formatDuration(task.getRepeatInterval());
+    private boolean hasRepeatInfo(ObsidianTask task) {
+        return task != null
+                && (task.getRepeatRule() != null || task.getResolvedRepeatUntilDoneInterval() != null);
     }
 
     private String formatPriority(TaskPriority priority) {
@@ -4242,3 +4253,4 @@ public final class MainActivity extends AppCompatActivity {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
+

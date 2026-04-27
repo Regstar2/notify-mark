@@ -31,6 +31,10 @@ public final class TaskParseResult {
         return activeTasks;
     }
 
+    public TaskParseResult withTasks(List<ObsidianTask> newTasks) {
+        return new TaskParseResult(newTasks, errors);
+    }
+
     public static TaskParseResult merge(List<TaskParseResult> results) {
         List<ObsidianTask> mergedTasks = new ArrayList<>();
         List<TaskParseError> mergedErrors = new ArrayList<>();

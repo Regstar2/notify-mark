@@ -75,6 +75,11 @@ public final class NoteChangeMonitor {
                 return NoteSyncResult.failure(message, restored);
             }
 
+            if (processExternalRepeatUpdates(context, parseResult)) {
+                snapshot = NoteStore.readTaskSnapshot(context);
+                parseResult = snapshot.getParseResult();
+            }
+
             List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
             TaskCache.saveActiveTasks(context, activeTasks);
             ReminderSchedule schedule = forceReschedule
@@ -93,6 +98,67 @@ public final class NoteChangeMonitor {
             boolean restored = restoreFromCache(context, exception.getMessage());
             return NoteSyncResult.failure(exception.getMessage(), restored);
         }
+    }
+
+    private static boolean processExternalRepeatUpdates(
+            Context context,
+            TaskParseResult parseResult
+    ) {
+        boolean changed = false;
+        LocalDateTime now = LocalDateTime.now();
+        for (ObsidianTask task : parseResult.getTasks()) {
+            if (!task.hasRepeatSchedule()) {
+                continue;
+            }
+
+            String seriesId = task.getSeriesId();
+            if (!task.isCompleted() && !task.isSkipped()) {
+                OccurrenceHistoryStore.removePendingExternalCompletion(context, seriesId);
+                continue;
+            }
+
+            OccurrenceStatus status = task.isSkipped()
+                    ? OccurrenceStatus.SKIPPED
+                    : OccurrenceStatus.COMPLETED;
+            OccurrenceHistoryStore.PendingExternalCompletion pending =
+                    OccurrenceHistoryStore.getPendingExternalCompletion(context, seriesId);
+            if (pending == null
+                    || !task.getTaskKey().equals(pending.getTaskKey())
+                    || !task.getRawLine().equals(pending.getRawLineSnapshot())
+                    || task.getReminderAt() == null
+                    || !task.getReminderAt().equals(pending.getOccurrenceDueAt())
+                    || pending.getCandidateStatus() != status) {
+                OccurrenceHistoryStore.putPendingExternalCompletion(
+                        context,
+                        new OccurrenceHistoryStore.PendingExternalCompletion(
+                                seriesId,
+                                task.getTaskKey(),
+                                task.getRawLine(),
+                                status,
+                                task.getReminderAt(),
+                                now
+                        )
+                );
+                continue;
+            }
+
+            if (pending.getDetectedAt().plus(OccurrenceHistoryStore.stabilizationWindow()).isAfter(now)) {
+                continue;
+            }
+
+            TaskEditResult advanceResult = RepeatSeriesManager.advance(context, task.getTaskKey(), status);
+            if (advanceResult.isUpdated()) {
+                OccurrenceHistoryStore.removePendingExternalCompletion(context, seriesId);
+                changed = true;
+            } else if (advanceResult.isFailure()) {
+                ErrorLog.record(
+                        context,
+                        "Не удалось обработать внешнее завершение repeat-задачи: "
+                                + advanceResult.getMessage()
+                );
+            }
+        }
+        return changed;
     }
 
     public static boolean restoreFromCache(Context context, String reason) {

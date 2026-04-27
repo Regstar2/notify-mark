@@ -615,7 +615,7 @@ public final class SettingsActivity extends Activity {
 
         repeatUntilDoneMinutesInput = addKeywordInput(
                 root,
-                "РџРѕРІС‚РѕСЂ РґРѕ РІС‹РїРѕР»РЅРµРЅРёСЏ, РјРёРЅСѓС‚",
+                "Повтор до выполнения, минут",
                 String.valueOf(ActionPreferences.getRepeatUntilDoneMinutes(this))
         );
         repeatUntilDoneMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);

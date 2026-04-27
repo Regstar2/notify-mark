@@ -10,6 +10,8 @@ import android.os.Build;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 public final class ReminderReceiver extends BroadcastReceiver {
     @Override
@@ -46,6 +48,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             activeTaskLookup = findActiveTask(context, taskKey);
             if (activeTaskLookup.isMissing()) {
                 ReminderScheduler.cancelReminder(context, taskKey);
+                cancelDisplayedNotification(context, notificationId, repeatMode, triggerAtMillis);
                 return;
             }
 
@@ -57,6 +60,12 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 group = activeTask.getGroup();
             }
         }
+
+        String dueLabel = buildDueLabel(triggerAtMillis, activeTaskLookup.getTask());
+        long notificationWhenMillis = buildNotificationWhenMillis(
+                triggerAtMillis,
+                activeTaskLookup.getTask()
+        );
 
         NotificationManager notificationManager =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -70,6 +79,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 displayTimeMillis,
                 repeatMode
         );
+
         notificationManager.notify(
                 displayNotificationId,
                 buildNotification(
@@ -79,10 +89,11 @@ public final class ReminderReceiver extends BroadcastReceiver {
                         displayNotificationId,
                         safeTitle(title),
                         lineNumber,
-                        displayTimeMillis,
+                        notificationWhenMillis,
                         repeatIntervalMillis,
                         repeatMode,
-                        group
+                        group,
+                        dueLabel
                 )
         );
 
@@ -106,22 +117,29 @@ public final class ReminderReceiver extends BroadcastReceiver {
             int displayNotificationId,
             String title,
             int lineNumber,
-            long triggerAtMillis,
+            long notificationWhenMillis,
             long repeatIntervalMillis,
             RepeatMode repeatMode,
-            String group
+            String group,
+            String dueLabel
     ) {
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 ? new Notification.Builder(context, ReminderScheduler.CHANNEL_ID)
                 : new Notification.Builder(context);
 
+        String safeDueLabel = (dueLabel == null || dueLabel.trim().isEmpty())
+                ? ""
+                : dueLabel.trim();
+
+        String expandedText = safeDueLabel.isEmpty() ? title : safeDueLabel;
+
         builder.setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle("Напоминание Obsidian")
-                .setContentText(title)
-                .setStyle(new Notification.BigTextStyle().bigText(title))
+                .setContentTitle(title)
+                .setContentText(safeDueLabel)
+                .setStyle(new Notification.BigTextStyle().bigText(expandedText))
                 .setContentIntent(createOpenAppIntent(context))
                 .setAutoCancel(true)
-                .setWhen(triggerAtMillis)
+                .setWhen(notificationWhenMillis)
                 .setShowWhen(true)
                 .setOnlyAlertOnce(false)
                 .setGroup("obsidian_notification_" + ObsidianTask.normalizeGroup(group))
@@ -131,12 +149,6 @@ public final class ReminderReceiver extends BroadcastReceiver {
                         | Notification.DEFAULT_VIBRATE
                         | Notification.DEFAULT_LIGHTS)
                 .setPriority(Notification.PRIORITY_MAX);
-
-        if (lineNumber > 0) {
-            builder.setSubText(ObsidianTask.normalizeGroup(group) + " · строка " + lineNumber);
-        } else {
-            builder.setSubText(ObsidianTask.normalizeGroup(group));
-        }
 
         if (taskKey != null && !taskKey.trim().isEmpty()) {
             builder.addAction(
@@ -245,12 +257,39 @@ public final class ReminderReceiver extends BroadcastReceiver {
         return title;
     }
 
+    private String buildDueLabel(long fallbackTriggerAtMillis, ObsidianTask activeTask) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+
+        if (activeTask != null && activeTask.getReminderAt() != null) {
+            return "Срок: " + activeTask.getReminderAt().toLocalTime().format(formatter);
+        }
+
+        return "Срок: " + java.time.Instant.ofEpochMilli(fallbackTriggerAtMillis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime()
+                .format(formatter);
+    }
+
+    private long buildNotificationWhenMillis(
+            long fallbackTriggerAtMillis,
+            ObsidianTask activeTask
+    ) {
+        if (activeTask != null && activeTask.getReminderAt() != null) {
+            return activeTask.getReminderAt()
+                    .atZone(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli();
+        }
+
+        return fallbackTriggerAtMillis;
+    }
+
     private int notificationIdForDisplay(
             int scheduledNotificationId,
             long triggerAtMillis,
             RepeatMode repeatMode
     ) {
-        if (repeatMode == RepeatMode.NONE) {
+        if (repeatMode == RepeatMode.NONE || repeatMode == RepeatMode.UNTIL_DONE) {
             return scheduledNotificationId;
         }
 
@@ -262,6 +301,30 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
         id = Math.abs(id);
         return id == 0 ? scheduledNotificationId : id;
+    }
+
+    private void cancelDisplayedNotification(
+            Context context,
+            int notificationId,
+            RepeatMode repeatMode,
+            long triggerAtMillis
+    ) {
+        NotificationManager notificationManager =
+                (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager == null) {
+            return;
+        }
+
+        int displayNotificationId = notificationIdForDisplay(
+                notificationId,
+                triggerAtMillis,
+                repeatMode
+        );
+
+        notificationManager.cancel(displayNotificationId);
+        if (notificationId != displayNotificationId) {
+            notificationManager.cancel(notificationId);
+        }
     }
 
     private ActiveTaskLookup findActiveTask(Context context, String taskKey) {
@@ -297,24 +360,12 @@ public final class ReminderReceiver extends BroadcastReceiver {
             RepeatMode repeatMode,
             ObsidianTask activeTask
     ) {
-        if (repeatMode == RepeatMode.UNTIL_DONE) {
-            if (activeTask != null) {
-                ReminderScheduler.scheduleNextRepeat(context, activeTask);
-            } else if (repeatIntervalMillis > 0) {
-                ReminderScheduler.scheduleNextRepeat(
-                        context,
-                        taskKey,
-                        notificationId,
-                        lineNumber,
-                        title,
-                        repeatIntervalMillis,
-                        repeatMode
-                );
-            }
+        if (activeTask != null && activeTask.getResolvedRepeatUntilDoneInterval() != null) {
+            ReminderScheduler.scheduleNextRepeat(context, activeTask);
             return;
         }
 
-        if (repeatMode == RepeatMode.ALWAYS && repeatIntervalMillis > 0) {
+        if (repeatIntervalMillis > 0 && repeatMode != RepeatMode.NONE) {
             ReminderScheduler.scheduleNextRepeat(
                     context,
                     taskKey,

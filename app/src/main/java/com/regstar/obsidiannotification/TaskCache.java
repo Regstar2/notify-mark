@@ -75,7 +75,10 @@ public final class TaskCache {
 
     private static String encodeTask(ObsidianTask task) {
         String reminderAt = task.getReminderAt() == null ? "" : task.getReminderAt().toString();
+        String repeatRuleSpec = task.getRepeatRule() == null ? "" : task.getRepeatRule().formatForUi();
         return encode(task.getTaskKey())
+                + "|"
+                + encode(task.getSeriesId())
                 + "|"
                 + encode(task.getSourceName())
                 + "|"
@@ -91,6 +94,18 @@ public final class TaskCache {
                 + "|"
                 + task.getRepeatMode().name()
                 + "|"
+                + encode(repeatRuleSpec)
+                + "|"
+                + encode(durationValue(task.getExplicitRepeatUntilDoneInterval()))
+                + "|"
+                + encode(durationValue(task.getResolvedRepeatUntilDoneInterval()))
+                + "|"
+                + encode(durationValue(task.getExplicitOverdueGracePeriod()))
+                + "|"
+                + encode(durationValue(task.getResolvedOverdueGracePeriod()))
+                + "|"
+                + encode(durationValue(task.getSnoozeDuration()))
+                + "|"
                 + encode(joinTags(task.getTags()))
                 + "|"
                 + task.getPriority().name()
@@ -100,29 +115,45 @@ public final class TaskCache {
 
     private static ObsidianTask decodeTask(String encoded) {
         String[] parts = encoded.split("\\|", -1);
-        if (parts.length != 8 && parts.length != 10 && parts.length != 11) {
+        if (parts.length != 8
+                && parts.length != 10
+                && parts.length != 11
+                && parts.length != 18) {
             return null;
         }
 
         try {
             String taskKey = decode(parts[0]);
-            String sourceName = decode(parts[1]);
-            int lineNumber = Integer.parseInt(parts[2]);
-            String title = decode(parts[3]);
-            String rawLine = decode(parts[4]);
-            String reminderAtText = decode(parts[5]);
+            boolean extended = parts.length == 18;
+            String seriesId = extended ? decode(parts[1]) : "";
+            int offset = extended ? 1 : 0;
+            String sourceName = decode(parts[1 + offset]);
+            int lineNumber = Integer.parseInt(parts[2 + offset]);
+            String title = decode(parts[3 + offset]);
+            String rawLine = decode(parts[4 + offset]);
+            String reminderAtText = decode(parts[5 + offset]);
             LocalDateTime reminderAt = reminderAtText.isEmpty()
                     ? null
                     : LocalDateTime.parse(reminderAtText);
-            long repeatMillis = Long.parseLong(parts[6]);
+            long repeatMillis = Long.parseLong(parts[6 + offset]);
             Duration repeatInterval = repeatMillis > 0 ? Duration.ofMillis(repeatMillis) : null;
-            RepeatMode repeatMode = RepeatMode.fromName(parts[7]);
-            List<String> tags = parts.length >= 10 ? splitTags(decode(parts[8])) : new ArrayList<>();
-            TaskPriority priority = parts.length >= 10
-                    ? TaskPriority.fromName(parts[9])
+            RepeatMode repeatMode = RepeatMode.fromName(parts[7 + offset]);
+            RepeatRule repeatRule = extended
+                    ? RepeatRule.parseStoredSpec(decode(parts[8 + offset]))
+                    : null;
+            Duration explicitRepeatUntilDone = extended ? parseDurationValue(parts[9 + offset]) : null;
+            Duration resolvedRepeatUntilDone = extended ? parseDurationValue(parts[10 + offset]) : null;
+            Duration explicitGrace = extended ? parseDurationValue(parts[11 + offset]) : null;
+            Duration resolvedGrace = extended ? parseDurationValue(parts[12 + offset]) : null;
+            Duration snoozeDuration = extended ? parseDurationValue(parts[13 + offset]) : null;
+            List<String> tags = parts.length >= (extended ? 17 : 10)
+                    ? splitTags(decode(parts[extended ? 14 + offset : 8]))
+                    : new ArrayList<>();
+            TaskPriority priority = parts.length >= (extended ? 17 : 10)
+                    ? TaskPriority.fromName(parts[extended ? 15 + offset : 9])
                     : TaskPriority.NONE;
-            String group = parts.length >= 11
-                    ? ObsidianTask.normalizeGroup(decode(parts[10]))
+            String group = parts.length >= (extended ? 18 : 11)
+                    ? ObsidianTask.normalizeGroup(decode(parts[extended ? 16 + offset : 10]))
                     : ObsidianTask.DEFAULT_GROUP;
             return new ObsidianTask(
                     taskKey,
@@ -136,7 +167,14 @@ public final class TaskCache {
                     false,
                     tags,
                     priority,
-                    group
+                    group,
+                    snoozeDuration,
+                    explicitGrace,
+                    resolvedGrace,
+                    explicitRepeatUntilDone,
+                    resolvedRepeatUntilDone,
+                    repeatRule,
+                    seriesId
             );
         } catch (RuntimeException exception) {
             return null;
@@ -177,5 +215,18 @@ public final class TaskCache {
 
     private static String decode(String value) {
         return new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8);
+    }
+
+    private static String durationValue(Duration duration) {
+        return duration == null ? "" : String.valueOf(duration.toMillis());
+    }
+
+    private static Duration parseDurationValue(String encoded) {
+        String value = decode(encoded);
+        if (value.isEmpty()) {
+            return null;
+        }
+        long millis = Long.parseLong(value);
+        return millis <= 0L ? Duration.ZERO : Duration.ofMillis(millis);
     }
 }

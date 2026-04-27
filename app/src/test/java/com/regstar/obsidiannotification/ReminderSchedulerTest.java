@@ -72,7 +72,7 @@ public final class ReminderSchedulerTest {
     }
 
     @Test
-    public void buildScheduledReminder_movesRepeatingReminderToNextFutureTime() {
+    public void buildScheduledReminder_doesNotAutoAdvanceRepeatSeriesWithoutNag() {
         ObsidianTask task = new ObsidianTask(
                 1,
                 "Repeating task",
@@ -87,12 +87,11 @@ public final class ReminderSchedulerTest {
                 UTC
         );
 
-        assertEquals(LocalDateTime.of(2026, 4, 20, 12, 15), reminder.getTriggerAt());
-        assertEquals(RepeatMode.ALWAYS, reminder.getRepeatMode());
+        assertNull(reminder);
     }
 
     @Test
-    public void buildScheduledReminder_keepsUntilDoneModeAndGroup() {
+    public void buildScheduledReminder_keepsNagLoopForPastHeadOccurrence() {
         ObsidianTask task = new ObsidianTask(
                 "tasks.md|1|Nag||300000|UNTIL_DONE",
                 "tasks.md",
@@ -105,7 +104,14 @@ public final class ReminderSchedulerTest {
                 false,
                 java.util.Collections.emptyList(),
                 TaskPriority.NONE,
-                "work"
+                "work",
+                null,
+                null,
+                null,
+                Duration.ofMinutes(5),
+                Duration.ofMinutes(5),
+                null,
+                ""
         );
 
         ScheduledReminder reminder = ReminderScheduler.buildScheduledReminder(

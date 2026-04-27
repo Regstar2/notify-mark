@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification;
 
 import java.time.Duration;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -8,6 +9,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -16,6 +18,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class TaskParser {
+    private static final String SERIES_ID_KEYWORD = "id";
+    private static final String DAYS_KEYWORD = "days";
+    private static final String MONTHDAY_KEYWORD = "monthday";
     private static final String OVERDUE_GRACE_KEYWORD = "grace";
     private static final String SNOOZE_KEYWORD = "snooze";
     private static final Pattern TASK =
@@ -49,7 +54,7 @@ public final class TaskParser {
     private static final Pattern TIME_VALUE =
             Pattern.compile("^(\\d{1,2}:\\d{2})$");
     private static final Pattern DURATION_VALUE =
-            Pattern.compile("(?iu)^(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д)$");
+            Pattern.compile("(?iu)^(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д|w|wk|week|mo|mon|month)$");
     private static final Pattern HASH_TAG =
             Pattern.compile("(?<!\\S)#([\\p{L}\\p{N}_/-]+)");
     private static final Pattern SNOOZED_COUNT =
@@ -147,16 +152,16 @@ public final class TaskParser {
                             lineNumber,
                             displayTitle,
                             fields.reminderAt,
-                            fields.repeatInterval,
-                            fields.repeatMode
+                            legacyRepeatInterval(fields),
+                            legacyRepeatMode(fields)
                     ),
                     sourceName,
                     lineNumber,
                     displayTitle,
                     lines[i],
                     fields.reminderAt,
-                    fields.repeatInterval,
-                    fields.repeatMode,
+                    legacyRepeatInterval(fields),
+                    legacyRepeatMode(fields),
                     completed,
                     fields.skipped,
                     parentRecord == null ? "" : parentRecord.task.getTaskKey(),
@@ -166,7 +171,12 @@ public final class TaskParser {
                     fields.priority,
                     fields.group,
                     fields.snoozeDuration,
-                    fields.overdueGracePeriod
+                    fields.explicitOverdueGracePeriod,
+                    fields.explicitOverdueGracePeriod,
+                    fields.explicitRepeatUntilDoneInterval,
+                    fields.explicitRepeatUntilDoneInterval,
+                    fields.repeatRule,
+                    fields.seriesId
             );
             tasks.add(task);
             if (parentRecord != null) {
@@ -242,16 +252,18 @@ public final class TaskParser {
             TaskFormatSettings format
     ) {
         ParsedTaskFields fields = new ParsedTaskFields();
+        fields.seriesId = parseSeriesId(body);
         fields.reminderAt = parseReminder(body, defaultDate, format, fields);
-        fields.repeatInterval = parseRepeat(body, format, fields);
-        fields.repeatMode = parseRepeatMode(body, fields.repeatInterval, format);
+        fields.repeatRule = parseRepeatRule(body, format, fields);
+        fields.explicitRepeatUntilDoneInterval = parseRepeatUntilDoneInterval(body, format, fields);
+        fields.repeatMode = parseRepeatMode(fields.repeatRule, fields.explicitRepeatUntilDoneInterval);
         fields.skipped = SKIPPED_MARKER.matcher(body).find();
         fields.tags = parseTags(body, format);
         fields.priority = parsePriority(body, format, fields);
         fields.groupExplicit = hasGroupFunction(body, format);
         fields.group = parseGroup(body, format);
         fields.snoozeDuration = parseSnooze(body, fields);
-        fields.overdueGracePeriod = parseOverdueGrace(body, fields);
+        fields.explicitOverdueGracePeriod = parseOverdueGrace(body, fields);
         return fields;
     }
 
@@ -360,35 +372,93 @@ public final class TaskParser {
         }
     }
 
-    private static Duration parseRepeat(
+    private static String parseSeriesId(String body) {
+        String value = findFunctionValue(body, List.of(SERIES_ID_KEYWORD));
+        return value == null ? "" : value.trim();
+    }
+
+    private static RepeatRule parseRepeatRule(
             String body,
             TaskFormatSettings format,
             ParsedTaskFields fields
     ) {
-        String repeatUntilDoneValue = findFunctionValue(body, format.repeatUntilDoneKeywords());
-        if (repeatUntilDoneValue != null) {
-            Duration repeatInterval = parseDurationValue(repeatUntilDoneValue);
-            fields.repeatFunctionInvalid = repeatInterval == null;
-            return repeatInterval;
-        }
-
         String repeatValue = findFunctionValue(body, format.repeatKeywords());
-        if (repeatValue != null) {
-            Duration repeatInterval = parseDurationValue(repeatValue);
-            fields.repeatFunctionInvalid = repeatInterval == null;
-            return repeatInterval;
+        if (repeatValue == null) {
+            Matcher matcher = REPEAT.matcher(body);
+            if (!matcher.find()) {
+                if (findFunctionValue(body, List.of(DAYS_KEYWORD)) != null
+                        || findFunctionValue(body, List.of(MONTHDAY_KEYWORD)) != null) {
+                    fields.repeatCombinationInvalid = true;
+                }
+                return null;
+            }
+            repeatValue = matcher.group(1) + matcher.group(2);
         }
 
-        Matcher matcher = REPEAT.matcher(body);
-        if (!matcher.find()) {
+        ParsedDurationToken durationToken = parseDurationToken(repeatValue);
+        if (durationToken == null) {
+            fields.repeatFunctionInvalid = true;
             return null;
         }
 
-        return parseDuration(matcher.group(1), matcher.group(2));
+        String daysValue = findFunctionValue(body, List.of(DAYS_KEYWORD));
+        String monthDayValue = findFunctionValue(body, List.of(MONTHDAY_KEYWORD));
+        Set<DayOfWeek> days = Collections.emptySet();
+        if (daysValue != null) {
+            days = RepeatRule.parseDaysValue(daysValue);
+            if (days.isEmpty()) {
+                fields.daysFunctionInvalid = true;
+            }
+        }
+
+        if (monthDayValue != null && !RepeatRule.isLastMonthDayValue(monthDayValue)) {
+            Integer parsedDay = RepeatRule.parseMonthDayValue(monthDayValue);
+            if (parsedDay == null) {
+                fields.monthDayFunctionInvalid = true;
+            }
+        }
+
+        RepeatRule.Unit unit = durationToken.unit;
+        if (daysValue != null && unit != RepeatRule.Unit.WEEKS) {
+            fields.repeatCombinationInvalid = true;
+            return null;
+        }
+        if (monthDayValue != null && unit != RepeatRule.Unit.MONTHS) {
+            fields.repeatCombinationInvalid = true;
+            return null;
+        }
+        if (daysValue != null && monthDayValue != null) {
+            fields.repeatCombinationInvalid = true;
+            return null;
+        }
+
+        if (unit == RepeatRule.Unit.WEEKS && daysValue != null && !fields.daysFunctionInvalid) {
+            return RepeatRule.weekly(durationToken.amount, days);
+        }
+        if (unit == RepeatRule.Unit.MONTHS && monthDayValue != null && !fields.monthDayFunctionInvalid) {
+            return RepeatRule.isLastMonthDayValue(monthDayValue)
+                    ? RepeatRule.monthlyLastDay(durationToken.amount)
+                    : RepeatRule.monthly(durationToken.amount, RepeatRule.parseMonthDayValue(monthDayValue));
+        }
+        return RepeatRule.interval(durationToken.amount, unit);
+    }
+
+    private static Duration parseRepeatUntilDoneInterval(
+            String body,
+            TaskFormatSettings format,
+            ParsedTaskFields fields
+    ) {
+        String value = findFunctionValue(body, format.repeatUntilDoneKeywords());
+        if (value == null) {
+            return null;
+        }
+        Duration repeatUntilDone = parseDurationValue(value);
+        fields.repeatUntilDoneInvalid = repeatUntilDone == null;
+        return repeatUntilDone;
     }
 
     private static Duration parseOverdueGrace(String body, ParsedTaskFields fields) {
-        String graceValue = findFunctionValue(body, List.of(OVERDUE_GRACE_KEYWORD));
+        String graceValue = findFunctionValue(body, List.of(OVERDUE_GRACE_KEYWORD, "g"));
         if (graceValue == null) {
             return null;
         }
@@ -408,28 +478,24 @@ public final class TaskParser {
     }
 
     private static RepeatMode parseRepeatMode(
-            String body,
-            Duration repeatInterval,
-            TaskFormatSettings format
+            RepeatRule repeatRule,
+            Duration repeatUntilDoneInterval
     ) {
-        if (repeatInterval == null) {
-            return RepeatMode.NONE;
+        if (repeatRule != null) {
+            return RepeatMode.ALWAYS;
         }
-
-        if (findFunctionValue(body, format.repeatUntilDoneKeywords()) != null) {
+        if (repeatUntilDoneInterval != null) {
             return RepeatMode.UNTIL_DONE;
         }
-
-        return RepeatMode.ALWAYS;
+        return RepeatMode.NONE;
     }
 
     private static Duration parseDurationValue(String rawValue) {
-        String value = rawValue == null ? "" : rawValue.trim();
-        Matcher matcher = DURATION_VALUE.matcher(value);
-        if (!matcher.find()) {
+        ParsedDurationToken durationToken = parseDurationToken(rawValue);
+        if (durationToken == null) {
             return null;
         }
-        return parseDuration(matcher.group(1), matcher.group(2));
+        return durationToken.toDuration();
     }
 
     private static Duration parseDurationValueAllowZero(String rawValue) {
@@ -467,7 +533,55 @@ public final class TaskParser {
         if (unit.equals("d") || unit.equals("day") || unit.equals("д")) {
             return Duration.ofDays(amount);
         }
+        if (unit.equals("w") || unit.equals("wk") || unit.equals("week")) {
+            return Duration.ofDays(amount * 7L);
+        }
+        if (unit.equals("mo") || unit.equals("mon") || unit.equals("month")) {
+            return null;
+        }
 
+        return null;
+    }
+
+    private static ParsedDurationToken parseDurationToken(String rawValue) {
+        String value = rawValue == null ? "" : rawValue.trim();
+        Matcher matcher = DURATION_VALUE.matcher(value);
+        if (!matcher.find()) {
+            return null;
+        }
+        int amount;
+        try {
+            amount = Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+        if (amount <= 0) {
+            return null;
+        }
+        RepeatRule.Unit unit = parseRepeatUnit(matcher.group(2));
+        if (unit == null) {
+            return null;
+        }
+        return new ParsedDurationToken(amount, unit);
+    }
+
+    private static RepeatRule.Unit parseRepeatUnit(String rawUnit) {
+        String unit = rawUnit == null ? "" : rawUnit.trim().toLowerCase(Locale.ROOT);
+        if (unit.equals("m") || unit.equals("min") || unit.equals("мин") || unit.equals("м")) {
+            return RepeatRule.Unit.MINUTES;
+        }
+        if (unit.equals("h") || unit.equals("hr") || unit.equals("ч")) {
+            return RepeatRule.Unit.HOURS;
+        }
+        if (unit.equals("d") || unit.equals("day") || unit.equals("д")) {
+            return RepeatRule.Unit.DAYS;
+        }
+        if (unit.equals("w") || unit.equals("wk") || unit.equals("week")) {
+            return RepeatRule.Unit.WEEKS;
+        }
+        if (unit.equals("mo") || unit.equals("mon") || unit.equals("month")) {
+            return RepeatRule.Unit.MONTHS;
+        }
         return null;
     }
 
@@ -558,13 +672,23 @@ public final class TaskParser {
         }
 
         if (fields.repeatFunctionInvalid
-                || (fields.repeatInterval == null && hasSuspiciousRepeatToken(body, format))) {
+                || fields.repeatUntilDoneInvalid
+                || fields.daysFunctionInvalid
+                || fields.monthDayFunctionInvalid
+                || fields.repeatCombinationInvalid
+                || (fields.repeatRule == null
+                && fields.explicitRepeatUntilDoneInterval == null
+                && hasSuspiciousRepeatToken(body, format))) {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "не удалось разобрать повтор. Используйте @"
+                    "не удалось разобрать repeat-правило. Используйте @"
                             + format.getRepeatKeyword()
-                            + "(15m) или @"
+                            + "(15m), @"
+                            + format.getRepeatKeyword()
+                            + "(1w) @days(mon,wed,fri), @"
+                            + format.getRepeatKeyword()
+                            + "(1mo) @monthday(last) или @"
                             + format.getRepeatUntilDoneKeyword()
                             + "(15m)"
             ));
@@ -625,18 +749,23 @@ public final class TaskParser {
     private static boolean hasSuspiciousRepeatToken(String body, TaskFormatSettings format) {
         return ANY_REPEAT_WORD.matcher(body).find()
                 || findFunctionValue(body, format.repeatKeywords()) != null
-                || findFunctionValue(body, format.repeatUntilDoneKeywords()) != null;
+                || findFunctionValue(body, format.repeatUntilDoneKeywords()) != null
+                || findFunctionValue(body, List.of(DAYS_KEYWORD)) != null
+                || findFunctionValue(body, List.of(MONTHDAY_KEYWORD)) != null;
     }
 
     private static String cleanTitle(String body, TaskFormatSettings format) {
         String cleaned = removeFunctions(body, format.dueKeywords());
         cleaned = removeFunctions(cleaned, format.repeatUntilDoneKeywords());
         cleaned = removeFunctions(cleaned, format.repeatKeywords());
+        cleaned = removeFunctions(cleaned, List.of(DAYS_KEYWORD));
+        cleaned = removeFunctions(cleaned, List.of(MONTHDAY_KEYWORD));
+        cleaned = removeFunctions(cleaned, List.of(SERIES_ID_KEYWORD));
         cleaned = removeFunctions(cleaned, format.tagKeywords());
         cleaned = removeFunctions(cleaned, format.priorityKeywords());
         cleaned = removeFunctions(cleaned, format.groupKeywords());
         cleaned = removeFunctions(cleaned, List.of(SNOOZE_KEYWORD));
-        cleaned = removeFunctions(cleaned, List.of(OVERDUE_GRACE_KEYWORD));
+        cleaned = removeFunctions(cleaned, List.of(OVERDUE_GRACE_KEYWORD, "g"));
         cleaned = SNOOZED_COUNT.matcher(cleaned).replaceAll(" ");
         cleaned = SKIPPED_MARKER.matcher(cleaned).replaceAll(" ");
         cleaned = ISO_REMINDER.matcher(cleaned).replaceAll(" ");
@@ -690,11 +819,14 @@ public final class TaskParser {
                 || startsWithFunction(normalized, format.dueKeywords())
                 || startsWithFunction(normalized, format.repeatKeywords())
                 || startsWithFunction(normalized, format.repeatUntilDoneKeywords())
+                || startsWithFunction(normalized, List.of(DAYS_KEYWORD))
+                || startsWithFunction(normalized, List.of(MONTHDAY_KEYWORD))
+                || startsWithFunction(normalized, List.of(SERIES_ID_KEYWORD))
                 || startsWithFunction(normalized, format.tagKeywords())
                 || startsWithFunction(normalized, format.priorityKeywords())
                 || startsWithFunction(normalized, format.groupKeywords())
                 || startsWithFunction(normalized, List.of(SNOOZE_KEYWORD))
-                || startsWithFunction(normalized, List.of(OVERDUE_GRACE_KEYWORD));
+                || startsWithFunction(normalized, List.of(OVERDUE_GRACE_KEYWORD, "g"));
     }
 
     private static boolean startsWithFunction(String token, List<String> keywords) {
@@ -707,21 +839,76 @@ public final class TaskParser {
     }
 
     private static final class ParsedTaskFields {
+        private String seriesId = "";
         private LocalDateTime reminderAt;
-        private Duration repeatInterval;
+        private RepeatRule repeatRule;
+        private Duration explicitRepeatUntilDoneInterval;
         private RepeatMode repeatMode = RepeatMode.NONE;
         private List<String> tags = new ArrayList<>();
         private TaskPriority priority = TaskPriority.NONE;
         private String group = ObsidianTask.DEFAULT_GROUP;
         private Duration snoozeDuration;
-        private Duration overdueGracePeriod;
+        private Duration explicitOverdueGracePeriod;
         private boolean skipped;
         private boolean groupExplicit;
         private boolean dueFunctionInvalid;
         private boolean repeatFunctionInvalid;
+        private boolean repeatUntilDoneInvalid;
+        private boolean daysFunctionInvalid;
+        private boolean monthDayFunctionInvalid;
+        private boolean repeatCombinationInvalid;
         private boolean priorityFunctionInvalid;
         private boolean snoozeFunctionInvalid;
         private boolean overdueGraceFunctionInvalid;
+    }
+
+    private static Duration legacyRepeatInterval(ParsedTaskFields fields) {
+        if (fields == null) {
+            return null;
+        }
+        if (fields.repeatRule != null) {
+            return fields.repeatRule.toSimpleDuration();
+        }
+        return fields.explicitRepeatUntilDoneInterval;
+    }
+
+    private static RepeatMode legacyRepeatMode(ParsedTaskFields fields) {
+        if (fields == null) {
+            return RepeatMode.NONE;
+        }
+        if (fields.repeatRule != null) {
+            return RepeatMode.ALWAYS;
+        }
+        if (fields.explicitRepeatUntilDoneInterval != null) {
+            return RepeatMode.UNTIL_DONE;
+        }
+        return RepeatMode.NONE;
+    }
+
+    private static final class ParsedDurationToken {
+        private final int amount;
+        private final RepeatRule.Unit unit;
+
+        private ParsedDurationToken(int amount, RepeatRule.Unit unit) {
+            this.amount = amount;
+            this.unit = unit;
+        }
+
+        private Duration toDuration() {
+            if (unit == RepeatRule.Unit.MINUTES) {
+                return Duration.ofMinutes(amount);
+            }
+            if (unit == RepeatRule.Unit.HOURS) {
+                return Duration.ofHours(amount);
+            }
+            if (unit == RepeatRule.Unit.DAYS) {
+                return Duration.ofDays(amount);
+            }
+            if (unit == RepeatRule.Unit.WEEKS) {
+                return Duration.ofDays((long) amount * 7L);
+            }
+            return null;
+        }
     }
 
     private static final class ParsedTaskRecord {
@@ -734,3 +921,4 @@ public final class TaskParser {
         }
     }
 }
+

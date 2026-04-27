@@ -134,16 +134,18 @@ public final class TaskFormatSettings {
     }
 
     public List<String> repeatKeywords() {
-        return keywords(repeatKeyword, DEFAULT_REPEAT_KEYWORD);
+        return keywords(repeatKeyword, DEFAULT_REPEAT_KEYWORD, "r");
     }
 
     public List<String> repeatUntilDoneKeywords() {
         return keywords(
                 repeatUntilDoneKeyword,
                 DEFAULT_REPEAT_UNTIL_DONE_KEYWORD,
+                "repeatUntildone",
                 "repeat-until-done",
                 "repeat_until_done",
-                "untilDone"
+                "untilDone",
+                "rud"
         );
     }
 
