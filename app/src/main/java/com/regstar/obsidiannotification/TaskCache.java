@@ -7,7 +7,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class TaskCache {
     private static final String PREFS_NAME = "obsidian_notification_task_cache";
@@ -52,6 +54,7 @@ public final class TaskCache {
                 tasks.add(task);
             }
         }
+        rebuildSubtaskHierarchy(tasks);
         return tasks;
     }
 
@@ -106,6 +109,12 @@ public final class TaskCache {
                 + "|"
                 + encode(durationValue(task.getSnoozeDuration()))
                 + "|"
+                + encode(task.getParentTaskKey())
+                + "|"
+                + task.getParentLineNumber()
+                + "|"
+                + task.getIndentLevel()
+                + "|"
                 + encode(joinTags(task.getTags()))
                 + "|"
                 + task.getPriority().name()
@@ -118,13 +127,15 @@ public final class TaskCache {
         if (parts.length != 8
                 && parts.length != 10
                 && parts.length != 11
-                && parts.length != 18) {
+                && parts.length != 18
+                && parts.length != 21) {
             return null;
         }
 
         try {
             String taskKey = decode(parts[0]);
-            boolean extended = parts.length == 18;
+            boolean extended = parts.length == 18 || parts.length == 21;
+            boolean hierarchyExtended = parts.length == 21;
             String seriesId = extended ? decode(parts[1]) : "";
             int offset = extended ? 1 : 0;
             String sourceName = decode(parts[1 + offset]);
@@ -146,14 +157,20 @@ public final class TaskCache {
             Duration explicitGrace = extended ? parseDurationValue(parts[11 + offset]) : null;
             Duration resolvedGrace = extended ? parseDurationValue(parts[12 + offset]) : null;
             Duration snoozeDuration = extended ? parseDurationValue(parts[13 + offset]) : null;
-            List<String> tags = parts.length >= (extended ? 17 : 10)
-                    ? splitTags(decode(parts[extended ? 14 + offset : 8]))
+            String parentTaskKey = hierarchyExtended ? decode(parts[14 + offset]) : "";
+            int parentLineNumber = hierarchyExtended ? Integer.parseInt(parts[15 + offset]) : 0;
+            int indentLevel = hierarchyExtended ? Integer.parseInt(parts[16 + offset]) : 0;
+            int tagsIndex = hierarchyExtended ? 17 + offset : (extended ? 14 + offset : 8);
+            int priorityIndex = hierarchyExtended ? 18 + offset : (extended ? 15 + offset : 9);
+            int groupIndex = hierarchyExtended ? 19 + offset : (extended ? 16 + offset : 10);
+            List<String> tags = parts.length > tagsIndex
+                    ? splitTags(decode(parts[tagsIndex]))
                     : new ArrayList<>();
-            TaskPriority priority = parts.length >= (extended ? 17 : 10)
-                    ? TaskPriority.fromName(parts[extended ? 15 + offset : 9])
+            TaskPriority priority = parts.length > priorityIndex
+                    ? TaskPriority.fromName(parts[priorityIndex])
                     : TaskPriority.NONE;
-            String group = parts.length >= (extended ? 18 : 11)
-                    ? ObsidianTask.normalizeGroup(decode(parts[extended ? 16 + offset : 10]))
+            String group = parts.length > groupIndex
+                    ? ObsidianTask.normalizeGroup(decode(parts[groupIndex]))
                     : ObsidianTask.DEFAULT_GROUP;
             return new ObsidianTask(
                     taskKey,
@@ -165,6 +182,10 @@ public final class TaskCache {
                     repeatInterval,
                     repeatMode,
                     false,
+                    false,
+                    parentTaskKey,
+                    parentLineNumber,
+                    indentLevel,
                     tags,
                     priority,
                     group,
@@ -178,6 +199,25 @@ public final class TaskCache {
             );
         } catch (RuntimeException exception) {
             return null;
+        }
+    }
+
+    private static void rebuildSubtaskHierarchy(List<ObsidianTask> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return;
+        }
+        Map<String, ObsidianTask> tasksByKey = new LinkedHashMap<>();
+        for (ObsidianTask task : tasks) {
+            tasksByKey.put(task.getTaskKey(), task);
+        }
+        for (ObsidianTask task : tasks) {
+            if (!task.isSubtask()) {
+                continue;
+            }
+            ObsidianTask parent = tasksByKey.get(task.getParentTaskKey());
+            if (parent != null) {
+                parent.addSubtask(task);
+            }
         }
     }
 

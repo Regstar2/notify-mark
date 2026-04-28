@@ -193,36 +193,37 @@ public final class TaskEditActivity extends Activity {
         sheetContainer.setOrientation(LinearLayout.VERTICAL);
         sheetContainer.setClickable(true);
         sheetContainer.setBackground(createSheetBackground());
-        sheetContainer.setPadding(dp(14), dp(10), dp(14), dp(10));
+        sheetContainer.setPadding(dp(12), dp(8), dp(12), dp(8));
 
         View handle = new View(this);
         handle.setBackground(createRoundedBackground(getColor(R.color.card_stroke), 0, 99));
         LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(dp(44), dp(4));
         handleParams.gravity = Gravity.CENTER_HORIZONTAL;
-        handleParams.setMargins(0, 0, 0, dp(6));
+        handleParams.setMargins(0, 0, 0, dp(4));
         sheetContainer.addView(handle, handleParams);
 
         LinearLayout header = createHeader();
-        sheetContainer.addView(header, fullWidthWithBottomMargin(dp(6)));
+        sheetContainer.addView(header, fullWidthWithBottomMargin(dp(4)));
         attachSheetDismissGesture(handle, header);
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, 0, 0, dp(24));
+        content.setPadding(0, 0, 0, dp(18));
 
         statusText = createText("", 13, R.color.error_text, false);
         statusText.setPadding(dp(2), 0, dp(2), dp(6));
         statusText.setVisibility(View.GONE);
         content.addView(statusText, fullWidth());
-        content.addView(createBasicSection(), fullWidthWithBottomMargin(dp(10)));
-        content.addView(createSubtasksSection(), fullWidthWithBottomMargin(dp(10)));
-        content.addView(createExtraSection(), fullWidthWithBottomMargin(dp(10)));
-        content.addView(createPreviewSection(), fullWidthWithBottomMargin(dp(10)));
+        content.addView(createBasicSection(), fullWidthWithBottomMargin(dp(8)));
+        content.addView(createSubtasksSection(), fullWidthWithBottomMargin(dp(8)));
+        content.addView(createExtraSection(), fullWidthWithBottomMargin(dp(8)));
+        content.addView(createPreviewSection(), fullWidthWithBottomMargin(dp(8)));
         if (task != null) {
-            content.addView(createDangerSection(), fullWidthWithBottomMargin(dp(10)));
+            content.addView(createDangerSection(), fullWidthWithBottomMargin(dp(8)));
         }
 
+        scroll.setFillViewport(true);
         scroll.addView(content, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -238,7 +239,7 @@ public final class TaskEditActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 Gravity.BOTTOM
         );
-        sheetParams.setMargins(0, dp(68), 0, 0);
+        sheetParams.setMargins(0, dp(56), 0, 0);
         rootContainer.addView(sheetContainer, sheetParams);
         setContentView(rootContainer);
     }
@@ -255,7 +256,7 @@ public final class TaskEditActivity extends Activity {
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        TextView title = createText(task == null ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430" : "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438", 19, R.color.text_primary, true);
+        TextView title = createText(task == null ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430" : "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438", 18, R.color.text_primary, true);
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         texts.addView(title, fullWidth());
@@ -281,9 +282,9 @@ public final class TaskEditActivity extends Activity {
     private LinearLayout createBasicSection() {
         LinearLayout card = createSectionCard("\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435", null);
         titleInput = createInput(task == null ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430" : task.getTitle());
-        titleInput.setHint("\u0422\u0435\u043a\u0441\u0442 \u0437\u0430\u0434\u0430\u0447\u0438");
+        titleInput.setHint("\u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0441\u0434\u0435\u043b\u0430\u0442\u044c");
         titleInput.addTextChangedListener(previewWatcher());
-        card.addView(createInputBlock("\u0422\u0435\u043a\u0441\u0442", titleInput), fullWidthWithBottomMargin(dp(8)));
+        card.addView(createInputBlock("\u0417\u0430\u0434\u0430\u0447\u0430", titleInput), fullWidthWithBottomMargin(dp(8)));
 
         LocalDateTime due = task == null || task.getReminderAt() == null
                 ? defaultDueDateTime()
@@ -316,7 +317,7 @@ public final class TaskEditActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         );
-        timeParams.setMargins(dp(8), 0, 0, 0);
+        timeParams.setMargins(dp(6), 0, 0, 0);
         row.addView(createInputBlock("\u0412\u0440\u0435\u043c\u044f", timeInput), timeParams);
         card.addView(row, fullWidthWithBottomMargin(dp(8)));
 
@@ -423,26 +424,32 @@ public final class TaskEditActivity extends Activity {
         return card;
     }
     private LinearLayout createSubtasksSection() {
-        LinearLayout card = createSectionCard("\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438", null);
+        LinearLayout card = createCardContainer();
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        subtaskSummaryText = createText("", 13, R.color.text_secondary, false);
-        header.addView(subtaskSummaryText, new LinearLayout.LayoutParams(
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(createText("\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438", 15, R.color.text_primary, true), fullWidth());
+        subtaskSummaryText = createText("", 12, R.color.text_secondary, false);
+        texts.addView(subtaskSummaryText, fullWidthWithTopMargin(dp(2)));
+        header.addView(texts, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
+
         Button add = createPrimaryButton("+");
-        add.setTextSize(24);
+        add.setTextSize(22);
         add.setGravity(Gravity.CENTER);
         add.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
         add.setContentDescription("\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0443");
         add.setOnClickListener(view -> showSubtaskDialog(-1));
         header.addView(add, new LinearLayout.LayoutParams(
-                dp(56),
-                dp(44)
+                dp(48),
+                dp(40)
         ));
         card.addView(header, fullWidthWithBottomMargin(dp(6)));
 
@@ -1317,19 +1324,41 @@ public final class TaskEditActivity extends Activity {
             return;
         }
         subtaskList.removeAllViews();
+        subtaskSummaryText.setText(formatSubtaskSummary());
+
+        if (subtaskDrafts.isEmpty()) {
+            LinearLayout empty = new LinearLayout(this);
+            empty.setOrientation(LinearLayout.VERTICAL);
+            empty.setGravity(Gravity.CENTER_HORIZONTAL);
+            empty.setPadding(dp(8), dp(10), dp(8), dp(4));
+
+            TextView title = createText("\u041f\u043e\u043a\u0430 \u0431\u0435\u0437 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447", 13, R.color.text_primary, true);
+            title.setGravity(Gravity.CENTER_HORIZONTAL);
+            empty.addView(title, fullWidth());
+
+            TextView body = createText("\u0414\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0448\u0430\u0433\u0438, \u0447\u0442\u043e\u0431\u044b \u0440\u0430\u0437\u0431\u0438\u0442\u044c \u0437\u0430\u0434\u0430\u0447\u0443.", 12, R.color.text_secondary, false);
+            body.setGravity(Gravity.CENTER_HORIZONTAL);
+            empty.addView(body, fullWidthWithTopMargin(dp(3)));
+            subtaskList.addView(empty, fullWidth());
+            return;
+        }
+
+        for (int i = 0; i < subtaskDrafts.size(); i++) {
+            subtaskList.addView(createSubtaskRow(i), fullWidthWithBottomMargin(dp(5)));
+        }
+    }
+
+    private String formatSubtaskSummary() {
+        if (subtaskDrafts.isEmpty()) {
+            return "\u0412\u043b\u043e\u0436\u0435\u043d\u043d\u044b\u0445 \u0448\u0430\u0433\u043e\u0432 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442";
+        }
         int completed = 0;
         for (SubtaskDraft draft : subtaskDrafts) {
             if (draft.completed) {
                 completed++;
             }
         }
-        subtaskSummaryText.setText(subtaskDrafts.isEmpty()
-                ? "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442"
-                : completed + "/" + subtaskDrafts.size() + " \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e");
-
-        for (int i = 0; i < subtaskDrafts.size(); i++) {
-            subtaskList.addView(createSubtaskRow(i), fullWidthWithBottomMargin(dp(6)));
-        }
+        return completed + "/" + subtaskDrafts.size() + " \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e";
     }
 
     private LinearLayout createSubtaskRow(int index) {
@@ -1337,9 +1366,9 @@ public final class TaskEditActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(8), dp(8), dp(8));
+        row.setPadding(dp(10), dp(7), dp(8), dp(7));
         row.setBackground(createRoundedBackground(
-                getColor(R.color.chip_background),
+                getColor(R.color.background),
                 getColor(R.color.chip_stroke),
                 8
         ));
@@ -1353,7 +1382,7 @@ public final class TaskEditActivity extends Activity {
         int statusBackground = draft.completed
                 ? R.color.status_completed_background
                 : draft.skipped ? R.color.status_skipped_background : android.R.color.transparent;
-        TextView status = createText(statusSymbol, 14, statusTextColor, true);
+        TextView status = createText(statusSymbol, 13, statusTextColor, true);
         status.setGravity(Gravity.CENTER);
         status.setBackground(createCircleOutlineBackground(
                 getColor(statusBackground),
@@ -1376,7 +1405,7 @@ public final class TaskEditActivity extends Activity {
         texts.setOrientation(LinearLayout.VERTICAL);
         TextView title = createText(
                 draft.title.isEmpty() ? "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430" : draft.title,
-                14,
+                13,
                 R.color.text_primary,
                 true
         );
@@ -1385,7 +1414,7 @@ public final class TaskEditActivity extends Activity {
         texts.addView(title, fullWidth());
         String meta = draft.meta();
         if (!meta.isEmpty()) {
-            TextView metaView = createText(meta, 12, R.color.text_secondary, false);
+            TextView metaView = createText(meta, 11, R.color.text_secondary, false);
             metaView.setSingleLine(true);
             metaView.setEllipsize(TextUtils.TruncateAt.END);
             texts.addView(metaView, fullWidthWithTopMargin(dp(1)));
@@ -1397,6 +1426,10 @@ public final class TaskEditActivity extends Activity {
         );
         textParams.setMargins(dp(10), 0, dp(6), 0);
         row.addView(texts, textParams);
+
+        TextView chevron = createText("\u203a", 18, R.color.text_secondary, true);
+        chevron.setGravity(Gravity.CENTER);
+        row.addView(chevron, new LinearLayout.LayoutParams(dp(18), dp(18)));
 
         ImageButton delete = createPlainIconButton(
                 R.drawable.ic_delete,
@@ -1826,7 +1859,7 @@ public final class TaskEditActivity extends Activity {
     private LinearLayout createCardContainer() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setPadding(dp(12), dp(9), dp(12), dp(9));
         card.setBackground(createRoundedBackground(
                 getColor(R.color.card_background),
                 getColor(R.color.card_stroke),
@@ -2064,34 +2097,35 @@ public final class TaskEditActivity extends Activity {
             sheet.setOrientation(LinearLayout.VERTICAL);
             sheet.setClickable(true);
             sheet.setBackground(createSheetBackground());
-            sheet.setPadding(dp(14), dp(10), dp(14), dp(10));
+            sheet.setPadding(dp(12), dp(8), dp(12), dp(8));
 
             View handle = new View(TaskEditActivity.this);
             handle.setBackground(createRoundedBackground(getColor(R.color.card_stroke), 0, 99));
             LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(dp(44), dp(4));
             handleParams.gravity = Gravity.CENTER_HORIZONTAL;
-            handleParams.setMargins(0, 0, 0, dp(6));
+            handleParams.setMargins(0, 0, 0, dp(4));
             sheet.addView(handle, handleParams);
 
             LinearLayout header = createHeader();
-            sheet.addView(header, fullWidthWithBottomMargin(dp(6)));
+            sheet.addView(header, fullWidthWithBottomMargin(dp(4)));
             attachDismissGesture(handle, header);
 
             ScrollView scroll = new ScrollView(TaskEditActivity.this);
             LinearLayout content = new LinearLayout(TaskEditActivity.this);
             content.setOrientation(LinearLayout.VERTICAL);
-            content.setPadding(0, 0, 0, dp(18));
+            content.setPadding(0, 0, 0, dp(16));
 
             statusView = createText("", 13, R.color.error_text, false);
             statusView.setVisibility(View.GONE);
             content.addView(statusView, fullWidth());
-            content.addView(createBasicSection(), fullWidthWithBottomMargin(dp(10)));
-            content.addView(createExtraSection(), fullWidthWithBottomMargin(dp(10)));
-            content.addView(createPreviewSection(), fullWidthWithBottomMargin(dp(10)));
+            content.addView(createBasicSection(), fullWidthWithBottomMargin(dp(8)));
+            content.addView(createExtraSection(), fullWidthWithBottomMargin(dp(8)));
+            content.addView(createPreviewSection(), fullWidthWithBottomMargin(dp(8)));
 
+            scroll.setFillViewport(true);
             scroll.addView(content, new ScrollView.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             ));
             sheet.addView(scroll, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -2104,7 +2138,7 @@ public final class TaskEditActivity extends Activity {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     Gravity.BOTTOM
             );
-            sheetParams.setMargins(0, dp(112), 0, 0);
+            sheetParams.setMargins(0, dp(92), 0, 0);
             overlay.addView(sheet, sheetParams);
             rootContainer.addView(overlay, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -2126,7 +2160,7 @@ public final class TaskEditActivity extends Activity {
             texts.setOrientation(LinearLayout.VERTICAL);
             TextView title = createText(index >= 0
                     ? "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438"
-                    : "\u041d\u043e\u0432\u0430\u044f \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430", 18, R.color.text_primary, true);
+                    : "\u041d\u043e\u0432\u0430\u044f \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430", 17, R.color.text_primary, true);
             title.setSingleLine(true);
             title.setEllipsize(TextUtils.TruncateAt.END);
             texts.addView(title, fullWidth());
@@ -2151,9 +2185,9 @@ public final class TaskEditActivity extends Activity {
         private LinearLayout createBasicSection() {
             LinearLayout card = createSectionCard("\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435", null);
             titleView = createInput(workingCopy.title);
-            titleView.setHint("\u0422\u0435\u043a\u0441\u0442 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438");
+            titleView.setHint("\u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0441\u0434\u0435\u043b\u0430\u0442\u044c");
             titleView.addTextChangedListener(localWatcher());
-            card.addView(createInputBlock("\u0422\u0435\u043a\u0441\u0442", titleView), fullWidthWithBottomMargin(dp(8)));
+            card.addView(createInputBlock("\u0417\u0430\u0434\u0430\u0447\u0430", titleView), fullWidthWithBottomMargin(dp(8)));
 
             dateView = createInput(workingCopy.date);
             dateView.setHint("yyyy-MM-dd");
@@ -2187,7 +2221,7 @@ public final class TaskEditActivity extends Activity {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1
             );
-            timeParams.setMargins(dp(8), 0, 0, 0);
+            timeParams.setMargins(dp(6), 0, 0, 0);
             row.addView(createInputBlock("\u0412\u0440\u0435\u043c\u044f", timeView), timeParams);
             card.addView(row, fullWidthWithBottomMargin(dp(8)));
 
@@ -2865,20 +2899,10 @@ public final class TaskEditActivity extends Activity {
             if (repeat != null && !repeat.trim().isEmpty()) {
                 parts.add("\u043f\u043e\u0432\u0442\u043e\u0440 " + repeat.trim());
             }
-            if (repeatUntilDone && repeatUntilDoneValue != null && !repeatUntilDoneValue.trim().isEmpty()) {
-                parts.add("\u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f " + repeatUntilDoneValue.trim());
-            }
-            if (overdueGrace != null && !overdueGrace.trim().isEmpty()) {
-                parts.add("\u0431\u0435\u0437 \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u043a\u0438 " + overdueGrace.trim());
-            }
-            if (snooze != null && !snooze.trim().isEmpty()) {
-                parts.add("\u043e\u0442\u043b\u043e\u0436\u0438\u0442\u044c " + snooze.trim());
-            }
-            if (priority != null && !priority.trim().isEmpty()) {
-                parts.add(priority.trim());
-            }
-            if (tags != null && !tags.trim().isEmpty()) {
-                parts.add(tags.trim());
+            if (completed) {
+                parts.add("\u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0430");
+            } else if (skipped) {
+                parts.add("\u043f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u0430");
             }
             if (parts.isEmpty()) {
                 return "";
