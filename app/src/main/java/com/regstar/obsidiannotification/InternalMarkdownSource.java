@@ -55,7 +55,7 @@ final class InternalMarkdownSource implements TaskSource {
 
     @Override
     public String getDisplayLabel(Context context) {
-        return "Встроенная папка приложения";
+        return "Встроенное хранилище";
     }
 
     @Override

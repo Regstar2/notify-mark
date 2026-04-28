@@ -75,8 +75,8 @@ public final class OnboardingActivity extends Activity {
         root.addView(internalButton, buttonParams());
 
         root.addView(createInfoCard(
-                "Внешняя папка / Obsidian",
-                "Работа с уже существующими markdown-файлами и папками через выбранный источник Android."
+                "Внешние markdown-файлы",
+                "Выбранные файлы и папки через Android picker. Подходит для Obsidian, Syncthing и обычных markdown-файлов."
         ), fullWidthWithBottomMargin());
 
         Button externalButton = createSecondaryButton("Подключить папку");

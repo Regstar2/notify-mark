@@ -187,7 +187,7 @@ public final class NoteStore {
     }
 
     public static String sourceDisplayName(Context context, Uri uri) {
-        return displayName(context, uri);
+        return SourceDisplayNameResolver.resolveDisplayName(context, uri);
     }
 
     public static boolean canWriteUri(Context context, Uri uri) {
@@ -706,28 +706,9 @@ public final class NoteStore {
     }
 
     static String externalSourceLabel(Context context) {
-        List<NoteSource> sources = getSavedSources(context);
-        if (sources.isEmpty()) {
-            return "не выбрано";
-        }
-
-        if (sources.size() == 1) {
-            NoteSource source = sources.get(0);
-            String type = SOURCE_FOLDER.equals(source.getType()) ? "папка" : "заметка";
-            return type + ": " + displayName(context, source.getUri());
-        }
-
-        StringBuilder builder = new StringBuilder("источников: ").append(sources.size());
-        int limit = Math.min(3, sources.size());
-        for (int i = 0; i < limit; i++) {
-            builder.append(i == 0 ? " (" : ", ");
-            builder.append(displayName(context, sources.get(i).getUri()));
-        }
-        if (sources.size() > limit) {
-            builder.append(", ...");
-        }
-        builder.append(')');
-        return builder.toString();
+        return SourceDisplayNameResolver
+                .summarizeExternalSources(context, getSavedSources(context))
+                .getHeadline();
     }
 
     private static TaskEditResult editActiveTaskLine(
@@ -1341,33 +1322,7 @@ public final class NoteStore {
     }
 
     private static String displayName(Context context, Uri uri) {
-        if (uri == null) {
-            return "";
-        }
-        if ("file".equalsIgnoreCase(uri.getScheme())) {
-            String path = uri.getPath();
-            if (path == null || path.trim().isEmpty()) {
-                return uri.toString();
-            }
-            return java.nio.file.Paths.get(path).getFileName().toString();
-        }
-        try (Cursor cursor = context.getContentResolver().query(
-                uri,
-                new String[]{OpenableColumns.DISPLAY_NAME},
-                null,
-                null,
-                null
-        )) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (index >= 0) {
-                    return cursor.getString(index);
-                }
-            }
-        } catch (RuntimeException ignored) {
-            return uri.toString();
-        }
-        return uri.toString();
+        return SourceDisplayNameResolver.resolveDisplayName(context, uri);
     }
 
     public static final class BulkEditResult {

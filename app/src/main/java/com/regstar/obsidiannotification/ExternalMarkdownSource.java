@@ -29,16 +29,9 @@ final class ExternalMarkdownSource implements TaskSource {
 
     @Override
     public String getDisplayLabel(Context context) {
-        List<NoteStore.NoteSource> sources = NoteStore.getStoredExternalSources(context);
-        if (sources.isEmpty()) {
-            return "Внешний источник не выбран";
-        }
-        if (sources.size() == 1) {
-            NoteStore.NoteSource source = sources.get(0);
-            String type = NoteStore.SOURCE_FOLDER.equals(source.getType()) ? "Папка" : "Файл";
-            return type + ": " + NoteStore.sourceDisplayName(context, source.getUri());
-        }
-        return "Источников: " + sources.size();
+        return SourceDisplayNameResolver
+                .summarizeExternalSources(context, NoteStore.getStoredExternalSources(context))
+                .getHeadline();
     }
 
     @Override

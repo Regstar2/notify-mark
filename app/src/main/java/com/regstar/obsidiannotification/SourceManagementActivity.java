@@ -11,7 +11,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.ViewGroup;
-import android.widget.Button;
+import android.view.WindowInsets;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -33,8 +33,14 @@ public final class SourceManagementActivity extends Activity {
     private static final String NEW_NOTE_TEMPLATE = "## Задачи\n\n";
 
     private LinearLayout sourcesList;
-    private TextView modeSummaryText;
-    private TextView sourceSummaryText;
+    private TextView modeHeadlineText;
+    private TextView modeMetaText;
+    private TextView modeTechnicalText;
+    private TextView externalSourcesHintText;
+    private LinearLayout internalModeCard;
+    private LinearLayout externalModeCard;
+    private TextView internalModeMarker;
+    private TextView externalModeMarker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,6 +102,7 @@ public final class SourceManagementActivity extends Activity {
 
     private void buildUi() {
         ScrollView scrollView = new ScrollView(this);
+        scrollView.setClipToPadding(false);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(16), dp(14), dp(16), dp(20));
@@ -108,31 +115,41 @@ public final class SourceManagementActivity extends Activity {
         root.addView(createTopBar(), fullWidthWithBottomMargin());
 
         LinearLayout summaryCard = createCardContainer();
-        summaryCard.addView(createText("Текущий режим", 15, R.color.text_primary, true), fullWidth());
-        modeSummaryText = createText("", 13, R.color.text_secondary, false);
-        modeSummaryText.setPadding(0, dp(5), 0, 0);
-        summaryCard.addView(modeSummaryText, fullWidth());
-        sourceSummaryText = createText("", 13, R.color.text_secondary, false);
-        sourceSummaryText.setPadding(0, dp(8), 0, 0);
-        summaryCard.addView(sourceSummaryText, fullWidth());
+        summaryCard.addView(createText("Активное хранилище", 15, R.color.text_primary, true), fullWidth());
+        modeHeadlineText = createText("", 16, R.color.text_primary, true);
+        modeHeadlineText.setPadding(0, dp(8), 0, 0);
+        summaryCard.addView(modeHeadlineText, fullWidth());
+        modeMetaText = createText("", 13, R.color.text_secondary, false);
+        modeMetaText.setPadding(0, dp(6), 0, 0);
+        summaryCard.addView(modeMetaText, fullWidth());
+        modeTechnicalText = createText("", 12, R.color.text_secondary, false);
+        modeTechnicalText.setPadding(0, dp(6), 0, 0);
+        modeTechnicalText.setSingleLine(true);
+        modeTechnicalText.setEllipsize(TextUtils.TruncateAt.END);
+        summaryCard.addView(modeTechnicalText, fullWidth());
         root.addView(summaryCard, fullWidthWithBottomMargin());
 
         root.addView(createSectionTitle("Режим хранения"), fullWidth());
-        root.addView(createChoiceCard(
+        ChoiceCardViews internalChoice = createChoiceCard(
                 "Встроенное хранилище",
-                "Локальные markdown-файлы внутри приложения. Подходит для быстрого старта без внешней папки.",
-                TaskSourceManager.getStorageMode(this) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE,
+                "Локальные markdown-файлы внутри приложения. Не требует выбора внешней папки.",
                 this::confirmSwitchToInternal
-        ), fullWidthWithBottomMargin());
-        root.addView(createChoiceCard(
-                "Внешняя папка / Obsidian",
-                "Работа с уже существующими markdown-файлами и папками через Android picker.",
-                TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE,
+        );
+        internalModeCard = internalChoice.card;
+        internalModeMarker = internalChoice.marker;
+        root.addView(internalChoice.card, fullWidthWithBottomMargin());
+
+        ChoiceCardViews externalChoice = createChoiceCard(
+                "Внешние markdown-файлы",
+                "Файлы и папки через Android picker. Подходит для Obsidian, Syncthing и обычных markdown-файлов.",
                 this::activateExternalMode
-        ), fullWidthWithBottomMargin());
+        );
+        externalModeCard = externalChoice.card;
+        externalModeMarker = externalChoice.marker;
+        root.addView(externalChoice.card, fullWidthWithBottomMargin());
 
         TextView migrationHint = createText(
-                "Смена режима пока не переносит задачи автоматически. Для миграции markdown-файлы нужно копировать вручную.",
+                "Смена режима не переносит задачи автоматически. Для миграции markdown-файлы пока нужно копировать вручную.",
                 13,
                 R.color.text_secondary,
                 false
@@ -141,25 +158,26 @@ public final class SourceManagementActivity extends Activity {
         root.addView(migrationHint, fullWidthWithBottomMargin());
 
         root.addView(createSectionTitle("Внешние markdown-источники"), fullWidth());
+        externalSourcesHintText = createSectionHint("");
+        root.addView(externalSourcesHintText, fullWidthWithBottomMargin());
+
+        root.addView(createSubsectionTitle("Заменить текущий источник"), fullWidth());
         root.addView(createActionCard(
-                "Заменить заметками",
-                "Выбрать один или несколько markdown-файлов как текущий внешний источник.",
+                "Выбрать заметки",
+                "Использовать один или несколько markdown-файлов как новый источник.",
                 () -> openNotePicker(REQUEST_REPLACE_NOTES)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Заменить папкой",
-                "Выбрать папку Obsidian vault или Syncthing-папку с markdown-файлами.",
+                "Выбрать папку",
+                "Использовать папку с markdown-файлами как новый источник.",
                 () -> openFolderPicker(REQUEST_REPLACE_FOLDER)
         ), fullWidthWithBottomMargin());
+
+        root.addView(createSubsectionTitle("Добавить к текущим"), fullWidth());
         root.addView(createActionCard(
                 "Добавить заметку",
-                "Подключить ещё один markdown-файл к уже сохранённым внешним источникам.",
+                "Подключить ещё один markdown-файл.",
                 () -> openNotePicker(REQUEST_ADD_NOTES)
-        ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Создать внешний файл",
-                "Создать новый markdown-файл через Android picker и сразу подключить его.",
-                this::openNoteCreator
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
                 "Добавить папку",
@@ -167,9 +185,19 @@ public final class SourceManagementActivity extends Activity {
                 () -> openFolderPicker(REQUEST_ADD_FOLDER)
         ), fullWidthWithBottomMargin());
 
-        Button clearButton = createSecondaryButton("Очистить внешние подключения");
-        clearButton.setOnClickListener(view -> clearSources());
-        root.addView(clearButton, fullWidthWithBottomMargin());
+        root.addView(createSubsectionTitle("Создать"), fullWidth());
+        root.addView(createActionCard(
+                "Создать внешний файл",
+                "Создать новый markdown-файл через Android picker и подключить его.",
+                this::openNoteCreator
+        ), fullWidthWithBottomMargin());
+
+        root.addView(createSectionTitle("Опасная зона"), fullWidth());
+        root.addView(createDestructiveActionCard(
+                "Очистить внешние подключения",
+                "Приложение забудет выбранные внешние файлы и папки, но сами markdown-файлы на диске удалены не будут.",
+                this::confirmClearSources
+        ), fullWidthWithBottomMargin());
 
         root.addView(createSectionTitle("Сохранённые внешние источники"), fullWidth());
         sourcesList = new LinearLayout(this);
@@ -177,6 +205,7 @@ public final class SourceManagementActivity extends Activity {
         root.addView(sourcesList, fullWidth());
 
         setContentView(scrollView);
+        applyWindowInsets(root);
     }
 
     private LinearLayout createTopBar() {
@@ -188,7 +217,7 @@ public final class SourceManagementActivity extends Activity {
         back.setOnClickListener(view -> finish());
         appBar.addView(back, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        TextView title = createText("Источник задач", 21, R.color.text_primary, true);
+        TextView title = createText("Источники задач", 21, R.color.text_primary, true);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -200,41 +229,74 @@ public final class SourceManagementActivity extends Activity {
     }
 
     private void renderSources() {
+        renderModeSummary();
+        renderModeSelection();
+        renderExternalHint();
+        renderSavedSources();
+    }
+
+    private void renderModeSummary() {
         TaskStorageMode mode = TaskSourceManager.getStorageMode(this);
-        if (modeSummaryText != null) {
-            modeSummaryText.setText(
-                    TaskSourceManager.storageModeLabel(this)
-                            + " · файлов/источников: "
-                            + TaskSourceManager.activeSourceCount(this)
-                            + " · запись: "
-                            + (TaskSourceManager.canWriteActiveSource(this) ? "доступна" : "недоступна")
-            );
-        }
-        if (sourceSummaryText != null) {
-            if (mode == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE) {
-                sourceSummaryText.setText(
-                        "Источник: " + TaskSourceManager.activeSourceLabel(this)
-                                + "\nПапка: " + TaskSourceManager.internalFolderSummary(this)
-                );
-            } else {
-                sourceSummaryText.setText("Источник: " + TaskSourceManager.activeSourceLabel(this));
-            }
+        if (mode == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE) {
+            modeHeadlineText.setText("Встроенное хранилище");
+            modeMetaText.setText("Локальные markdown-файлы внутри приложения");
+            modeTechnicalText.setVisibility(TextView.GONE);
+            return;
         }
 
+        SourceDisplayNameResolver.ExternalSummaryModel summary =
+                SourceDisplayNameResolver.summarizeExternalSources(this, NoteStore.getSavedSources(this));
+        modeHeadlineText.setText(summary.getHeadline());
+        modeMetaText.setText(summary.getSubtitle());
+        modeTechnicalText.setVisibility(TextView.GONE);
+    }
+
+    private void renderModeSelection() {
+        TaskStorageMode mode = TaskSourceManager.getStorageMode(this);
+        boolean internalSelected = mode == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE;
+        bindChoiceCardState(internalModeCard, internalModeMarker, internalSelected);
+        bindChoiceCardState(externalModeCard, externalModeMarker, !internalSelected);
+    }
+
+    private void renderExternalHint() {
+        if (externalSourcesHintText == null) {
+            return;
+        }
+        if (TaskSourceManager.getStorageMode(this) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE) {
+            externalSourcesHintText.setText(
+                    "Файлы и папки, которые приложение может использовать во внешнем режиме. Их можно выбрать заранее, даже если сейчас активно встроенное хранилище."
+            );
+        } else {
+            externalSourcesHintText.setText(
+                    "Файлы и папки, которые сейчас используются или могут использоваться как внешний markdown-источник."
+            );
+        }
+    }
+
+    private void renderSavedSources() {
         if (sourcesList == null) {
             return;
         }
         sourcesList.removeAllViews();
+
         List<NoteStore.NoteSource> sources = NoteStore.getSavedSources(this);
         if (sources.isEmpty()) {
-            TextView empty = createText(
-                    "Внешние markdown-источники ещё не подключены.",
-                    14,
+            LinearLayout emptyCard = createCardContainer();
+            emptyCard.addView(createText(
+                    "Сохранённых внешних источников пока нет.",
+                    15,
+                    R.color.text_primary,
+                    true
+            ), fullWidth());
+            TextView subtitle = createText(
+                    "Выберите файл или папку, чтобы подключить markdown-задачи.",
+                    13,
                     R.color.text_secondary,
                     false
             );
-            empty.setPadding(0, dp(6), 0, 0);
-            sourcesList.addView(empty, fullWidthWithBottomMargin());
+            subtitle.setPadding(0, dp(4), 0, 0);
+            emptyCard.addView(subtitle, fullWidth());
+            sourcesList.addView(emptyCard, fullWidthWithBottomMargin());
             return;
         }
 
@@ -244,24 +306,36 @@ public final class SourceManagementActivity extends Activity {
     }
 
     private LinearLayout createSourceItem(NoteStore.NoteSource source) {
+        SourceDisplayNameResolver.SourceItemModel model =
+                SourceDisplayNameResolver.describeExternalSource(this, source);
+
         LinearLayout card = createCardContainer();
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
         ImageView icon = new ImageView(this);
-        icon.setImageResource(R.drawable.ic_file);
-        icon.setColorFilter(getColor(R.color.text_secondary));
+        icon.setImageResource(model.isFolder() ? R.drawable.ic_folder : R.drawable.ic_file);
+        icon.setColorFilter(getColor(model.getAccessState() == SourceDisplayNameResolver.AccessState.LOST
+                ? R.color.error_text
+                : R.color.text_secondary));
         row.addView(icon, new LinearLayout.LayoutParams(dp(24), dp(24)));
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        texts.addView(createText(compactName(NoteStore.sourceDisplayName(this, source.getUri())), 15, R.color.text_primary, true), fullWidth());
-        String type = NoteStore.SOURCE_FOLDER.equals(source.getType()) ? "Папка" : "Файл";
-        TextView meta = createText(type + " · " + source.getUri(), 12, R.color.text_secondary, false);
-        meta.setSingleLine(true);
-        meta.setEllipsize(TextUtils.TruncateAt.END);
-        texts.addView(meta, fullWidthWithTopMargin(dp(3)));
+        texts.addView(createText(model.getTitle(), 15, R.color.text_primary, true), fullWidth());
+
+        TextView subtitle = createText(
+                model.getSubtitle(),
+                12,
+                model.getAccessState() == SourceDisplayNameResolver.AccessState.LOST
+                        ? R.color.error_text
+                        : R.color.text_secondary,
+                false
+        );
+        subtitle.setPadding(0, dp(3), 0, 0);
+        texts.addView(subtitle, fullWidth());
+
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -316,6 +390,17 @@ public final class SourceManagementActivity extends Activity {
         Toast.makeText(this, "Внешний источник активирован", Toast.LENGTH_SHORT).show();
     }
 
+    private void confirmClearSources() {
+        new AlertDialog.Builder(this)
+                .setTitle("Очистить внешние подключения?")
+                .setMessage("Приложение забудет выбранные внешние файлы и папки. "
+                        + "Сами markdown-файлы на диске удалены не будут.\n\n"
+                        + "После очистки приложение переключится на встроенное хранилище.")
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Очистить", (dialog, which) -> clearSources())
+                .show();
+    }
+
     private LinearLayout createActionCard(String title, String subtitle, Runnable action) {
         LinearLayout card = createCardContainer();
         card.setOnClickListener(view -> action.run());
@@ -327,7 +412,9 @@ public final class SourceManagementActivity extends Activity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.addView(createText(title, 15, R.color.text_primary, true), fullWidth());
-        texts.addView(createText(subtitle, 13, R.color.text_secondary, false), fullWidthWithTopMargin(dp(3)));
+        TextView subtitleView = createText(subtitle, 13, R.color.text_secondary, false);
+        subtitleView.setPadding(0, dp(3), 0, 0);
+        texts.addView(subtitleView, fullWidth());
         row.addView(texts, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -341,18 +428,46 @@ public final class SourceManagementActivity extends Activity {
         return card;
     }
 
-    private LinearLayout createChoiceCard(
+    private LinearLayout createDestructiveActionCard(String title, String subtitle, Runnable action) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(R.color.error_text),
+                8
+        ));
+        card.setOnClickListener(view -> action.run());
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_delete);
+        icon.setColorFilter(getColor(R.color.error_text));
+        card.addView(icon, new LinearLayout.LayoutParams(dp(24), dp(24)));
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        TextView titleView = createText(title, 15, R.color.error_text, true);
+        texts.addView(titleView, fullWidth());
+        TextView subtitleView = createText(subtitle, 13, R.color.text_secondary, false);
+        subtitleView.setPadding(0, dp(3), 0, 0);
+        texts.addView(subtitleView, fullWidth());
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        );
+        textParams.setMargins(dp(12), 0, 0, 0);
+        card.addView(texts, textParams);
+        return card;
+    }
+
+    private ChoiceCardViews createChoiceCard(
             String title,
             String subtitle,
-            boolean selected,
             Runnable action
     ) {
         LinearLayout card = createCardContainer();
-        card.setBackground(createRoundedBackground(
-                getColor(selected ? R.color.chip_selected_background : R.color.card_background),
-                getColor(selected ? R.color.chip_selected_stroke : R.color.card_stroke),
-                8
-        ));
         card.setOnClickListener(view -> action.run());
 
         LinearLayout row = new LinearLayout(this);
@@ -362,20 +477,22 @@ public final class SourceManagementActivity extends Activity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.addView(createText(title, 15, R.color.text_primary, true), fullWidth());
-        texts.addView(createText(subtitle, 13, R.color.text_secondary, false), fullWidthWithTopMargin(dp(3)));
+        TextView subtitleView = createText(subtitle, 13, R.color.text_secondary, false);
+        subtitleView.setPadding(0, dp(3), 0, 0);
+        texts.addView(subtitleView, fullWidth());
         row.addView(texts, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
 
-        TextView marker = createText(selected ? "Активно" : "", 12, R.color.text_secondary, false);
+        TextView marker = createText("", 12, R.color.chip_selected_text, true);
         row.addView(marker, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
         card.addView(row, fullWidth());
-        return card;
+        return new ChoiceCardViews(card, marker);
     }
 
     @SuppressWarnings("deprecation")
@@ -462,34 +579,27 @@ public final class SourceManagementActivity extends Activity {
     }
 
     private void clearSources() {
-        new AlertDialog.Builder(this)
-                .setTitle("Очистить внешние источники")
-                .setMessage("Внешние подключения будут удалены. Приложение переключится на встроенное хранилище.")
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Очистить", (dialog, which) -> {
-                    NoteStore.clearSources(this);
-                    try {
-                        TaskSourceManager.useInternalStorage(this);
-                        OnboardingPreferences.markCompleted(this);
-                        resyncActiveSource();
-                        setResult(RESULT_OK);
-                        renderSources();
-                        Toast.makeText(
-                                this,
-                                "Внешние подключения очищены, встроенное хранилище снова активно",
-                                Toast.LENGTH_SHORT
-                        ).show();
-                    } catch (IOException exception) {
-                        ErrorLog.record(this, "Не удалось подготовить встроенное хранилище после очистки источников", exception);
-                        Toast.makeText(
-                                this,
-                                "Внешние подключения очищены, но встроенное хранилище не удалось подготовить: "
-                                        + safeMessage(exception),
-                                Toast.LENGTH_LONG
-                        ).show();
-                    }
-                })
-                .show();
+        NoteStore.clearSources(this);
+        try {
+            TaskSourceManager.useInternalStorage(this);
+            OnboardingPreferences.markCompleted(this);
+            resyncActiveSource();
+            setResult(RESULT_OK);
+            renderSources();
+            Toast.makeText(
+                    this,
+                    "Внешние подключения очищены, встроенное хранилище снова активно",
+                    Toast.LENGTH_SHORT
+            ).show();
+        } catch (IOException exception) {
+            ErrorLog.record(this, "Не удалось подготовить встроенное хранилище после очистки источников", exception);
+            Toast.makeText(
+                    this,
+                    "Внешние подключения очищены, но встроенное хранилище не удалось подготовить: "
+                            + safeMessage(exception),
+                    Toast.LENGTH_LONG
+            ).show();
+        }
     }
 
     private void resyncActiveSource() {
@@ -508,6 +618,30 @@ public final class SourceManagementActivity extends Activity {
         TextView title = createText(text, 17, R.color.text_primary, true);
         title.setPadding(0, dp(14), 0, dp(8));
         return title;
+    }
+
+    private TextView createSubsectionTitle(String text) {
+        TextView title = createText(text, 13, R.color.text_secondary, true);
+        title.setPadding(0, dp(4), 0, dp(8));
+        return title;
+    }
+
+    private TextView createSectionHint(String text) {
+        TextView hint = createText(text, 13, R.color.text_secondary, false);
+        hint.setPadding(0, 0, 0, dp(2));
+        return hint;
+    }
+
+    private void bindChoiceCardState(LinearLayout card, TextView marker, boolean selected) {
+        if (card == null || marker == null) {
+            return;
+        }
+        card.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(selected ? R.color.chip_selected_stroke : R.color.card_stroke),
+                8
+        ));
+        marker.setText(selected ? "Активно" : "");
     }
 
     private LinearLayout createCardContainer() {
@@ -536,19 +670,6 @@ public final class SourceManagementActivity extends Activity {
         return button;
     }
 
-    private Button createSecondaryButton(String text) {
-        Button button = new Button(this);
-        button.setText(text);
-        button.setAllCaps(false);
-        button.setTextColor(getColor(R.color.secondary_button_text));
-        button.setBackground(createRoundedBackground(
-                getColor(R.color.secondary_button_background),
-                getColor(R.color.card_stroke),
-                8
-        ));
-        return button;
-    }
-
     private TextView createText(String text, int sizeSp, int colorRes, boolean bold) {
         TextView textView = new TextView(this);
         textView.setText(text);
@@ -568,30 +689,6 @@ public final class SourceManagementActivity extends Activity {
         return drawable;
     }
 
-    private String compactName(String rawName) {
-        if (rawName == null || rawName.trim().isEmpty()) {
-            return "не выбран";
-        }
-        String value = rawName.trim();
-        int queryIndex = value.indexOf('?');
-        if (queryIndex >= 0) {
-            value = value.substring(0, queryIndex);
-        }
-        int encodedSlash = Math.max(value.lastIndexOf("%2F"), value.lastIndexOf("%2f"));
-        if (encodedSlash >= 0 && encodedSlash + 3 < value.length()) {
-            value = value.substring(encodedSlash + 3);
-        }
-        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
-        if (slash >= 0 && slash + 1 < value.length()) {
-            value = value.substring(slash + 1);
-        }
-        int colon = value.lastIndexOf(':');
-        if (colon >= 0 && colon + 1 < value.length()) {
-            value = value.substring(colon + 1);
-        }
-        return value.isEmpty() ? rawName : value;
-    }
-
     private LinearLayout.LayoutParams fullWidth() {
         return new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -605,13 +702,32 @@ public final class SourceManagementActivity extends Activity {
         return params;
     }
 
-    private LinearLayout.LayoutParams fullWidthWithTopMargin(int topMargin) {
-        LinearLayout.LayoutParams params = fullWidth();
-        params.setMargins(0, topMargin, 0, 0);
-        return params;
+    private void applyWindowInsets(LinearLayout root) {
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int topInset = insets == null ? 0 : insets.getSystemWindowInsetTop();
+            int bottomInset = insets == null ? 0 : insets.getSystemWindowInsetBottom();
+            view.setPadding(
+                    dp(16),
+                    dp(14) + topInset,
+                    dp(16),
+                    dp(20) + bottomInset
+            );
+            return insets;
+        });
+        root.requestApplyInsets();
     }
 
     private int dp(int value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private static final class ChoiceCardViews {
+        private final LinearLayout card;
+        private final TextView marker;
+
+        private ChoiceCardViews(LinearLayout card, TextView marker) {
+            this.card = card;
+            this.marker = marker;
+        }
     }
 }
