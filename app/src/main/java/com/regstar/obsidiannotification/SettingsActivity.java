@@ -166,7 +166,7 @@ public final class SettingsActivity extends Activity {
                 () -> openSection(SECTION_BASIC)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Источники",
+                "Источники задач",
                 "Файлы, папки и управление доступом через Android picker.",
                 () -> openSection(SECTION_SOURCES)
         ), fullWidthWithBottomMargin());
@@ -219,7 +219,7 @@ public final class SettingsActivity extends Activity {
             return "Основные";
         }
         if (SECTION_SOURCES.equals(section)) {
-            return "Источники";
+            return "Источники задач";
         }
         if (SECTION_NOTIFICATIONS.equals(section)) {
             return "Уведомления";
@@ -343,26 +343,28 @@ public final class SettingsActivity extends Activity {
     private void addSourceSettings(LinearLayout root) {
         boolean internalSelected =
                 TaskSourceManager.getStorageMode(this) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE;
+        boolean hasExternalSources = TaskSourceManager.hasExternalSources(this);
+        String externalSubtitle = hasExternalSources
+                ? "Текущий источник: " + compactName(NoteStore.externalSourceLabel(this))
+                : "Файлы и папки через Android picker. Подходит для Obsidian, Syncthing и обычных markdown-файлов.";
         root.addView(createDescription(
-                "Один и тот же markdown-движок может работать либо со встроенной папкой приложения, либо с внешней папкой Obsidian."
+                "Выберите, где приложение будет читать и хранить markdown-задачи: внутри приложения или во внешних файлах."
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
                 "Встроенное хранилище",
-                "Локальные markdown-файлы внутри приложения. " + TaskSourceManager.internalFolderSummary(this),
+                "Локальные markdown-файлы внутри приложения. Не требует выбора внешней папки.",
                 internalSelected,
                 this::switchToInternalStorage
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Внешняя папка / Obsidian",
-                TaskSourceManager.hasExternalSources(this)
-                        ? "Текущий источник: " + compactName(TaskSourceManager.activeSourceLabel(this))
-                        : "Подключите существующую папку или набор markdown-файлов.",
+                "Внешние markdown-файлы",
+                externalSubtitle,
                 !internalSelected,
                 this::activateOrSelectExternalStorage
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
                 "Управление внешними источниками",
-                "Подключить папку, добавить заметки и очистить внешние подключения.",
+                "Выбрать, добавить или очистить внешние markdown-файлы и папки.",
                 this::openSourceManagement
         ), fullWidthWithBottomMargin());
         root.addView(createDescription(
@@ -1177,7 +1179,7 @@ public final class SettingsActivity extends Activity {
         ));
 
         TextView state = new TextView(this);
-        state.setText(selected ? "выбрано" : "");
+        state.setText(selected ? "Активно" : "");
         state.setTextSize(12);
         state.setTextColor(getColor(R.color.chip_selected_text));
         state.setPadding(dp(10), 0, 0, 0);
@@ -1244,6 +1246,11 @@ public final class SettingsActivity extends Activity {
             return "не выбран";
         }
         String value = rawName.trim();
+        if (value.startsWith("Папка:")) {
+            value = value.substring("Папка:".length()).trim();
+        } else if (value.startsWith("Файл:")) {
+            value = value.substring("Файл:".length()).trim();
+        }
         int queryIndex = value.indexOf('?');
         if (queryIndex >= 0) {
             value = value.substring(0, queryIndex);
@@ -1258,7 +1265,7 @@ public final class SettingsActivity extends Activity {
         }
         int colon = value.lastIndexOf(':');
         if (colon >= 0 && colon + 1 < value.length()) {
-            value = value.substring(colon + 1);
+            value = value.substring(colon + 1).trim();
         }
         return value.isEmpty() ? rawName : value;
     }

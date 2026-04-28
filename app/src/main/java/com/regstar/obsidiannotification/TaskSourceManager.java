@@ -77,7 +77,7 @@ public final class TaskSourceManager {
     public static String storageModeLabel(Context context) {
         return getStorageMode(context) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE
                 ? "Встроенное хранилище"
-                : "Внешняя папка / Obsidian";
+                : "Внешние markdown-файлы";
     }
 
     public static String activeSourceLabel(Context context) {
@@ -101,7 +101,7 @@ public final class TaskSourceManager {
             return "Переключение на встроенное хранилище не переносит задачи автоматически. "
                     + "Внешние markdown-файлы останутся без изменений.";
         }
-        return "Переключение на внешнюю папку не переносит встроенные задачи автоматически. "
+        return "Переключение на внешние markdown-файлы не переносит встроенные задачи автоматически. "
                 + "Если перенос нужен, markdown-файлы пока нужно скопировать вручную.";
     }
 
