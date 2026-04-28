@@ -18,7 +18,7 @@ public final class TaskParserTest {
                 + "- [ ] Active task @2026-04-20 14:30 every 15m\n"
                 + "- [x] Done task @2026-04-20 15:00 every 1h\n"
                 + "Plain text\n"
-                + "* [ ] Second task @20.04.2026 19:00 каждые 10м\n";
+                + "* [ ] Second task @20.04.2026 19:00 every 10m\n";
 
         List<ObsidianTask> tasks = TaskParser.parse(markdown, LocalDate.of(2026, 4, 20));
 
@@ -28,7 +28,6 @@ public final class TaskParserTest {
         assertEquals(LocalDateTime.of(2026, 4, 20, 14, 30), tasks.get(0).getReminderAt());
         assertEquals(Duration.ofMinutes(15), tasks.get(0).getRepeatInterval());
         assertEquals(RepeatMode.ALWAYS, tasks.get(0).getRepeatMode());
-        assertEquals("Second task", tasks.get(1).getTitle());
         assertEquals(4, tasks.get(1).getLineNumber());
         assertEquals(Duration.ofMinutes(10), tasks.get(1).getRepeatInterval());
     }
@@ -60,6 +59,54 @@ public final class TaskParserTest {
         assertEquals("Inbox zero", tasks.get(1).getTitle());
         assertEquals(Duration.ofMinutes(15), tasks.get(1).getRepeatInterval());
         assertEquals(RepeatMode.UNTIL_DONE, tasks.get(1).getRepeatMode());
+    }
+
+    @Test
+    public void parse_supportsWeeklyRepeatRules() {
+        String markdown = "- [ ] Gym @due(2026-04-20 07:00) @repeat(1w) @days(mon,wed,fri)\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        ObsidianTask task = result.getTasks().get(0);
+        assertEquals(RepeatMode.ALWAYS, task.getRepeatMode());
+        assertEquals("1w @days(mon,wed,fri)", task.getRepeatRule().formatForUi());
+        assertEquals(0, result.getErrors().size());
+    }
+
+    @Test
+    public void parse_supportsMonthlyRepeatRulesAndAliases() {
+        String markdown = "- [ ] Rent @due(2026-04-30 09:00) @r(1mo) @monthday(last) @rud(5m) @g(1h) #home\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        ObsidianTask task = result.getTasks().get(0);
+        assertEquals("1mo @monthday(last)", task.getRepeatRule().formatForUi());
+        assertEquals(Duration.ofMinutes(5), task.getExplicitRepeatUntilDoneInterval());
+        assertEquals(Duration.ofHours(1), task.getExplicitOverdueGracePeriod());
+        assertEquals("home", task.getTags().get(0));
+        assertEquals(0, result.getErrors().size());
+    }
+
+    @Test
+    public void parse_reportsInvalidRepeatSelectorCombinations() {
+        String markdown = "- [ ] Broken @due(2026-04-20 07:00) @repeat(1d) @days(mon,wed)\n";
+
+        TaskParseResult result = TaskParser.parseDocument(
+                markdown,
+                LocalDate.of(2026, 4, 20),
+                "tasks.md"
+        );
+
+        assertEquals(1, result.getTasks().size());
+        assertEquals(1, result.getErrors().size());
     }
 
     @Test

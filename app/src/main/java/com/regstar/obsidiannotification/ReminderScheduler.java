@@ -158,7 +158,7 @@ public final class ReminderScheduler {
     }
 
     public static void scheduleNextRepeat(Context context, ObsidianTask task) {
-        Duration repeatInterval = task.getRepeatInterval();
+        Duration repeatInterval = task.getResolvedRepeatUntilDoneInterval();
         if (!isValidRepeat(repeatInterval) || !canPostNotifications(context)) {
             cancelReminder(context, task.getTaskKey());
             return;
@@ -316,7 +316,7 @@ public final class ReminderScheduler {
                 task.getTitle(),
                 triggerAt,
                 triggerAtMillis,
-                task.getRepeatIntervalMillis(),
+                task.getResolvedRepeatUntilDoneIntervalMillis(),
                 task.getRepeatMode(),
                 task.getGroup()
         );
@@ -338,7 +338,7 @@ public final class ReminderScheduler {
                 task.getTitle(),
                 triggerAt,
                 existing.triggerAtMillis,
-                task.getRepeatIntervalMillis(),
+                task.getResolvedRepeatUntilDoneIntervalMillis(),
                 task.getRepeatMode(),
                 task.getGroup()
         );
@@ -354,15 +354,15 @@ public final class ReminderScheduler {
             return reminderAt;
         }
 
-        Duration repeatInterval = task.getRepeatInterval();
-        if (!isValidRepeat(repeatInterval)) {
+        Duration repeatUntilDoneInterval = task.getResolvedRepeatUntilDoneInterval();
+        if (!isValidRepeat(repeatUntilDoneInterval)) {
             return null;
         }
 
-        long intervalMillis = repeatInterval.toMillis();
+        long intervalMillis = repeatUntilDoneInterval.toMillis();
         long overdueMillis = Duration.between(reminderAt, now).toMillis();
         long intervalsToSkip = overdueMillis / intervalMillis + 1;
-        return reminderAt.plus(repeatInterval.multipliedBy(intervalsToSkip));
+        return reminderAt.plus(repeatUntilDoneInterval.multipliedBy(intervalsToSkip));
     }
 
     private static boolean isValidRepeat(Duration repeatInterval) {
@@ -378,8 +378,7 @@ public final class ReminderScheduler {
             ScheduledState existing,
             long nowMillis
     ) {
-        return isValidRepeat(task.getRepeatInterval())
-                && existing != null
+        return existing != null
                 && existing.notificationId == reminder.getNotificationId()
                 && existing.triggerAtMillis > nowMillis;
     }
@@ -502,7 +501,7 @@ public final class ReminderScheduler {
                 .setData(Uri.parse(REMINDER_URI_PREFIX + notificationId));
     }
 
-    private static int notificationIdFor(ObsidianTask task) {
+    static int occurrenceNotificationIdFor(ObsidianTask task) {
         int hash = Objects.hash(task.getTaskKey());
         if (hash == Integer.MIN_VALUE) {
             hash = 0;
@@ -510,6 +509,10 @@ public final class ReminderScheduler {
 
         int id = Math.abs(hash);
         return id == 0 ? task.getLineNumber() + 1 : id;
+    }
+
+    private static int notificationIdFor(ObsidianTask task) {
+        return occurrenceNotificationIdFor(task);
     }
 
     private static void putScheduledState(Context context, ScheduledReminder reminder) {

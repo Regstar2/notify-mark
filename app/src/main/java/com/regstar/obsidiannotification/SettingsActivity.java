@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Typeface;
@@ -19,6 +20,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -98,6 +100,8 @@ public final class SettingsActivity extends Activity {
             return;
         }
 
+        TaskSourceManager.useExternalStorage(this);
+        OnboardingPreferences.markCompleted(this);
         NoteChangeMonitor.ensureScheduled(this);
         rescheduleAll();
         updateStatus();
@@ -337,37 +341,33 @@ public final class SettingsActivity extends Activity {
     }
 
     private void addSourceSettings(LinearLayout root) {
+        boolean internalSelected =
+                TaskSourceManager.getStorageMode(this) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE;
         root.addView(createDescription(
-                "Источник нужен для первичной настройки. После выбора он может быть скрыт с главного экрана."
+                "Один и тот же markdown-движок может работать либо со встроенной папкой приложения, либо с внешней папкой Obsidian."
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Встроенное хранилище",
+                "Локальные markdown-файлы внутри приложения. " + TaskSourceManager.internalFolderSummary(this),
+                internalSelected,
+                this::switchToInternalStorage
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Внешняя папка / Obsidian",
+                TaskSourceManager.hasExternalSources(this)
+                        ? "Текущий источник: " + compactName(TaskSourceManager.activeSourceLabel(this))
+                        : "Подключите существующую папку или набор markdown-файлов.",
+                !internalSelected,
+                this::activateOrSelectExternalStorage
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Управление источниками",
-                "Текущий источник: " + compactName(NoteStore.sourceLabel(this)),
+                "Управление внешними источниками",
+                "Подключить папку, добавить заметки и очистить внешние подключения.",
                 this::openSourceManagement
         ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Заменить заметками",
-                "Выбрать один или несколько markdown-файлов заново.",
-                () -> openNotePicker(REQUEST_REPLACE_NOTES)
+        root.addView(createDescription(
+                "Смена режима не переносит задачи автоматически. Если перенос нужен, markdown-файлы пока нужно копировать вручную."
         ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Заменить папкой",
-                "Выбрать папку vault или Syncthing-папку.",
-                () -> openFolderPicker(REQUEST_REPLACE_FOLDER)
-        ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Добавить заметки",
-                "Добавить markdown-файлы к текущим источникам.",
-                () -> openNotePicker(REQUEST_ADD_NOTES)
-        ), fullWidthWithBottomMargin());
-        root.addView(createActionCard(
-                "Добавить папку",
-                "Добавить еще одну папку к текущим источникам.",
-                () -> openFolderPicker(REQUEST_ADD_FOLDER)
-        ), fullWidthWithBottomMargin());
-        Button clearButton = createButton("Очистить источники");
-        clearButton.setOnClickListener(view -> clearSources());
-        root.addView(clearButton, fullWidthWithBottomMargin());
     }
 
     private void addNotificationSettings(LinearLayout root) {
@@ -615,7 +615,7 @@ public final class SettingsActivity extends Activity {
 
         repeatUntilDoneMinutesInput = addKeywordInput(
                 root,
-                "РџРѕРІС‚РѕСЂ РґРѕ РІС‹РїРѕР»РЅРµРЅРёСЏ, РјРёРЅСѓС‚",
+                "Повтор до выполнения, минут",
                 String.valueOf(ActionPreferences.getRepeatUntilDoneMinutes(this))
         );
         repeatUntilDoneMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
@@ -689,6 +689,45 @@ public final class SettingsActivity extends Activity {
         startActivityForResult(new Intent(this, SourceManagementActivity.class), REQUEST_SOURCE_MANAGEMENT);
     }
 
+    private void switchToInternalStorage() {
+        if (TaskSourceManager.getStorageMode(this) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE) {
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Переключить источник")
+                .setMessage(TaskSourceManager.switchWithoutMigrationWarning(TaskStorageMode.INTERNAL_MARKDOWN_STORAGE))
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Переключить", (dialog, which) -> {
+                    try {
+                        TaskSourceManager.useInternalStorage(this);
+                        OnboardingPreferences.markCompleted(this);
+                        rescheduleAll();
+                        updateStatus();
+                        Toast.makeText(this, "Встроенное хранилище включено", Toast.LENGTH_SHORT).show();
+                    } catch (IOException exception) {
+                        ErrorLog.record(this, "Не удалось включить встроенное хранилище", exception);
+                        Toast.makeText(
+                                this,
+                                "Не удалось включить встроенное хранилище: " + safeMessage(exception),
+                                Toast.LENGTH_LONG
+                        ).show();
+                    }
+                })
+                .show();
+    }
+
+    private void activateOrSelectExternalStorage() {
+        if (!TaskSourceManager.hasExternalSources(this)) {
+            openSourceManagement();
+            return;
+        }
+        TaskSourceManager.useExternalStorage(this);
+        OnboardingPreferences.markCompleted(this);
+        rescheduleAll();
+        updateStatus();
+        Toast.makeText(this, "Внешний источник активирован", Toast.LENGTH_SHORT).show();
+    }
+
     @SuppressWarnings("deprecation")
     private void openNotePicker(int requestCode) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -752,10 +791,31 @@ public final class SettingsActivity extends Activity {
 
     private void clearSources() {
         NoteStore.clearSources(this);
-        ReminderScheduler.cancelScheduled(this);
-        NoteChangeMonitor.cancel(this);
-        Toast.makeText(this, "Источники очищены", Toast.LENGTH_SHORT).show();
+        try {
+            TaskSourceManager.useInternalStorage(this);
+            OnboardingPreferences.markCompleted(this);
+            rescheduleAll();
+            Toast.makeText(
+                    this,
+                    "Внешние подключения очищены, приложение переключено на встроенное хранилище",
+                    Toast.LENGTH_SHORT
+            ).show();
+        } catch (IOException exception) {
+            ErrorLog.record(this, "Не удалось переключиться на встроенное хранилище после очистки источников", exception);
+            Toast.makeText(
+                    this,
+                    "Внешние подключения очищены, но встроенное хранилище не удалось подготовить: " + safeMessage(exception),
+                    Toast.LENGTH_LONG
+            ).show();
+        }
         updateStatus();
+    }
+
+    private String safeMessage(Exception exception) {
+        String message = exception == null ? null : exception.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? "проверьте доступ к источнику задач"
+                : message;
     }
 
     private void rescheduleAll() {
@@ -972,10 +1032,11 @@ public final class SettingsActivity extends Activity {
         }
         String cachedAt = TaskCache.getSavedAt(this);
         String latestError = ErrorLog.latest(this);
-        StringBuilder status = new StringBuilder("Источник: " + compactName(NoteStore.sourceLabel(this))
-                + " · источников: " + NoteStore.getSavedSourceCount(this)
+        StringBuilder status = new StringBuilder("Режим: " + TaskSourceManager.storageModeLabel(this)
+                + "\nИсточник: " + compactName(TaskSourceManager.activeSourceLabel(this))
+                + " · файлов/источников: " + TaskSourceManager.activeSourceCount(this)
+                + " · запись: " + (TaskSourceManager.canWriteActiveSource(this) ? "да" : "нет")
                 + "\nФильтр: " + UserPreferences.getTaskFilterLabel(this)
-                + " · запись: " + (NoteStore.canWriteSavedSource(this) ? "да" : "нужно выбрать источник")
                 + "\nНапоминания: точные "
                 + (ReminderScheduler.canScheduleExactAlarms(this) ? "да" : "нет")
                 + " · отложить " + ActionPreferences.getSnoozeMinutes(this) + " мин."
@@ -1219,3 +1280,4 @@ public final class SettingsActivity extends Activity {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
+

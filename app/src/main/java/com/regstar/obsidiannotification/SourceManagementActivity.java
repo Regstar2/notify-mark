@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Typeface;
@@ -8,6 +9,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageButton;
@@ -19,6 +21,7 @@ import android.widget.Toast;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public final class SourceManagementActivity extends Activity {
@@ -27,10 +30,11 @@ public final class SourceManagementActivity extends Activity {
     private static final int REQUEST_ADD_NOTES = 4103;
     private static final int REQUEST_ADD_FOLDER = 4104;
     private static final int REQUEST_CREATE_NOTE = 4105;
-    private static final String NEW_NOTE_TEMPLATE = "## Уведомления\n\n";
+    private static final String NEW_NOTE_TEMPLATE = "## Задачи\n\n";
 
     private LinearLayout sourcesList;
-    private TextView summaryText;
+    private TextView modeSummaryText;
+    private TextView sourceSummaryText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,28 +60,38 @@ public final class SourceManagementActivity extends Activity {
             persistReadPermission(data, uri);
         }
 
-        if (requestCode == REQUEST_CREATE_NOTE) {
-            handleCreatedNote(selectedUris.get(0));
-            return;
-        }
+        try {
+            if (requestCode == REQUEST_CREATE_NOTE) {
+                handleCreatedNote(selectedUris.get(0));
+                return;
+            }
 
-        if (requestCode == REQUEST_REPLACE_NOTES) {
-            NoteStore.saveNoteUris(this, selectedUris);
-        } else if (requestCode == REQUEST_REPLACE_FOLDER) {
-            NoteStore.saveFolderUri(this, selectedUris.get(0));
-        } else if (requestCode == REQUEST_ADD_NOTES) {
-            NoteStore.addNoteUris(this, selectedUris);
-        } else if (requestCode == REQUEST_ADD_FOLDER) {
-            NoteStore.addFolderUri(this, selectedUris.get(0));
-        } else {
-            return;
-        }
+            if (requestCode == REQUEST_REPLACE_NOTES) {
+                NoteStore.saveNoteUris(this, selectedUris);
+            } else if (requestCode == REQUEST_REPLACE_FOLDER) {
+                NoteStore.saveFolderUri(this, selectedUris.get(0));
+            } else if (requestCode == REQUEST_ADD_NOTES) {
+                NoteStore.addNoteUris(this, selectedUris);
+            } else if (requestCode == REQUEST_ADD_FOLDER) {
+                NoteStore.addFolderUri(this, selectedUris.get(0));
+            } else {
+                return;
+            }
 
-        NoteChangeMonitor.ensureScheduled(this);
-        NoteChangeMonitor.syncNow(this, true);
-        setResult(RESULT_OK);
-        renderSources();
-        Toast.makeText(this, "Источники обновлены", Toast.LENGTH_SHORT).show();
+            TaskSourceManager.useExternalStorage(this);
+            OnboardingPreferences.markCompleted(this);
+            resyncActiveSource();
+            setResult(RESULT_OK);
+            renderSources();
+            Toast.makeText(this, "Внешний источник обновлён", Toast.LENGTH_SHORT).show();
+        } catch (IOException exception) {
+            ErrorLog.record(this, "Не удалось активировать внешний markdown-источник", exception);
+            Toast.makeText(
+                    this,
+                    "Не удалось обновить источник: " + safeMessage(exception),
+                    Toast.LENGTH_LONG
+            ).show();
+        }
     }
 
     private void buildUi() {
@@ -94,43 +108,70 @@ public final class SourceManagementActivity extends Activity {
         root.addView(createTopBar(), fullWidthWithBottomMargin());
 
         LinearLayout summaryCard = createCardContainer();
-        summaryCard.addView(createText("Текущий источник", 15, R.color.text_primary, true), fullWidth());
-        summaryText = createText("", 13, R.color.text_secondary, false);
-        summaryText.setPadding(0, dp(5), 0, 0);
-        summaryCard.addView(summaryText, fullWidth());
+        summaryCard.addView(createText("Текущий режим", 15, R.color.text_primary, true), fullWidth());
+        modeSummaryText = createText("", 13, R.color.text_secondary, false);
+        modeSummaryText.setPadding(0, dp(5), 0, 0);
+        summaryCard.addView(modeSummaryText, fullWidth());
+        sourceSummaryText = createText("", 13, R.color.text_secondary, false);
+        sourceSummaryText.setPadding(0, dp(8), 0, 0);
+        summaryCard.addView(sourceSummaryText, fullWidth());
         root.addView(summaryCard, fullWidthWithBottomMargin());
 
+        root.addView(createSectionTitle("Режим хранения"), fullWidth());
+        root.addView(createChoiceCard(
+                "Встроенное хранилище",
+                "Локальные markdown-файлы внутри приложения. Подходит для быстрого старта без внешней папки.",
+                TaskSourceManager.getStorageMode(this) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE,
+                this::confirmSwitchToInternal
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                "Внешняя папка / Obsidian",
+                "Работа с уже существующими markdown-файлами и папками через Android picker.",
+                TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE,
+                this::activateExternalMode
+        ), fullWidthWithBottomMargin());
+
+        TextView migrationHint = createText(
+                "Смена режима пока не переносит задачи автоматически. Для миграции markdown-файлы нужно копировать вручную.",
+                13,
+                R.color.text_secondary,
+                false
+        );
+        migrationHint.setPadding(0, 0, 0, dp(8));
+        root.addView(migrationHint, fullWidthWithBottomMargin());
+
+        root.addView(createSectionTitle("Внешние markdown-источники"), fullWidth());
         root.addView(createActionCard(
-                "Выбрать заметки",
-                "Заменить текущий набор одной или несколькими markdown-заметками.",
+                "Заменить заметками",
+                "Выбрать один или несколько markdown-файлов как текущий внешний источник.",
                 () -> openNotePicker(REQUEST_REPLACE_NOTES)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Выбрать папку",
-                "Заменить текущий источник папкой с markdown-файлами.",
+                "Заменить папкой",
+                "Выбрать папку Obsidian vault или Syncthing-папку с markdown-файлами.",
                 () -> openFolderPicker(REQUEST_REPLACE_FOLDER)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
                 "Добавить заметку",
-                "Добавить файл к текущим источникам.",
+                "Подключить ещё один markdown-файл к уже сохранённым внешним источникам.",
                 () -> openNotePicker(REQUEST_ADD_NOTES)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Создать файл",
-                "Создать новый markdown-файл и добавить его к источникам.",
+                "Создать внешний файл",
+                "Создать новый markdown-файл через Android picker и сразу подключить его.",
                 this::openNoteCreator
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
                 "Добавить папку",
-                "Добавить папку к текущим источникам.",
+                "Подключить дополнительную папку с markdown-файлами.",
                 () -> openFolderPicker(REQUEST_ADD_FOLDER)
         ), fullWidthWithBottomMargin());
 
-        Button clearButton = createSecondaryButton("Очистить источники");
+        Button clearButton = createSecondaryButton("Очистить внешние подключения");
         clearButton.setOnClickListener(view -> clearSources());
         root.addView(clearButton, fullWidthWithBottomMargin());
 
-        root.addView(createSectionTitle("Источники"), fullWidth());
+        root.addView(createSectionTitle("Сохранённые внешние источники"), fullWidth());
         sourcesList = new LinearLayout(this);
         sourcesList.setOrientation(LinearLayout.VERTICAL);
         root.addView(sourcesList, fullWidth());
@@ -141,13 +182,13 @@ public final class SourceManagementActivity extends Activity {
     private LinearLayout createTopBar() {
         LinearLayout appBar = new LinearLayout(this);
         appBar.setOrientation(LinearLayout.HORIZONTAL);
-        appBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        appBar.setGravity(Gravity.CENTER_VERTICAL);
 
         ImageButton back = createIconButton(R.drawable.ic_arrow_back, "Назад");
         back.setOnClickListener(view -> finish());
         appBar.addView(back, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        TextView title = createText("Источники", 21, R.color.text_primary, true);
+        TextView title = createText("Источник задач", 21, R.color.text_primary, true);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -159,28 +200,46 @@ public final class SourceManagementActivity extends Activity {
     }
 
     private void renderSources() {
-        List<NoteStore.NoteSource> sources = NoteStore.getSavedSources(this);
-        if (summaryText != null) {
-            summaryText.setText(sources.isEmpty()
-                    ? "Источник не выбран"
-                    : sources.size() + " источн. · запись "
-                    + (NoteStore.canWriteSavedSource(this) ? "доступна" : "недоступна"));
+        TaskStorageMode mode = TaskSourceManager.getStorageMode(this);
+        if (modeSummaryText != null) {
+            modeSummaryText.setText(
+                    TaskSourceManager.storageModeLabel(this)
+                            + " · файлов/источников: "
+                            + TaskSourceManager.activeSourceCount(this)
+                            + " · запись: "
+                            + (TaskSourceManager.canWriteActiveSource(this) ? "доступна" : "недоступна")
+            );
+        }
+        if (sourceSummaryText != null) {
+            if (mode == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE) {
+                sourceSummaryText.setText(
+                        "Источник: " + TaskSourceManager.activeSourceLabel(this)
+                                + "\nПапка: " + TaskSourceManager.internalFolderSummary(this)
+                );
+            } else {
+                sourceSummaryText.setText("Источник: " + TaskSourceManager.activeSourceLabel(this));
+            }
         }
 
         if (sourcesList == null) {
             return;
         }
         sourcesList.removeAllViews();
+        List<NoteStore.NoteSource> sources = NoteStore.getSavedSources(this);
         if (sources.isEmpty()) {
-            TextView empty = createText("Выберите заметку или папку с markdown-файлами.", 14, R.color.text_secondary, false);
+            TextView empty = createText(
+                    "Внешние markdown-источники ещё не подключены.",
+                    14,
+                    R.color.text_secondary,
+                    false
+            );
             empty.setPadding(0, dp(6), 0, 0);
             sourcesList.addView(empty, fullWidthWithBottomMargin());
             return;
         }
 
         for (NoteStore.NoteSource source : sources) {
-            LinearLayout card = createSourceItem(source);
-            sourcesList.addView(card, fullWidthWithBottomMargin());
+            sourcesList.addView(createSourceItem(source), fullWidthWithBottomMargin());
         }
     }
 
@@ -188,7 +247,7 @@ public final class SourceManagementActivity extends Activity {
         LinearLayout card = createCardContainer();
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(R.drawable.ic_file);
@@ -197,9 +256,8 @@ public final class SourceManagementActivity extends Activity {
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        String name = compactName(NoteStore.sourceDisplayName(this, source.getUri()));
-        texts.addView(createText(name, 15, R.color.text_primary, true), fullWidth());
-        String type = NoteStore.SOURCE_FOLDER.equals(source.getType()) ? "папка" : "заметка";
+        texts.addView(createText(compactName(NoteStore.sourceDisplayName(this, source.getUri())), 15, R.color.text_primary, true), fullWidth());
+        String type = NoteStore.SOURCE_FOLDER.equals(source.getType()) ? "Папка" : "Файл";
         TextView meta = createText(type + " · " + source.getUri(), 12, R.color.text_secondary, false);
         meta.setSingleLine(true);
         meta.setEllipsize(TextUtils.TruncateAt.END);
@@ -215,13 +273,56 @@ public final class SourceManagementActivity extends Activity {
         return card;
     }
 
+    private void confirmSwitchToInternal() {
+        if (TaskSourceManager.getStorageMode(this) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE) {
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Переключить источник")
+                .setMessage(TaskSourceManager.switchWithoutMigrationWarning(TaskStorageMode.INTERNAL_MARKDOWN_STORAGE))
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Переключить", (dialog, which) -> switchToInternal())
+                .show();
+    }
+
+    private void switchToInternal() {
+        try {
+            TaskSourceManager.useInternalStorage(this);
+            OnboardingPreferences.markCompleted(this);
+            resyncActiveSource();
+            setResult(RESULT_OK);
+            renderSources();
+            Toast.makeText(this, "Приложение переключено на встроенное хранилище", Toast.LENGTH_SHORT).show();
+        } catch (IOException exception) {
+            ErrorLog.record(this, "Не удалось включить встроенное хранилище", exception);
+            Toast.makeText(
+                    this,
+                    "Не удалось включить встроенное хранилище: " + safeMessage(exception),
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void activateExternalMode() {
+        if (!TaskSourceManager.hasExternalSources(this)) {
+            openFolderPicker(REQUEST_REPLACE_FOLDER);
+            return;
+        }
+        TaskSourceManager.useExternalStorage(this);
+        OnboardingPreferences.markCompleted(this);
+        resyncActiveSource();
+        setResult(RESULT_OK);
+        renderSources();
+        Toast.makeText(this, "Внешний источник активирован", Toast.LENGTH_SHORT).show();
+    }
+
     private LinearLayout createActionCard(String title, String subtitle, Runnable action) {
         LinearLayout card = createCardContainer();
         card.setOnClickListener(view -> action.run());
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
@@ -234,8 +335,45 @@ public final class SourceManagementActivity extends Activity {
         ));
 
         TextView chevron = createText("›", 24, R.color.text_secondary, false);
-        chevron.setGravity(android.view.Gravity.CENTER);
+        chevron.setGravity(Gravity.CENTER);
         row.addView(chevron, new LinearLayout.LayoutParams(dp(32), dp(42)));
+        card.addView(row, fullWidth());
+        return card;
+    }
+
+    private LinearLayout createChoiceCard(
+            String title,
+            String subtitle,
+            boolean selected,
+            Runnable action
+    ) {
+        LinearLayout card = createCardContainer();
+        card.setBackground(createRoundedBackground(
+                getColor(selected ? R.color.chip_selected_background : R.color.card_background),
+                getColor(selected ? R.color.chip_selected_stroke : R.color.card_stroke),
+                8
+        ));
+        card.setOnClickListener(view -> action.run());
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(createText(title, 15, R.color.text_primary, true), fullWidth());
+        texts.addView(createText(subtitle, 13, R.color.text_secondary, false), fullWidthWithTopMargin(dp(3)));
+        row.addView(texts, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        TextView marker = createText(selected ? "Активно" : "", 12, R.color.text_secondary, false);
+        row.addView(marker, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
         card.addView(row, fullWidth());
         return card;
     }
@@ -262,28 +400,22 @@ public final class SourceManagementActivity extends Activity {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/markdown");
-        intent.putExtra(Intent.EXTRA_TITLE, "ObsidianNotification.md");
+        intent.putExtra(Intent.EXTRA_TITLE, "tasks.md");
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent, REQUEST_CREATE_NOTE);
     }
 
-    private void handleCreatedNote(Uri uri) {
-        try {
-            NoteStore.writeMarkdown(this, uri, NEW_NOTE_TEMPLATE);
-            NoteStore.addNoteUris(this, java.util.Collections.singletonList(uri));
-            NoteChangeMonitor.ensureScheduled(this);
-            NoteChangeMonitor.syncNow(this, true);
-            setResult(RESULT_OK);
-            renderSources();
-            Toast.makeText(this, "Файл создан и добавлен в источники", Toast.LENGTH_SHORT).show();
-        } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(this, "Не удалось создать markdown-файл", exception);
-            Toast.makeText(this,
-                    "Не удалось создать файл: " + safeMessage(exception),
-                    Toast.LENGTH_LONG).show();
-        }
+    private void handleCreatedNote(Uri uri) throws IOException {
+        NoteStore.writeMarkdown(this, uri, NEW_NOTE_TEMPLATE);
+        NoteStore.addNoteUris(this, Collections.singletonList(uri));
+        TaskSourceManager.useExternalStorage(this);
+        OnboardingPreferences.markCompleted(this);
+        resyncActiveSource();
+        setResult(RESULT_OK);
+        renderSources();
+        Toast.makeText(this, "Файл создан и подключён как внешний источник", Toast.LENGTH_SHORT).show();
     }
 
     @SuppressWarnings("deprecation")
@@ -299,15 +431,14 @@ public final class SourceManagementActivity extends Activity {
     private void persistReadPermission(Intent data, Uri selectedUri) {
         try {
             int persistableFlags = data.getFlags()
-                    & (Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             if (persistableFlags == 0) {
                 persistableFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
                         | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
             }
             getContentResolver().takePersistableUriPermission(selectedUri, persistableFlags);
         } catch (SecurityException ignored) {
-            // Some providers grant only temporary read access.
+            // Some providers grant only temporary access.
         }
     }
 
@@ -315,8 +446,8 @@ public final class SourceManagementActivity extends Activity {
         List<Uri> uris = new ArrayList<>();
         ClipData clipData = data.getClipData();
         if (clipData != null) {
-            for (int i = 0; i < clipData.getItemCount(); i++) {
-                Uri uri = clipData.getItemAt(i).getUri();
+            for (int index = 0; index < clipData.getItemCount(); index++) {
+                Uri uri = clipData.getItemAt(index).getUri();
                 if (uri != null) {
                     uris.add(uri);
                 }
@@ -331,18 +462,45 @@ public final class SourceManagementActivity extends Activity {
     }
 
     private void clearSources() {
-        NoteStore.clearSources(this);
-        ReminderScheduler.cancelScheduled(this);
-        NoteChangeMonitor.cancel(this);
-        setResult(RESULT_OK);
-        renderSources();
-        Toast.makeText(this, "Источники очищены", Toast.LENGTH_SHORT).show();
+        new AlertDialog.Builder(this)
+                .setTitle("Очистить внешние источники")
+                .setMessage("Внешние подключения будут удалены. Приложение переключится на встроенное хранилище.")
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Очистить", (dialog, which) -> {
+                    NoteStore.clearSources(this);
+                    try {
+                        TaskSourceManager.useInternalStorage(this);
+                        OnboardingPreferences.markCompleted(this);
+                        resyncActiveSource();
+                        setResult(RESULT_OK);
+                        renderSources();
+                        Toast.makeText(
+                                this,
+                                "Внешние подключения очищены, встроенное хранилище снова активно",
+                                Toast.LENGTH_SHORT
+                        ).show();
+                    } catch (IOException exception) {
+                        ErrorLog.record(this, "Не удалось подготовить встроенное хранилище после очистки источников", exception);
+                        Toast.makeText(
+                                this,
+                                "Внешние подключения очищены, но встроенное хранилище не удалось подготовить: "
+                                        + safeMessage(exception),
+                                Toast.LENGTH_LONG
+                        ).show();
+                    }
+                })
+                .show();
+    }
+
+    private void resyncActiveSource() {
+        NoteChangeMonitor.ensureScheduled(this);
+        NoteChangeMonitor.syncNow(this, true);
     }
 
     private String safeMessage(Exception exception) {
         String message = exception == null ? null : exception.getMessage();
         return message == null || message.trim().isEmpty()
-                ? "провайдер файлов не дал доступ к записи"
+                ? "проверьте доступ к выбранному источнику"
                 : message;
     }
 

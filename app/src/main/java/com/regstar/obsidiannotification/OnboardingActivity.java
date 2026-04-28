@@ -11,6 +11,9 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import java.io.IOException;
 
 public final class OnboardingActivity extends Activity {
     private static final int REQUEST_SOURCE_MANAGEMENT = 5101;
@@ -27,7 +30,10 @@ public final class OnboardingActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_SOURCE_MANAGEMENT && resultCode == RESULT_OK) {
-            finishOnboarding();
+            if (TaskSourceManager.hasExternalSources(this)) {
+                TaskSourceManager.useExternalStorage(this);
+                finishOnboarding();
+            }
         }
     }
 
@@ -49,8 +55,9 @@ public final class OnboardingActivity extends Activity {
         root.addView(icon, iconParams);
 
         root.addView(createText("ObsidianNotification", 24, R.color.text_primary, true), fullWidth());
+
         TextView subtitle = createText(
-                "Локальные напоминания из markdown-заметок Obsidian.",
+                "Один markdown-движок для быстрых встроенных задач и для внешней папки Obsidian.",
                 15,
                 R.color.text_secondary,
                 false
@@ -59,25 +66,31 @@ public final class OnboardingActivity extends Activity {
         root.addView(subtitle, fullWidth());
 
         root.addView(createInfoCard(
-                "1. Выберите источник",
-                "Можно выбрать одну заметку, несколько markdown-файлов или папку vault. Для Syncthing выбирайте локальную папку, которая уже синхронизируется на телефоне."
-        ), fullWidthWithBottomMargin());
-        root.addView(createInfoCard(
-                "2. Пишите задачи в markdown",
-                "- [ ] Купить лекарство @due(2026-04-20 19:00) @repeatUntilDone(15m)\nPlain reminder @due(19:10) @group(home)"
-        ), fullWidthWithBottomMargin());
-        root.addView(createInfoCard(
-                "3. Разрешите уведомления",
-                "Android 13+ спросит разрешение на уведомления. Для максимально точных напоминаний Android может попросить отдельное разрешение на exact alarms."
+                "Встроенное хранилище",
+                "Локальные markdown-файлы внутри приложения. Подходит для быстрого старта без выбора внешней папки."
         ), fullWidthWithBottomMargin());
 
-        Button sourceButton = createPrimaryButton("Выбрать источник");
-        sourceButton.setOnClickListener(view -> openSourceManagement());
-        root.addView(sourceButton, buttonParams());
+        Button internalButton = createPrimaryButton("Начать быстро");
+        internalButton.setOnClickListener(view -> useInternalStorage());
+        root.addView(internalButton, buttonParams());
 
-        Button continueButton = createSecondaryButton("Продолжить без выбора");
-        continueButton.setOnClickListener(view -> finishOnboarding());
-        root.addView(continueButton, buttonParams());
+        root.addView(createInfoCard(
+                "Внешняя папка / Obsidian",
+                "Работа с уже существующими markdown-файлами и папками через выбранный источник Android."
+        ), fullWidthWithBottomMargin());
+
+        Button externalButton = createSecondaryButton("Подключить папку");
+        externalButton.setOnClickListener(view -> openSourceManagement());
+        root.addView(externalButton, buttonParams());
+
+        TextView note = createText(
+                "Сменить режим хранения можно позже в настройках. Переключение пока не переносит задачи автоматически.",
+                13,
+                R.color.text_secondary,
+                false
+        );
+        note.setPadding(0, dp(10), 0, 0);
+        root.addView(note, fullWidth());
 
         setContentView(scrollView);
     }
@@ -87,10 +100,31 @@ public final class OnboardingActivity extends Activity {
         startActivityForResult(new Intent(this, SourceManagementActivity.class), REQUEST_SOURCE_MANAGEMENT);
     }
 
+    private void useInternalStorage() {
+        try {
+            TaskSourceManager.useInternalStorage(this);
+            finishOnboarding();
+        } catch (IOException exception) {
+            ErrorLog.record(this, "Не удалось подготовить встроенное хранилище", exception);
+            Toast.makeText(
+                    this,
+                    "Не удалось подготовить встроенное хранилище: " + safeMessage(exception),
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
     private void finishOnboarding() {
         OnboardingPreferences.markCompleted(this);
         setResult(RESULT_OK);
         finish();
+    }
+
+    private String safeMessage(Exception exception) {
+        String message = exception == null ? null : exception.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? "проверьте доступ к памяти приложения"
+                : message;
     }
 
     private LinearLayout createInfoCard(String title, String body) {
@@ -105,9 +139,6 @@ public final class OnboardingActivity extends Activity {
         card.addView(createText(title, 16, R.color.text_primary, true), fullWidth());
         TextView bodyView = createText(body, 14, R.color.text_secondary, false);
         bodyView.setPadding(0, dp(6), 0, 0);
-        if (body.contains("@due(")) {
-            bodyView.setTypeface(Typeface.MONOSPACE);
-        }
         card.addView(bodyView, fullWidth());
         return card;
     }

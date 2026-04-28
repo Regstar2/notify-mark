@@ -134,7 +134,13 @@ public final class MainActivity extends AppCompatActivity {
 
         ReminderScheduler.ensureNotificationChannel(this);
 
-        noteUri = NoteStore.getSavedSourceUri(this);
+        try {
+            TaskSourceManager.ensureReady(this);
+        } catch (IOException exception) {
+            ErrorLog.record(this, "Не удалось инициализировать источник задач", exception);
+        }
+
+        noteUri = TaskSourceManager.getActiveSourceUri(this);
 
         buildUi();
         updateNotificationPermissionUi();
@@ -144,13 +150,18 @@ public final class MainActivity extends AppCompatActivity {
         if (noteUri == null) {
             NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
-            setStatus("Выберите markdown-файл или папку с задачами Obsidian.");
+            setStatus(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
+                    ? "Подключите внешнюю markdown-папку или заметку."
+                    : "Не удалось открыть встроенное хранилище задач.");
             setNextReminder(null);
-            renderEmptyState("Задачи появятся здесь после выбора заметки.");
+            renderEmptyState(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
+                    ? "Задачи появятся после выбора внешнего источника."
+                    : "Попробуйте открыть приложение снова или переключиться на внешний источник.");
             showOnboardingIfNeeded();
         } else {
             readAndRenderNote();
             NoteChangeMonitor.ensureScheduled(this);
+            showOnboardingIfNeeded();
         }
     }
 
@@ -165,7 +176,7 @@ public final class MainActivity extends AppCompatActivity {
         if (exactAlarmPermissionButton != null) {
             updateExactAlarmPermissionUi();
         }
-        noteUri = NoteStore.getSavedSourceUri(this);
+        noteUri = TaskSourceManager.getActiveSourceUri(this);
         if (noteUri != null) {
             if (refreshButton != null) {
                 refreshButton.setEnabled(true);
@@ -216,7 +227,7 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (requestCode == REQUEST_SOURCE_MANAGEMENT) {
-            noteUri = NoteStore.getSavedSourceUri(this);
+            noteUri = TaskSourceManager.getActiveSourceUri(this);
             if (noteUri == null) {
                 NoteChangeMonitor.cancel(this);
                 ReminderScheduler.cancelScheduled(this);
@@ -235,7 +246,7 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (requestCode == REQUEST_ONBOARDING) {
-            noteUri = NoteStore.getSavedSourceUri(this);
+            noteUri = TaskSourceManager.getActiveSourceUri(this);
             if (noteUri != null) {
                 readAndRenderNote();
                 NoteChangeMonitor.ensureScheduled(this);
@@ -270,6 +281,8 @@ public final class MainActivity extends AppCompatActivity {
 
         noteUri = selectedUri;
         NoteStore.saveNoteUri(this, selectedUri);
+        TaskSourceManager.useExternalStorage(this);
+        OnboardingPreferences.markCompleted(this);
         readAndRenderNote();
         NoteChangeMonitor.ensureScheduled(this);
     }
@@ -1268,7 +1281,9 @@ public final class MainActivity extends AppCompatActivity {
     private void showAboutDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("ObsidianNotification")
-                .setMessage("Локальные напоминания из markdown-заметок Obsidian.")
+                .setMessage("Локальные напоминания из markdown-задач.\nТекущий режим: "
+                        + TaskSourceManager.storageModeLabel(this)
+                        + "\nИсточник: " + TaskSourceManager.activeSourceLabel(this))
                 .setPositiveButton("OK", null)
                 .show();
     }
@@ -1614,7 +1629,7 @@ public final class MainActivity extends AppCompatActivity {
 
     @SuppressWarnings("deprecation")
     private void showOnboardingIfNeeded() {
-        if (!OnboardingPreferences.shouldShow(this) || NoteStore.hasSavedSources(this)) {
+        if (!OnboardingPreferences.shouldShow(this)) {
             return;
         }
         startActivityForResult(new Intent(this, OnboardingActivity.class), REQUEST_ONBOARDING);
@@ -1624,13 +1639,17 @@ public final class MainActivity extends AppCompatActivity {
         if (noteUri == null) {
             NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
-            setStatus("Файл не выбран.");
+            setStatus(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
+                    ? "Внешний источник не выбран."
+                    : "Встроенное хранилище недоступно.");
             setNextReminder(null);
             if (selectedSection == SECTION_CALENDAR) {
                 renderCalendar(new ArrayList<>());
                 return;
             }
-            renderEmptyState("Нажмите «Выбрать заметку».");
+            renderEmptyState(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
+                    ? "Нажмите «Выбрать заметку»."
+                    : "Не удалось прочитать встроенные markdown-файлы.");
             return;
         }
 
@@ -1818,10 +1837,12 @@ public final class MainActivity extends AppCompatActivity {
         latestTasks = new ArrayList<>(tasks);
         pruneSelectedTaskKeys(tasks);
         taskList.removeAllViews();
-        updateGroupFilterRow(tasks);
-        showTaskSourceNames = hasMultipleSources(tasks);
+        List<ObsidianTask> groupingCandidates = tasksForGroupRow(tasks);
         List<ObsidianTask> visibleTasks = filterVisibleTasks(tasks);
-        List<ObsidianTask> displayTasks = rootTasksForDisplay(tasks, visibleTasks);
+        updateGroupFilterRow(groupingCandidates);
+        showTaskSourceNames = hasMultipleSources(tasks);
+        List<ObsidianTask> groupedVisibleTasks = filterTasksBySelectedGroup(visibleTasks);
+        List<ObsidianTask> displayTasks = rootTasksForDisplay(tasks, groupedVisibleTasks);
         displayTasks.sort(this::compareTasksForDisplay);
         updateTaskSectionHeader(displayTasks.size());
         if (displayTasks.isEmpty()) {
@@ -2346,11 +2367,9 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (!task.getSubtasks().isEmpty()) {
-            TextView progress = createText(formatSubtaskProgress(task), 12, R.color.text_secondary, false);
-            progress.setSingleLine(true);
-            item.addView(progress, fullWidthWithTopMargin(dp(8)));
+            item.addView(createSubtaskSummaryRow(task), fullWidthWithTopMargin(dp(8)));
             if (expandedTaskKeys.contains(task.getTaskKey())) {
-                item.addView(createSubtaskList(task), fullWidthWithTopMargin(dp(8)));
+                item.addView(createSubtaskList(task), fullWidthWithTopMargin(dp(6)));
             }
         }
 
@@ -2579,7 +2598,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private String calendarTaskMeta(ObsidianTask task) {
         List<String> parts = new ArrayList<>();
-        if (task.getRepeatInterval() != null) {
+        if (hasRepeatInfo(task)) {
             parts.add(formatRepeat(task));
         }
         String group = taskGroupLabel(task);
@@ -2625,57 +2644,43 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private List<ObsidianTask> filterVisibleTasks(List<ObsidianTask> tasks) {
-        String filter = UserPreferences.getTaskFilter(this);
-        String selectedGroup = UserPreferences.getTaskGroup(this);
-        String privateMarker = UserPreferences.getPrivateMarker(this);
-        ArrayList<ObsidianTask> visibleTasks = new ArrayList<>();
-        for (ObsidianTask task : tasks) {
-            if (selectedGroup != null
-                    && !selectedGroup.isEmpty()
-                    && !selectedGroup.equals(taskGroupLabel(task))) {
-                continue;
-            }
-            if ((selectedGroup == null || selectedGroup.isEmpty())
-                    && isPrivateTask(task, privateMarker)) {
-                continue;
-            }
-            if (UserPreferences.FILTER_ALL.equals(filter)) {
-                visibleTasks.add(task);
-                continue;
-            }
-            TaskStatus status = taskStatus(task);
-            if (UserPreferences.FILTER_ACTIVE.equals(filter)
-                    && status != TaskStatus.COMPLETED
-                    && status != TaskStatus.SKIPPED) {
-                visibleTasks.add(task);
-            } else if (UserPreferences.FILTER_OVERDUE.equals(filter) && status == TaskStatus.OVERDUE) {
-                visibleTasks.add(task);
-            } else if (UserPreferences.FILTER_COMPLETED.equals(filter) && status == TaskStatus.COMPLETED) {
-                visibleTasks.add(task);
-            } else if (UserPreferences.FILTER_SKIPPED.equals(filter) && status == TaskStatus.SKIPPED) {
-                visibleTasks.add(task);
-            }
-        }
-        return visibleTasks;
+        return TaskGrouping.filterVisibleTasks(
+                tasks,
+                UserPreferences.getTaskFilter(this),
+                shouldHidePrivateTasks(),
+                UserPreferences.getPrivateMarker(this),
+                LocalDateTime.now(),
+                overdueGracePeriod()
+        );
+    }
+
+    private List<ObsidianTask> filterTasksBySelectedGroup(List<ObsidianTask> tasks) {
+        return TaskGrouping.filterBySelectedBucket(
+                tasks,
+                UserPreferences.getTaskGroup(this),
+                UserPreferences.getGroupingMode(this),
+                this::sourceBucketLabel
+        );
+    }
+
+    private List<ObsidianTask> tasksForGroupRow(List<ObsidianTask> tasks) {
+        return TaskGrouping.filterVisibleTasks(
+                tasks,
+                UserPreferences.getTaskFilter(this),
+                false,
+                UserPreferences.getPrivateMarker(this),
+                LocalDateTime.now(),
+                overdueGracePeriod()
+        );
     }
 
     private List<ObsidianTask> filterCalendarContextTasks(List<ObsidianTask> tasks) {
-        String selectedGroup = UserPreferences.getTaskGroup(this);
-        String privateMarker = UserPreferences.getPrivateMarker(this);
-        ArrayList<ObsidianTask> visibleTasks = new ArrayList<>();
-        for (ObsidianTask task : tasks) {
-            if (selectedGroup != null
-                    && !selectedGroup.isEmpty()
-                    && !selectedGroup.equals(taskGroupLabel(task))) {
-                continue;
-            }
-            if ((selectedGroup == null || selectedGroup.isEmpty())
-                    && isPrivateTask(task, privateMarker)) {
-                continue;
-            }
-            visibleTasks.add(task);
-        }
-        return visibleTasks;
+        List<ObsidianTask> visibleTasks = TaskGrouping.filterCalendarContextTasks(
+                tasks,
+                shouldHidePrivateTasks(),
+                UserPreferences.getPrivateMarker(this)
+        );
+        return filterTasksBySelectedGroup(visibleTasks);
     }
 
     private int compareTasksForDisplay(ObsidianTask first, ObsidianTask second) {
@@ -2715,17 +2720,15 @@ public final class MainActivity extends AppCompatActivity {
             return;
         }
 
-        Set<String> groups = new LinkedHashSet<>();
-        for (ObsidianTask task : tasks) {
-            String group = taskGroupLabel(task);
-            if (!group.isEmpty() && !ObsidianTask.DEFAULT_GROUP.equals(group)) {
-                groups.add(group);
-            }
-        }
+        List<TaskGrouping.Bucket> buckets = TaskGrouping.collectBuckets(
+                tasks,
+                UserPreferences.getGroupingMode(this),
+                this::sourceBucketLabel
+        );
 
         groupFilterRow.removeAllViews();
         String selectedGroup = UserPreferences.getTaskGroup(this);
-        if (groups.isEmpty()) {
+        if (buckets.isEmpty()) {
             if (selectedGroup != null && !selectedGroup.isEmpty()) {
                 UserPreferences.setTaskGroup(this, "");
             }
@@ -2737,13 +2740,20 @@ public final class MainActivity extends AppCompatActivity {
         if (groupFilterContainerView != null) {
             groupFilterContainerView.setVisibility(View.VISIBLE);
         }
-        if (selectedGroup != null && !selectedGroup.isEmpty() && !groups.contains(selectedGroup)) {
+        boolean selectedBucketStillExists = false;
+        for (TaskGrouping.Bucket bucket : buckets) {
+            if (bucket.getKey().equals(selectedGroup)) {
+                selectedBucketStillExists = true;
+                break;
+            }
+        }
+        if (selectedGroup != null && !selectedGroup.isEmpty() && !selectedBucketStillExists) {
             UserPreferences.setTaskGroup(this, "");
         }
 
         addGroupChip(groupFilterRow, "Все группы", "", 0);
-        for (String group : groups) {
-            addGroupChip(groupFilterRow, group, group, dp(6));
+        for (TaskGrouping.Bucket bucket : buckets) {
+            addGroupChip(groupFilterRow, bucket.getLabel(), bucket.getKey(), dp(6));
         }
     }
 
@@ -2784,25 +2794,11 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private String taskGroupLabel(ObsidianTask task) {
-        String mode = UserPreferences.getGroupingMode(this);
-        if (UserPreferences.GROUPING_GROUP.equals(mode)) {
-            return emptyFallback(task.getGroup(), ObsidianTask.DEFAULT_GROUP);
-        }
-        if (UserPreferences.GROUPING_TAG.equals(mode)) {
-            return task.getTags().isEmpty() ? "без тегов" : task.getTags().get(0);
-        }
-        if (UserPreferences.GROUPING_FILE.equals(mode)) {
-            return compactName(task.getSourceName());
-        }
-
-        String group = task.getGroup();
-        if (group != null && !group.trim().isEmpty() && !ObsidianTask.DEFAULT_GROUP.equals(group)) {
-            return group;
-        }
-        if (!task.getTags().isEmpty()) {
-            return task.getTags().get(0);
-        }
-        return compactName(task.getSourceName());
+        return TaskGrouping.bucketFor(
+                task,
+                UserPreferences.getGroupingMode(this),
+                this::sourceBucketLabel
+        ).getLabel();
     }
 
     private String formatGroupMeta(ObsidianTask task) {
@@ -2819,28 +2815,13 @@ public final class MainActivity extends AppCompatActivity {
         return "группа: " + taskGroupLabel(task);
     }
 
-    private boolean isPrivateTask(ObsidianTask task, String privateMarker) {
-        String marker = normalizePrivateMarker(privateMarker);
-        if (marker.isEmpty()) {
-            return false;
-        }
-        if (marker.equals(normalizePrivateMarker(task.getGroup()))) {
-            return true;
-        }
-        for (String tag : task.getTags()) {
-            if (marker.equals(normalizePrivateMarker(tag))) {
-                return true;
-            }
-        }
-        return false;
+    private boolean shouldHidePrivateTasks() {
+        String selectedGroup = UserPreferences.getTaskGroup(this);
+        return selectedGroup == null || selectedGroup.isEmpty();
     }
 
-    private String normalizePrivateMarker(String value) {
-        return UserPreferences.normalizePrivateMarker(value).toLowerCase(Locale.ROOT);
-    }
-
-    private String emptyFallback(String value, String fallback) {
-        return value == null || value.trim().isEmpty() ? fallback : value.trim();
+    private String sourceBucketLabel(ObsidianTask task) {
+        return compactName(task.getSourceName());
     }
 
     private View createSourceHeader(String sourceName) {
@@ -2988,7 +2969,7 @@ public final class MainActivity extends AppCompatActivity {
                 ? "не указано"
                 : DATE_TIME_FORMAT.format(task.getReminderAt())), fullWidthWithTopMargin(dp(10)));
 
-        if (task.getRepeatInterval() != null) {
+        if (hasRepeatInfo(task)) {
             item.addView(createMetaLine(R.drawable.ic_repeat, formatRepeat(task)), fullWidthWithTopMargin(dp(6)));
         }
 
@@ -3006,11 +2987,9 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (!task.getSubtasks().isEmpty()) {
-            TextView progress = createText(formatSubtaskProgress(task), 12, R.color.text_secondary, false);
-            progress.setSingleLine(true);
-            item.addView(progress, fullWidthWithTopMargin(dp(8)));
+            item.addView(createSubtaskSummaryRow(task), fullWidthWithTopMargin(dp(8)));
             if (expandedTaskKeys.contains(task.getTaskKey())) {
-                item.addView(createSubtaskList(task), fullWidthWithTopMargin(dp(8)));
+                item.addView(createSubtaskList(task), fullWidthWithTopMargin(dp(6)));
             }
         }
 
@@ -3097,6 +3076,16 @@ public final class MainActivity extends AppCompatActivity {
         return completed + "/" + total + " подзадач выполнено";
     }
 
+    private View createSubtaskSummaryRow(ObsidianTask task) {
+        TextView progress = createText(formatSubtaskProgress(task), 12, R.color.text_secondary, false);
+        progress.setSingleLine(true);
+        progress.setEllipsize(TextUtils.TruncateAt.END);
+        progress.setPadding(0, dp(2), 0, 0);
+        progress.setClickable(false);
+        progress.setFocusable(false);
+        return progress;
+    }
+
     private void toggleTaskExpanded(ObsidianTask task) {
         if (task == null || task.getSubtasks().isEmpty()) {
             return;
@@ -3134,11 +3123,28 @@ public final class MainActivity extends AppCompatActivity {
 
     private LinearLayout createSubtaskList(ObsidianTask task) {
         LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(12), dp(4), 0, 0);
+        list.setOrientation(LinearLayout.HORIZONTAL);
+        list.setPadding(dp(10), dp(2), 0, 0);
+        View rail = new View(this);
+        rail.setBackground(createRoundedBackground(
+                getColor(R.color.card_stroke),
+                0,
+                99
+        ));
+        LinearLayout.LayoutParams railParams = new LinearLayout.LayoutParams(dp(2), ViewGroup.LayoutParams.MATCH_PARENT);
+        railParams.setMargins(dp(2), dp(4), dp(8), dp(4));
+        list.addView(rail, railParams);
+
+        LinearLayout items = new LinearLayout(this);
+        items.setOrientation(LinearLayout.VERTICAL);
         for (ObsidianTask subtask : task.getSubtasks()) {
-            list.addView(createSubtaskRow(subtask), fullWidthWithBottomMargin(dp(6)));
+            items.addView(createSubtaskRow(subtask), fullWidthWithBottomMargin(dp(5)));
         }
+        list.addView(items, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
         return list;
     }
 
@@ -3152,9 +3158,9 @@ public final class MainActivity extends AppCompatActivity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(8), dp(8), dp(8));
+        row.setPadding(dp(9), dp(7), dp(8), dp(7));
         row.setBackground(createRoundedBackground(
-                getColor(R.color.chip_background),
+                getColor(R.color.background),
                 getColor(R.color.chip_stroke),
                 8
         ));
@@ -3174,7 +3180,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
 
         TextView status = createCompletionButton(subtask);
-        row.addView(status, new LinearLayout.LayoutParams(dp(26), dp(26)));
+        row.addView(status, new LinearLayout.LayoutParams(dp(24), dp(24)));
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
@@ -3194,8 +3200,12 @@ public final class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         );
-        textParams.setMargins(dp(10), 0, 0, 0);
+        textParams.setMargins(dp(10), 0, dp(8), 0);
         row.addView(texts, textParams);
+
+        TextView chevron = createText("\u203a", 18, R.color.text_secondary, true);
+        chevron.setGravity(android.view.Gravity.CENTER);
+        row.addView(chevron, new LinearLayout.LayoutParams(dp(18), dp(18)));
 
         wrapper.addView(row, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -3209,7 +3219,7 @@ public final class MainActivity extends AppCompatActivity {
         if (subtask.getReminderAt() != null) {
             parts.add(DATE_TIME_FORMAT.format(subtask.getReminderAt()));
         }
-        if (subtask.getRepeatInterval() != null) {
+        if (hasRepeatInfo(subtask)) {
             parts.add(formatRepeat(subtask));
         }
         parts.add(formatStatus(taskStatus(subtask)));
@@ -3253,7 +3263,7 @@ public final class MainActivity extends AppCompatActivity {
         int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
         int actionWidth = dp(132);
         int revealThreshold = dp(56);
-        int verticalThreshold = dp(48);
+        int verticalThreshold = dp(24);
         int longPressTimeout = ViewConfiguration.getLongPressTimeout();
 
         return new View.OnTouchListener() {
@@ -3304,8 +3314,8 @@ public final class MainActivity extends AppCompatActivity {
                             horizontalDragging = true;
                             view.getParent().requestDisallowInterceptTouchEvent(true);
                         } else if (supportsVertical
-                                && Math.abs(dy) > verticalThreshold
-                                && Math.abs(dy) > Math.abs(dx) * 1.35f) {
+                                && Math.abs(dy) > touchSlop
+                                && Math.abs(dy) > Math.abs(dx) * 1.05f) {
                             dragging = true;
                             verticalDragging = true;
                             view.getParent().requestDisallowInterceptTouchEvent(true);
@@ -3419,7 +3429,7 @@ public final class MainActivity extends AppCompatActivity {
             return "✓";
         }
         if (status == TaskStatus.SKIPPED) {
-            return "×";
+            return "Г—";
         }
         if (status == TaskStatus.OVERDUE) {
             return "!";
@@ -3815,7 +3825,7 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (uri == null) {
-            uri = NoteStore.getSavedSourceUri(this);
+            uri = TaskSourceManager.getActiveSourceUri(this);
         }
         if (uri == null) {
             Toast.makeText(this, "Источник не выбран", Toast.LENGTH_LONG).show();
@@ -3860,7 +3870,7 @@ public final class MainActivity extends AppCompatActivity {
             builder.append(" · время не указано");
         }
 
-        if (task.getRepeatInterval() != null) {
+        if (hasRepeatInfo(task)) {
             builder.append(" · ").append(formatRepeat(task));
         }
 
@@ -3889,11 +3899,22 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private String formatRepeat(ObsidianTask task) {
-        if (task.getRepeatMode() == RepeatMode.UNTIL_DONE) {
-            return "повтор до выполнения " + formatDuration(task.getRepeatInterval());
+        List<String> parts = new ArrayList<>();
+        if (task.getRepeatRule() != null) {
+            parts.add("повтор " + task.getRepeatRule().formatForUi());
         }
+        if (task.getResolvedRepeatUntilDoneInterval() != null) {
+            parts.add("до выполнения " + formatDuration(task.getResolvedRepeatUntilDoneInterval()));
+        }
+        if (parts.isEmpty() && task.getRepeatInterval() != null) {
+            parts.add("повтор " + formatDuration(task.getRepeatInterval()));
+        }
+        return TextUtils.join(" · ", parts);
+    }
 
-        return "повтор " + formatDuration(task.getRepeatInterval());
+    private boolean hasRepeatInfo(ObsidianTask task) {
+        return task != null
+                && (task.getRepeatRule() != null || task.getResolvedRepeatUntilDoneInterval() != null);
     }
 
     private String formatPriority(TaskPriority priority) {
@@ -4242,3 +4263,4 @@ public final class MainActivity extends AppCompatActivity {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
+

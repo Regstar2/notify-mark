@@ -172,7 +172,7 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
         }
 
         if (uri == null) {
-            uri = NoteStore.getSavedSourceUri(context);
+            uri = TaskSourceManager.getActiveSourceUri(context);
         }
         if (uri == null) {
             openApp(context);

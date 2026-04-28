@@ -30,6 +30,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.IOException;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,8 +38,10 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,6 +51,20 @@ public final class TaskEditActivity extends Activity {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+
+    private enum RepeatEditorMode {
+        NONE,
+        INTERVAL,
+        WEEKLY,
+        MONTHLY,
+        CUSTOM
+    }
+
+    private enum MonthRepeatMode {
+        SAME_DAY,
+        FIXED_DAY,
+        LAST_DAY
+    }
 
     private final List<SubtaskDraft> subtaskDrafts = new ArrayList<>();
 
@@ -176,36 +193,37 @@ public final class TaskEditActivity extends Activity {
         sheetContainer.setOrientation(LinearLayout.VERTICAL);
         sheetContainer.setClickable(true);
         sheetContainer.setBackground(createSheetBackground());
-        sheetContainer.setPadding(dp(14), dp(10), dp(14), dp(10));
+        sheetContainer.setPadding(dp(12), dp(8), dp(12), dp(8));
 
         View handle = new View(this);
         handle.setBackground(createRoundedBackground(getColor(R.color.card_stroke), 0, 99));
         LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(dp(44), dp(4));
         handleParams.gravity = Gravity.CENTER_HORIZONTAL;
-        handleParams.setMargins(0, 0, 0, dp(6));
+        handleParams.setMargins(0, 0, 0, dp(4));
         sheetContainer.addView(handle, handleParams);
 
         LinearLayout header = createHeader();
-        sheetContainer.addView(header, fullWidthWithBottomMargin(dp(6)));
+        sheetContainer.addView(header, fullWidthWithBottomMargin(dp(4)));
         attachSheetDismissGesture(handle, header);
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(0, 0, 0, dp(24));
+        content.setPadding(0, 0, 0, dp(18));
 
         statusText = createText("", 13, R.color.error_text, false);
         statusText.setPadding(dp(2), 0, dp(2), dp(6));
         statusText.setVisibility(View.GONE);
         content.addView(statusText, fullWidth());
-        content.addView(createBasicSection(), fullWidthWithBottomMargin(dp(10)));
-        content.addView(createSubtasksSection(), fullWidthWithBottomMargin(dp(10)));
-        content.addView(createExtraSection(), fullWidthWithBottomMargin(dp(10)));
-        content.addView(createPreviewSection(), fullWidthWithBottomMargin(dp(10)));
+        content.addView(createBasicSection(), fullWidthWithBottomMargin(dp(8)));
+        content.addView(createSubtasksSection(), fullWidthWithBottomMargin(dp(8)));
+        content.addView(createExtraSection(), fullWidthWithBottomMargin(dp(8)));
+        content.addView(createPreviewSection(), fullWidthWithBottomMargin(dp(8)));
         if (task != null) {
-            content.addView(createDangerSection(), fullWidthWithBottomMargin(dp(10)));
+            content.addView(createDangerSection(), fullWidthWithBottomMargin(dp(8)));
         }
 
+        scroll.setFillViewport(true);
         scroll.addView(content, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -221,7 +239,7 @@ public final class TaskEditActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 Gravity.BOTTOM
         );
-        sheetParams.setMargins(0, dp(68), 0, 0);
+        sheetParams.setMargins(0, dp(56), 0, 0);
         rootContainer.addView(sheetContainer, sheetParams);
         setContentView(rootContainer);
     }
@@ -238,7 +256,7 @@ public final class TaskEditActivity extends Activity {
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        TextView title = createText(task == null ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430" : "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438", 19, R.color.text_primary, true);
+        TextView title = createText(task == null ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430" : "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438", 18, R.color.text_primary, true);
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         texts.addView(title, fullWidth());
@@ -264,9 +282,9 @@ public final class TaskEditActivity extends Activity {
     private LinearLayout createBasicSection() {
         LinearLayout card = createSectionCard("\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435", null);
         titleInput = createInput(task == null ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430" : task.getTitle());
-        titleInput.setHint("\u0422\u0435\u043a\u0441\u0442 \u0437\u0430\u0434\u0430\u0447\u0438");
+        titleInput.setHint("\u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0441\u0434\u0435\u043b\u0430\u0442\u044c");
         titleInput.addTextChangedListener(previewWatcher());
-        card.addView(createInputBlock("\u0422\u0435\u043a\u0441\u0442", titleInput), fullWidthWithBottomMargin(dp(8)));
+        card.addView(createInputBlock("\u0417\u0430\u0434\u0430\u0447\u0430", titleInput), fullWidthWithBottomMargin(dp(8)));
 
         LocalDateTime due = task == null || task.getReminderAt() == null
                 ? defaultDueDateTime()
@@ -299,23 +317,16 @@ public final class TaskEditActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         );
-        timeParams.setMargins(dp(8), 0, 0, 0);
+        timeParams.setMargins(dp(6), 0, 0, 0);
         row.addView(createInputBlock("\u0412\u0440\u0435\u043c\u044f", timeInput), timeParams);
         card.addView(row, fullWidthWithBottomMargin(dp(8)));
 
         repeatInput = createInput(initialRepeatToken());
-        repeatInput.setHint("15m, 2h, 1d");
         repeatInput.addTextChangedListener(previewWatcher());
-        card.addView(createInputBlock("\u041f\u043e\u0432\u0442\u043e\u0440", repeatInput), fullWidthWithBottomMargin(dp(8)));
-
-        LinearLayout quickRow = new LinearLayout(this);
-        quickRow.setOrientation(LinearLayout.HORIZONTAL);
-        addSmallValueButton(quickRow, "5m", "5m", 0);
-        addSmallValueButton(quickRow, "10m", "10m", dp(6));
-        addSmallValueButton(quickRow, "15m", "15m", dp(6));
-        addSmallValueButton(quickRow, "1h", "1h", dp(6));
-        addSmallValueButton(quickRow, "1d", "1d", dp(6));
-        card.addView(quickRow, fullWidthWithBottomMargin(dp(8)));
+        card.addView(
+                new RepeatEditorController(repeatInput, this::updatePreview).createView(),
+                fullWidthWithBottomMargin(dp(8))
+        );
 
         repeatUntilDoneInput = new CheckBox(this);
         repeatUntilDoneInput.setText("\u041f\u043e\u0432\u0442\u043e\u0440\u044f\u0442\u044c \u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f");
@@ -413,26 +424,32 @@ public final class TaskEditActivity extends Activity {
         return card;
     }
     private LinearLayout createSubtasksSection() {
-        LinearLayout card = createSectionCard("\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438", null);
+        LinearLayout card = createCardContainer();
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        subtaskSummaryText = createText("", 13, R.color.text_secondary, false);
-        header.addView(subtaskSummaryText, new LinearLayout.LayoutParams(
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(createText("\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438", 15, R.color.text_primary, true), fullWidth());
+        subtaskSummaryText = createText("", 12, R.color.text_secondary, false);
+        texts.addView(subtaskSummaryText, fullWidthWithTopMargin(dp(2)));
+        header.addView(texts, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
+
         Button add = createPrimaryButton("+");
-        add.setTextSize(24);
+        add.setTextSize(22);
         add.setGravity(Gravity.CENTER);
         add.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
         add.setContentDescription("\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0443");
         add.setOnClickListener(view -> showSubtaskDialog(-1));
         header.addView(add, new LinearLayout.LayoutParams(
-                dp(56),
-                dp(44)
+                dp(48),
+                dp(40)
         ));
         card.addView(header, fullWidthWithBottomMargin(dp(6)));
 
@@ -587,6 +604,9 @@ public final class TaskEditActivity extends Activity {
     }
 
     private String initialRepeatToken() {
+        if (task != null && task.getRepeatRule() != null) {
+            return task.getRepeatRule().formatForUi();
+        }
         String rawRepeat = extractFunctionValue(
                 task == null ? null : task.getRawLine(),
                 TaskFormatSettings.load(this).repeatKeywords()
@@ -643,19 +663,19 @@ public final class TaskEditActivity extends Activity {
         if (!rawRepeat.isEmpty()) {
             return rawRepeat;
         }
-        if (task != null && task.getRepeatMode() == RepeatMode.UNTIL_DONE) {
-            return durationToToken(task.getRepeatInterval());
+        if (task != null && task.getExplicitRepeatUntilDoneInterval() != null) {
+            return durationToToken(task.getExplicitRepeatUntilDoneInterval());
         }
         return "";
     }
 
     private String initialOverdueGraceToken() {
-        String rawGrace = extractFunctionValue(task == null ? null : task.getRawLine(), Collections.singletonList("grace"));
+        String rawGrace = extractFunctionValue(task == null ? null : task.getRawLine(), java.util.Arrays.asList("grace", "g"));
         if (!rawGrace.isEmpty()) {
             return rawGrace;
         }
-        return task != null && task.getOverdueGracePeriod() != null
-                ? durationToTokenAllowZero(task.getOverdueGracePeriod())
+        return task != null && task.getExplicitOverdueGracePeriod() != null
+                ? durationToTokenAllowZero(task.getExplicitOverdueGracePeriod())
                 : "";
     }
 
@@ -790,6 +810,41 @@ public final class TaskEditActivity extends Activity {
         return block;
     }
 
+    private LinearLayout createInputBlockWithSuffix(String label, EditText input, String suffix) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.addView(createLabel(label), fullWidthWithBottomMargin(dp(3)));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
+                0,
+                dp(44),
+                1
+        );
+        row.addView(input, inputParams);
+
+        TextView suffixView = createText(suffix, 13, R.color.text_secondary, true);
+        suffixView.setGravity(Gravity.CENTER);
+        suffixView.setPadding(dp(12), 0, dp(12), 0);
+        suffixView.setBackground(createRoundedBackground(
+                getColor(R.color.background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+        LinearLayout.LayoutParams suffixParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(44)
+        );
+        suffixParams.setMargins(dp(8), 0, 0, 0);
+        row.addView(suffixView, suffixParams);
+
+        block.addView(row, fullWidth());
+        return block;
+    }
+
     private TextView createLabel(String text) {
         return createText(text, 12, R.color.text_secondary, false);
     }
@@ -829,6 +884,397 @@ public final class TaskEditActivity extends Activity {
         );
         params.setMargins(leftMargin, 0, 0, 0);
         row.addView(button, params);
+    }
+
+    private EditText createNumberInput(String value, String hint) {
+        EditText input = createInput(value);
+        input.setHint(hint);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        return input;
+    }
+
+    private String dayToken(DayOfWeek dayOfWeek) {
+        switch (dayOfWeek) {
+            case MONDAY:
+                return "mon";
+            case TUESDAY:
+                return "tue";
+            case WEDNESDAY:
+                return "wed";
+            case THURSDAY:
+                return "thu";
+            case FRIDAY:
+                return "fri";
+            case SATURDAY:
+                return "sat";
+            case SUNDAY:
+                return "sun";
+            default:
+                return "";
+        }
+    }
+
+    private String dayLabel(DayOfWeek dayOfWeek) {
+        switch (dayOfWeek) {
+            case MONDAY:
+                return "Пн";
+            case TUESDAY:
+                return "Вт";
+            case WEDNESDAY:
+                return "Ср";
+            case THURSDAY:
+                return "Чт";
+            case FRIDAY:
+                return "Пт";
+            case SATURDAY:
+                return "Сб";
+            case SUNDAY:
+                return "Вс";
+            default:
+                return "";
+        }
+    }
+
+    private final class RepeatEditorController {
+        private final EditText backingInput;
+        private final Runnable onChanged;
+        private final EnumSet<DayOfWeek> weeklyDays = EnumSet.noneOf(DayOfWeek.class);
+
+        private RepeatEditorMode mode = RepeatEditorMode.NONE;
+        private RepeatRule.Unit intervalUnit = RepeatRule.Unit.DAYS;
+        private MonthRepeatMode monthMode = MonthRepeatMode.SAME_DAY;
+
+        private LinearLayout modeRow;
+        private LinearLayout contentContainer;
+        private EditText intervalAmountInput;
+        private EditText weeklyIntervalInput;
+        private EditText monthlyIntervalInput;
+        private EditText monthlyDayInput;
+        private EditText customInput;
+        private String intervalAmountValue = "1";
+        private String weeklyIntervalValue = "1";
+        private String monthlyIntervalValue = "1";
+        private String monthlyDayValue = "1";
+        private String customValue = "";
+
+        private RepeatEditorController(EditText backingInput, Runnable onChanged) {
+            this.backingInput = backingInput;
+            this.onChanged = onChanged;
+            initializeFromBacking();
+        }
+
+        private LinearLayout createView() {
+            LinearLayout block = new LinearLayout(TaskEditActivity.this);
+            block.setOrientation(LinearLayout.VERTICAL);
+            block.addView(createLabel("Повтор"), fullWidthWithBottomMargin(dp(3)));
+
+            modeRow = new LinearLayout(TaskEditActivity.this);
+            modeRow.setOrientation(LinearLayout.HORIZONTAL);
+            block.addView(modeRow, fullWidthWithBottomMargin(dp(8)));
+
+            contentContainer = new LinearLayout(TaskEditActivity.this);
+            contentContainer.setOrientation(LinearLayout.VERTICAL);
+            block.addView(contentContainer, fullWidth());
+
+            rebuildModeRow();
+            rebuildContent();
+            return block;
+        }
+
+        private void initializeFromBacking() {
+            String raw = valueOf(backingInput);
+            if (raw.isEmpty()) {
+                mode = RepeatEditorMode.NONE;
+                return;
+            }
+
+            RepeatRule rule = RepeatRule.parseStoredSpec(raw);
+            if (rule == null) {
+                mode = RepeatEditorMode.CUSTOM;
+                customValue = raw;
+                return;
+            }
+
+            if (rule.getUnit() == RepeatRule.Unit.WEEKS && rule.hasDaySelector()) {
+                mode = RepeatEditorMode.WEEKLY;
+                weeklyDays.clear();
+                weeklyDays.addAll(rule.getDaysOfWeek());
+                weeklyIntervalValue = String.valueOf(rule.getAmount());
+                return;
+            }
+
+            if (rule.getUnit() == RepeatRule.Unit.MONTHS) {
+                mode = RepeatEditorMode.MONTHLY;
+                monthlyIntervalValue = String.valueOf(rule.getAmount());
+                if (rule.getMonthDaySelector() == RepeatRule.MonthDaySelector.LAST_DAY) {
+                    monthMode = MonthRepeatMode.LAST_DAY;
+                } else if (rule.getDayOfMonth() != null) {
+                    monthMode = MonthRepeatMode.FIXED_DAY;
+                    monthlyDayValue = String.valueOf(rule.getDayOfMonth());
+                } else {
+                    monthMode = MonthRepeatMode.SAME_DAY;
+                }
+                return;
+            }
+
+            mode = RepeatEditorMode.INTERVAL;
+            intervalUnit = rule.getUnit();
+            intervalAmountValue = String.valueOf(rule.getAmount());
+        }
+
+        private void rebuildModeRow() {
+            modeRow.removeAllViews();
+            addCompactButton(modeRow, createModeButton("Нет", RepeatEditorMode.NONE), 0);
+            addCompactButton(modeRow, createModeButton("Интервал", RepeatEditorMode.INTERVAL), dp(6));
+            addCompactButton(modeRow, createModeButton("Неделя", RepeatEditorMode.WEEKLY), dp(6));
+            addCompactButton(modeRow, createModeButton("Месяц", RepeatEditorMode.MONTHLY), dp(6));
+            if (mode == RepeatEditorMode.CUSTOM) {
+                addCompactButton(modeRow, createModeButton("Текст", RepeatEditorMode.CUSTOM), dp(6));
+            }
+        }
+
+        private Button createModeButton(String text, RepeatEditorMode targetMode) {
+            Button button = createSegmentButton(text, mode == targetMode);
+            button.setOnClickListener(view -> selectMode(targetMode));
+            return button;
+        }
+
+        private void selectMode(RepeatEditorMode targetMode) {
+            mode = targetMode;
+            if (mode == RepeatEditorMode.INTERVAL && intervalUnit == null) {
+                intervalUnit = RepeatRule.Unit.DAYS;
+            }
+            if (mode == RepeatEditorMode.WEEKLY && weeklyDays.isEmpty()) {
+                weeklyDays.add(DayOfWeek.MONDAY);
+            }
+            if (mode == RepeatEditorMode.MONTHLY) {
+                if (monthMode == null) {
+                    monthMode = MonthRepeatMode.SAME_DAY;
+                }
+                if (monthlyIntervalValue == null || monthlyIntervalValue.trim().isEmpty()) {
+                    monthlyIntervalValue = "1";
+                }
+                if (monthMode == MonthRepeatMode.FIXED_DAY
+                        && (monthlyDayValue == null || monthlyDayValue.trim().isEmpty())) {
+                    monthlyDayValue = "1";
+                }
+            }
+            rebuildModeRow();
+            rebuildContent();
+            pushValue();
+        }
+
+        private void rebuildContent() {
+            contentContainer.removeAllViews();
+            switch (mode) {
+                case NONE:
+                    contentContainer.addView(
+                            createText("Без повторения", 12, R.color.text_secondary, false),
+                            fullWidth()
+                    );
+                    break;
+                case INTERVAL:
+                    buildIntervalContent();
+                    break;
+                case WEEKLY:
+                    buildWeeklyContent();
+                    break;
+                case MONTHLY:
+                    buildMonthlyContent();
+                    break;
+                case CUSTOM:
+                    buildCustomContent();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void buildIntervalContent() {
+            intervalAmountInput = createNumberInput(intervalAmountValue, "1");
+            intervalAmountInput.addTextChangedListener(simpleWatcher(() -> {
+                intervalAmountValue = valueOf(intervalAmountInput);
+                pushValue();
+            }));
+            contentContainer.addView(
+                    createInputBlockWithSuffix("Интервал", intervalAmountInput, intervalUnit.getToken()),
+                    fullWidthWithBottomMargin(dp(4))
+            );
+            LinearLayout unitsRow = new LinearLayout(TaskEditActivity.this);
+            unitsRow.setOrientation(LinearLayout.HORIZONTAL);
+            addCompactButton(unitsRow, createIntervalUnitButton("m", RepeatRule.Unit.MINUTES), 0);
+            addCompactButton(unitsRow, createIntervalUnitButton("h", RepeatRule.Unit.HOURS), dp(6));
+            addCompactButton(unitsRow, createIntervalUnitButton("d", RepeatRule.Unit.DAYS), dp(6));
+            addCompactButton(unitsRow, createIntervalUnitButton("w", RepeatRule.Unit.WEEKS), dp(6));
+            addCompactButton(unitsRow, createIntervalUnitButton("mo", RepeatRule.Unit.MONTHS), dp(6));
+            contentContainer.addView(unitsRow, fullWidth());
+        }
+
+        private Button createIntervalUnitButton(String label, RepeatRule.Unit unit) {
+            Button button = createSegmentButton(label, intervalUnit == unit);
+            button.setOnClickListener(view -> {
+                intervalUnit = unit;
+                pushValue();
+                rebuildContent();
+            });
+            return button;
+        }
+
+        private void buildWeeklyContent() {
+            if (weeklyDays.isEmpty()) {
+                weeklyDays.add(DayOfWeek.MONDAY);
+            }
+
+            weeklyIntervalInput = createNumberInput(weeklyIntervalValue, "1");
+            weeklyIntervalInput.addTextChangedListener(simpleWatcher(() -> {
+                weeklyIntervalValue = valueOf(weeklyIntervalInput);
+                pushValue();
+            }));
+            contentContainer.addView(
+                    createInputBlockWithSuffix("Интервал", weeklyIntervalInput, "нед."),
+                    fullWidthWithBottomMargin(dp(8))
+            );
+
+            LinearLayout firstRow = new LinearLayout(TaskEditActivity.this);
+            firstRow.setOrientation(LinearLayout.HORIZONTAL);
+            addCompactButton(firstRow, createWeekdayButton(DayOfWeek.MONDAY), 0);
+            addCompactButton(firstRow, createWeekdayButton(DayOfWeek.TUESDAY), dp(6));
+            addCompactButton(firstRow, createWeekdayButton(DayOfWeek.WEDNESDAY), dp(6));
+            addCompactButton(firstRow, createWeekdayButton(DayOfWeek.THURSDAY), dp(6));
+            contentContainer.addView(firstRow, fullWidthWithBottomMargin(dp(6)));
+
+            LinearLayout secondRow = new LinearLayout(TaskEditActivity.this);
+            secondRow.setOrientation(LinearLayout.HORIZONTAL);
+            addCompactButton(secondRow, createWeekdayButton(DayOfWeek.FRIDAY), 0);
+            addCompactButton(secondRow, createWeekdayButton(DayOfWeek.SATURDAY), dp(6));
+            addCompactButton(secondRow, createWeekdayButton(DayOfWeek.SUNDAY), dp(6));
+            contentContainer.addView(secondRow, fullWidth());
+        }
+
+        private Button createWeekdayButton(DayOfWeek dayOfWeek) {
+            Button button = createSegmentButton(dayLabel(dayOfWeek), weeklyDays.contains(dayOfWeek));
+            button.setOnClickListener(view -> {
+                if (weeklyDays.contains(dayOfWeek)) {
+                    if (weeklyDays.size() == 1) {
+                        return;
+                    }
+                    weeklyDays.remove(dayOfWeek);
+                } else {
+                    weeklyDays.add(dayOfWeek);
+                }
+                pushValue();
+                rebuildContent();
+            });
+            return button;
+        }
+
+        private void buildMonthlyContent() {
+            monthlyIntervalInput = createNumberInput(monthlyIntervalValue, "1");
+            monthlyIntervalInput.addTextChangedListener(simpleWatcher(() -> {
+                monthlyIntervalValue = valueOf(monthlyIntervalInput);
+                pushValue();
+            }));
+            contentContainer.addView(
+                    createInputBlockWithSuffix("Интервал", monthlyIntervalInput, "мес."),
+                    fullWidthWithBottomMargin(dp(8))
+            );
+
+            LinearLayout modeButtons = new LinearLayout(TaskEditActivity.this);
+            modeButtons.setOrientation(LinearLayout.HORIZONTAL);
+            addCompactButton(modeButtons, createMonthModeButton("Как в сроке", MonthRepeatMode.SAME_DAY), 0);
+            addCompactButton(modeButtons, createMonthModeButton("День", MonthRepeatMode.FIXED_DAY), dp(6));
+            addCompactButton(modeButtons, createMonthModeButton("Последний", MonthRepeatMode.LAST_DAY), dp(6));
+            contentContainer.addView(modeButtons, fullWidthWithBottomMargin(dp(8)));
+
+            if (monthMode == MonthRepeatMode.FIXED_DAY) {
+                monthlyDayInput = createNumberInput(monthlyDayValue, "1..31");
+                monthlyDayInput.addTextChangedListener(simpleWatcher(() -> {
+                    monthlyDayValue = valueOf(monthlyDayInput);
+                    pushValue();
+                }));
+                contentContainer.addView(
+                        createInputBlock("День месяца", monthlyDayInput),
+                        fullWidth()
+                    );
+            }
+        }
+
+        private Button createMonthModeButton(String label, MonthRepeatMode targetMode) {
+            Button button = createSegmentButton(label, monthMode == targetMode);
+            button.setOnClickListener(view -> {
+                monthMode = targetMode;
+                if (monthMode == MonthRepeatMode.FIXED_DAY
+                        && (monthlyDayValue == null || monthlyDayValue.trim().isEmpty())) {
+                    monthlyDayValue = "1";
+                }
+                pushValue();
+                rebuildContent();
+            });
+            return button;
+        }
+
+        private void buildCustomContent() {
+            customInput = createInput(customValue);
+            customInput.setHint("1w @days(mon,wed,fri)");
+            customInput.addTextChangedListener(simpleWatcher(() -> {
+                customValue = valueOf(customInput);
+                pushValue();
+            }));
+            contentContainer.addView(
+                    createInputBlock("Свое правило", customInput),
+                    fullWidth()
+            );
+        }
+
+        private void pushValue() {
+            String nextValue = buildValue();
+            String current = valueOf(backingInput);
+            if (!nextValue.equals(current)) {
+                backingInput.setText(nextValue);
+            } else if (onChanged != null) {
+                onChanged.run();
+            }
+        }
+
+        private String buildValue() {
+            switch (mode) {
+                case NONE:
+                    return "";
+                case INTERVAL:
+                    return intervalAmountValue.isEmpty() ? "" : intervalAmountValue + intervalUnit.getToken();
+                case WEEKLY:
+                    if (weeklyIntervalValue.isEmpty()) {
+                        return "";
+                    }
+                    return weeklyIntervalValue + "w @days(" + formatSelectedDays() + ")";
+                case MONTHLY:
+                    if (monthlyIntervalValue.isEmpty()) {
+                        return "";
+                    }
+                    if (monthMode == MonthRepeatMode.SAME_DAY) {
+                        return monthlyIntervalValue + "mo";
+                    }
+                    if (monthMode == MonthRepeatMode.LAST_DAY) {
+                        return monthlyIntervalValue + "mo @monthday(last)";
+                    }
+                    return monthlyIntervalValue + "mo @monthday(" + monthlyDayValue + ")";
+                case CUSTOM:
+                    customValue = valueOf(customInput);
+                    return customValue;
+                default:
+                    return "";
+            }
+        }
+
+        private String formatSelectedDays() {
+            List<String> tokens = new ArrayList<>();
+            for (DayOfWeek dayOfWeek : DayOfWeek.values()) {
+                if (weeklyDays.contains(dayOfWeek)) {
+                    tokens.add(dayToken(dayOfWeek));
+                }
+            }
+            return TextUtils.join(",", tokens);
+        }
     }
 
     private void showDatePicker() {
@@ -878,19 +1324,41 @@ public final class TaskEditActivity extends Activity {
             return;
         }
         subtaskList.removeAllViews();
+        subtaskSummaryText.setText(formatSubtaskSummary());
+
+        if (subtaskDrafts.isEmpty()) {
+            LinearLayout empty = new LinearLayout(this);
+            empty.setOrientation(LinearLayout.VERTICAL);
+            empty.setGravity(Gravity.CENTER_HORIZONTAL);
+            empty.setPadding(dp(8), dp(10), dp(8), dp(4));
+
+            TextView title = createText("\u041f\u043e\u043a\u0430 \u0431\u0435\u0437 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447", 13, R.color.text_primary, true);
+            title.setGravity(Gravity.CENTER_HORIZONTAL);
+            empty.addView(title, fullWidth());
+
+            TextView body = createText("\u0414\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0448\u0430\u0433\u0438, \u0447\u0442\u043e\u0431\u044b \u0440\u0430\u0437\u0431\u0438\u0442\u044c \u0437\u0430\u0434\u0430\u0447\u0443.", 12, R.color.text_secondary, false);
+            body.setGravity(Gravity.CENTER_HORIZONTAL);
+            empty.addView(body, fullWidthWithTopMargin(dp(3)));
+            subtaskList.addView(empty, fullWidth());
+            return;
+        }
+
+        for (int i = 0; i < subtaskDrafts.size(); i++) {
+            subtaskList.addView(createSubtaskRow(i), fullWidthWithBottomMargin(dp(5)));
+        }
+    }
+
+    private String formatSubtaskSummary() {
+        if (subtaskDrafts.isEmpty()) {
+            return "\u0412\u043b\u043e\u0436\u0435\u043d\u043d\u044b\u0445 \u0448\u0430\u0433\u043e\u0432 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442";
+        }
         int completed = 0;
         for (SubtaskDraft draft : subtaskDrafts) {
             if (draft.completed) {
                 completed++;
             }
         }
-        subtaskSummaryText.setText(subtaskDrafts.isEmpty()
-                ? "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442"
-                : completed + "/" + subtaskDrafts.size() + " \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e");
-
-        for (int i = 0; i < subtaskDrafts.size(); i++) {
-            subtaskList.addView(createSubtaskRow(i), fullWidthWithBottomMargin(dp(6)));
-        }
+        return completed + "/" + subtaskDrafts.size() + " \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e";
     }
 
     private LinearLayout createSubtaskRow(int index) {
@@ -898,9 +1366,9 @@ public final class TaskEditActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(8), dp(8), dp(8));
+        row.setPadding(dp(10), dp(7), dp(8), dp(7));
         row.setBackground(createRoundedBackground(
-                getColor(R.color.chip_background),
+                getColor(R.color.background),
                 getColor(R.color.chip_stroke),
                 8
         ));
@@ -914,7 +1382,7 @@ public final class TaskEditActivity extends Activity {
         int statusBackground = draft.completed
                 ? R.color.status_completed_background
                 : draft.skipped ? R.color.status_skipped_background : android.R.color.transparent;
-        TextView status = createText(statusSymbol, 14, statusTextColor, true);
+        TextView status = createText(statusSymbol, 13, statusTextColor, true);
         status.setGravity(Gravity.CENTER);
         status.setBackground(createCircleOutlineBackground(
                 getColor(statusBackground),
@@ -937,7 +1405,7 @@ public final class TaskEditActivity extends Activity {
         texts.setOrientation(LinearLayout.VERTICAL);
         TextView title = createText(
                 draft.title.isEmpty() ? "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430" : draft.title,
-                14,
+                13,
                 R.color.text_primary,
                 true
         );
@@ -946,7 +1414,7 @@ public final class TaskEditActivity extends Activity {
         texts.addView(title, fullWidth());
         String meta = draft.meta();
         if (!meta.isEmpty()) {
-            TextView metaView = createText(meta, 12, R.color.text_secondary, false);
+            TextView metaView = createText(meta, 11, R.color.text_secondary, false);
             metaView.setSingleLine(true);
             metaView.setEllipsize(TextUtils.TruncateAt.END);
             texts.addView(metaView, fullWidthWithTopMargin(dp(1)));
@@ -958,6 +1426,10 @@ public final class TaskEditActivity extends Activity {
         );
         textParams.setMargins(dp(10), 0, dp(6), 0);
         row.addView(texts, textParams);
+
+        TextView chevron = createText("\u203a", 18, R.color.text_secondary, true);
+        chevron.setGravity(Gravity.CENTER);
+        row.addView(chevron, new LinearLayout.LayoutParams(dp(18), dp(18)));
 
         ImageButton delete = createPlainIconButton(
                 R.drawable.ic_delete,
@@ -1073,7 +1545,7 @@ public final class TaskEditActivity extends Activity {
     private String currentMarkdownBlock() {
         StringBuilder builder = new StringBuilder(currentParentMarkdownLine());
         for (SubtaskDraft draft : subtaskDrafts) {
-            String line = draft.toMarkdownLine();
+            String line = draft.toMarkdownLine(this);
             if (!line.isEmpty()) {
                 builder.append('\n').append("  ").append(line);
             }
@@ -1132,10 +1604,27 @@ public final class TaskEditActivity extends Activity {
 
     private void appendRepeat(StringBuilder builder, String repeat) {
         if (repeat != null && !repeat.trim().isEmpty()) {
+            String value = repeat.trim();
+            String keyword = TaskSyntaxPreferences.useCompactSyntax(this)
+                    ? "r"
+                    : TaskFormatSettings.load(this).getRepeatKeyword();
+            int selectorIndex = value.indexOf(" @");
+            if (selectorIndex < 0) {
+                selectorIndex = value.indexOf("@");
+            }
+            if (selectorIndex > 0) {
+                builder.append(" @")
+                        .append(keyword)
+                        .append("(")
+                        .append(value.substring(0, selectorIndex).trim())
+                        .append(") ")
+                        .append(value.substring(selectorIndex).trim());
+                return;
+            }
             builder.append(" @")
-                    .append(TaskFormatSettings.load(this).getRepeatKeyword())
+                    .append(keyword)
                     .append("(")
-                    .append(repeat.trim())
+                    .append(value)
                     .append(")");
         }
     }
@@ -1143,7 +1632,9 @@ public final class TaskEditActivity extends Activity {
     private void appendRepeatUntilDone(StringBuilder builder, String repeatUntilDone) {
         if (repeatUntilDone != null && !repeatUntilDone.trim().isEmpty()) {
             builder.append(" @")
-                    .append(TaskFormatSettings.load(this).getRepeatUntilDoneKeyword())
+                    .append(TaskSyntaxPreferences.useCompactSyntax(this)
+                            ? "rud"
+                            : TaskFormatSettings.load(this).getRepeatUntilDoneKeyword())
                     .append("(")
                     .append(repeatUntilDone.trim())
                     .append(")");
@@ -1174,6 +1665,15 @@ public final class TaskEditActivity extends Activity {
 
     private void appendTags(StringBuilder builder, String tags) {
         if (tags != null && !tags.trim().isEmpty()) {
+            if (TaskSyntaxPreferences.useHashTags(this)) {
+                for (String tag : tags.trim().split("[,;\\s]+")) {
+                    String cleanTag = tag.trim().replaceFirst("^#+", "");
+                    if (!cleanTag.isEmpty()) {
+                        builder.append(" #").append(cleanTag);
+                    }
+                }
+                return;
+            }
             builder.append(" @")
                     .append(TaskFormatSettings.load(this).getTagKeyword())
                     .append("(")
@@ -1184,7 +1684,11 @@ public final class TaskEditActivity extends Activity {
 
     private void appendOverdueGrace(StringBuilder builder, String graceValue) {
         if (graceValue != null && !graceValue.trim().isEmpty()) {
-            builder.append(" @grace(").append(graceValue.trim()).append(")");
+            builder.append(" @")
+                    .append(TaskSyntaxPreferences.useCompactSyntax(this) ? "g" : "grace")
+                    .append("(")
+                    .append(graceValue.trim())
+                    .append(")");
         }
     }
 
@@ -1214,7 +1718,7 @@ public final class TaskEditActivity extends Activity {
         setStatusMessage(error);
     }
 
-    private TextWatcher previewWatcher() {
+    private TextWatcher simpleWatcher(Runnable callback) {
         return new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence text, int start, int count, int after) {
@@ -1222,13 +1726,19 @@ public final class TaskEditActivity extends Activity {
 
             @Override
             public void onTextChanged(CharSequence text, int start, int before, int count) {
-                updatePreview();
+                if (callback != null) {
+                    callback.run();
+                }
             }
 
             @Override
             public void afterTextChanged(Editable editable) {
             }
         };
+    }
+
+    private TextWatcher previewWatcher() {
+        return simpleWatcher(this::updatePreview);
     }
 
     private String sourceLabel() {
@@ -1349,7 +1859,7 @@ public final class TaskEditActivity extends Activity {
     private LinearLayout createCardContainer() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.setPadding(dp(12), dp(9), dp(12), dp(9));
         card.setBackground(createRoundedBackground(
                 getColor(R.color.card_background),
                 getColor(R.color.card_stroke),
@@ -1571,7 +2081,7 @@ public final class TaskEditActivity extends Activity {
             this.index = index;
             this.workingCopy = index >= 0 ? new SubtaskDraft(subtaskDrafts.get(index)) : new SubtaskDraft();
             this.priority = taskPriorityFromToken(workingCopy.priority);
-            this.initialMarkdownLine = workingCopy.toMarkdownLine();
+            this.initialMarkdownLine = workingCopy.toMarkdownLine(TaskEditActivity.this);
         }
 
         private void show() {
@@ -1587,34 +2097,35 @@ public final class TaskEditActivity extends Activity {
             sheet.setOrientation(LinearLayout.VERTICAL);
             sheet.setClickable(true);
             sheet.setBackground(createSheetBackground());
-            sheet.setPadding(dp(14), dp(10), dp(14), dp(10));
+            sheet.setPadding(dp(12), dp(8), dp(12), dp(8));
 
             View handle = new View(TaskEditActivity.this);
             handle.setBackground(createRoundedBackground(getColor(R.color.card_stroke), 0, 99));
             LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(dp(44), dp(4));
             handleParams.gravity = Gravity.CENTER_HORIZONTAL;
-            handleParams.setMargins(0, 0, 0, dp(6));
+            handleParams.setMargins(0, 0, 0, dp(4));
             sheet.addView(handle, handleParams);
 
             LinearLayout header = createHeader();
-            sheet.addView(header, fullWidthWithBottomMargin(dp(6)));
+            sheet.addView(header, fullWidthWithBottomMargin(dp(4)));
             attachDismissGesture(handle, header);
 
             ScrollView scroll = new ScrollView(TaskEditActivity.this);
             LinearLayout content = new LinearLayout(TaskEditActivity.this);
             content.setOrientation(LinearLayout.VERTICAL);
-            content.setPadding(0, 0, 0, dp(18));
+            content.setPadding(0, 0, 0, dp(16));
 
             statusView = createText("", 13, R.color.error_text, false);
             statusView.setVisibility(View.GONE);
             content.addView(statusView, fullWidth());
-            content.addView(createBasicSection(), fullWidthWithBottomMargin(dp(10)));
-            content.addView(createExtraSection(), fullWidthWithBottomMargin(dp(10)));
-            content.addView(createPreviewSection(), fullWidthWithBottomMargin(dp(10)));
+            content.addView(createBasicSection(), fullWidthWithBottomMargin(dp(8)));
+            content.addView(createExtraSection(), fullWidthWithBottomMargin(dp(8)));
+            content.addView(createPreviewSection(), fullWidthWithBottomMargin(dp(8)));
 
+            scroll.setFillViewport(true);
             scroll.addView(content, new ScrollView.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
             ));
             sheet.addView(scroll, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1627,7 +2138,7 @@ public final class TaskEditActivity extends Activity {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     Gravity.BOTTOM
             );
-            sheetParams.setMargins(0, dp(112), 0, 0);
+            sheetParams.setMargins(0, dp(92), 0, 0);
             overlay.addView(sheet, sheetParams);
             rootContainer.addView(overlay, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1649,7 +2160,7 @@ public final class TaskEditActivity extends Activity {
             texts.setOrientation(LinearLayout.VERTICAL);
             TextView title = createText(index >= 0
                     ? "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438"
-                    : "\u041d\u043e\u0432\u0430\u044f \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430", 18, R.color.text_primary, true);
+                    : "\u041d\u043e\u0432\u0430\u044f \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430", 17, R.color.text_primary, true);
             title.setSingleLine(true);
             title.setEllipsize(TextUtils.TruncateAt.END);
             texts.addView(title, fullWidth());
@@ -1674,9 +2185,9 @@ public final class TaskEditActivity extends Activity {
         private LinearLayout createBasicSection() {
             LinearLayout card = createSectionCard("\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435", null);
             titleView = createInput(workingCopy.title);
-            titleView.setHint("\u0422\u0435\u043a\u0441\u0442 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438");
+            titleView.setHint("\u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0441\u0434\u0435\u043b\u0430\u0442\u044c");
             titleView.addTextChangedListener(localWatcher());
-            card.addView(createInputBlock("\u0422\u0435\u043a\u0441\u0442", titleView), fullWidthWithBottomMargin(dp(8)));
+            card.addView(createInputBlock("\u0417\u0430\u0434\u0430\u0447\u0430", titleView), fullWidthWithBottomMargin(dp(8)));
 
             dateView = createInput(workingCopy.date);
             dateView.setHint("yyyy-MM-dd");
@@ -1710,22 +2221,16 @@ public final class TaskEditActivity extends Activity {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1
             );
-            timeParams.setMargins(dp(8), 0, 0, 0);
+            timeParams.setMargins(dp(6), 0, 0, 0);
             row.addView(createInputBlock("\u0412\u0440\u0435\u043c\u044f", timeView), timeParams);
             card.addView(row, fullWidthWithBottomMargin(dp(8)));
 
             repeatView = createInput(workingCopy.repeat);
-            repeatView.setHint("15m, 1h");
             repeatView.addTextChangedListener(localWatcher());
-            card.addView(createInputBlock("\u041f\u043e\u0432\u0442\u043e\u0440", repeatView), fullWidthWithBottomMargin(dp(8)));
-
-            LinearLayout quickRow = new LinearLayout(TaskEditActivity.this);
-            quickRow.setOrientation(LinearLayout.HORIZONTAL);
-            addQuickIntervalButton(quickRow, "5m", 0);
-            addQuickIntervalButton(quickRow, "10m", dp(6));
-            addQuickIntervalButton(quickRow, "15m", dp(6));
-            addQuickIntervalButton(quickRow, "1h", dp(6));
-            card.addView(quickRow, fullWidthWithBottomMargin(dp(8)));
+            card.addView(
+                    new RepeatEditorController(repeatView, this::updatePreview).createView(),
+                    fullWidthWithBottomMargin(dp(8))
+            );
 
             repeatUntilDoneView = new CheckBox(TaskEditActivity.this);
             repeatUntilDoneView.setText("\u041f\u043e\u0432\u0442\u043e\u0440\u044f\u0442\u044c \u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f");
@@ -2160,7 +2665,7 @@ public final class TaskEditActivity extends Activity {
             }
             draft.priority = priorityToToken(priority);
             draft.tags = localValue(tagsView);
-            return draft.toMarkdownLine();
+            return draft.toMarkdownLine(TaskEditActivity.this);
         }
 
         private void updatePreview() {
@@ -2276,7 +2781,11 @@ public final class TaskEditActivity extends Activity {
                 draft.date = DATE.format(task.getReminderAt().toLocalDate());
                 draft.time = TIME.format(task.getReminderAt().toLocalTime());
             }
-            draft.repeat = extractFunctionValueStatic(task.getRawLine(), settings.repeatKeywords());
+            if (task.getRepeatRule() != null) {
+                draft.repeat = task.getRepeatRule().formatForUi();
+            } else {
+                draft.repeat = extractFunctionValueStatic(task.getRawLine(), settings.repeatKeywords());
+            }
             draft.repeatUntilDoneValue = extractFunctionValueStatic(task.getRawLine(), settings.repeatUntilDoneKeywords());
             draft.repeatUntilDone = !draft.repeatUntilDoneValue.isEmpty() || task.getRepeatMode() == RepeatMode.UNTIL_DONE;
             if (draft.repeat.isEmpty() && task.getRepeatMode() == RepeatMode.ALWAYS) {
@@ -2297,7 +2806,7 @@ public final class TaskEditActivity extends Activity {
             return draft;
         }
 
-        private String toMarkdownLine() {
+        private String toMarkdownLine(TaskEditActivity activity) {
             String normalizedTitle = title == null ? "" : title.trim();
             if (normalizedTitle.isEmpty()) {
                 normalizedTitle = "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430";
@@ -2311,13 +2820,36 @@ public final class TaskEditActivity extends Activity {
                 builder.append(" @due(").append(due).append(")");
             }
             if (repeat != null && !repeat.trim().isEmpty()) {
-                builder.append(" @repeat(").append(repeat.trim()).append(")");
+                String repeatValue = repeat.trim();
+                String repeatKeyword = TaskSyntaxPreferences.useCompactSyntax(activity) ? "r" : "repeat";
+                int selectorIndex = repeatValue.indexOf(" @");
+                if (selectorIndex < 0) {
+                    selectorIndex = repeatValue.indexOf("@");
+                }
+                if (selectorIndex > 0) {
+                    builder.append(" @")
+                            .append(repeatKeyword)
+                            .append("(")
+                            .append(repeatValue.substring(0, selectorIndex).trim())
+                            .append(") ")
+                            .append(repeatValue.substring(selectorIndex).trim());
+                } else {
+                    builder.append(" @").append(repeatKeyword).append("(").append(repeatValue).append(")");
+                }
             }
             if (repeatUntilDone && repeatUntilDoneValue != null && !repeatUntilDoneValue.trim().isEmpty()) {
-                builder.append(" @repeatUntilDone(").append(repeatUntilDoneValue.trim()).append(")");
+                builder.append(" @")
+                        .append(TaskSyntaxPreferences.useCompactSyntax(activity) ? "rud" : "repeatUntilDone")
+                        .append("(")
+                        .append(repeatUntilDoneValue.trim())
+                        .append(")");
             }
             if (overdueGrace != null && !overdueGrace.trim().isEmpty()) {
-                builder.append(" @grace(").append(overdueGrace.trim()).append(")");
+                builder.append(" @")
+                        .append(TaskSyntaxPreferences.useCompactSyntax(activity) ? "g" : "grace")
+                        .append("(")
+                        .append(overdueGrace.trim())
+                        .append(")");
             }
             if (snooze != null && !snooze.trim().isEmpty()
                     && (snoozeExplicit || defaultSnooze == null || !snooze.trim().equals(defaultSnooze.trim()))) {
@@ -2327,7 +2859,18 @@ public final class TaskEditActivity extends Activity {
                 builder.append(" @priority(").append(priority.trim()).append(")");
             }
             if (tags != null && !tags.trim().isEmpty()) {
-                builder.append(" @tag(").append(tags.trim()).append(")");
+                if (TaskSyntaxPreferences.useHashTags(activity)) {
+                    String[] tokens = tags.trim().split("\\s+");
+                    for (String token : tokens) {
+                        if (token == null || token.trim().isEmpty()) {
+                            continue;
+                        }
+                        String clean = token.trim();
+                        builder.append(" ").append(clean.startsWith("#") ? clean : "#" + clean);
+                    }
+                } else {
+                    builder.append(" @tag(").append(tags.trim()).append(")");
+                }
             }
             if (skipped) {
                 builder.append(" @skipped");
@@ -2356,20 +2899,10 @@ public final class TaskEditActivity extends Activity {
             if (repeat != null && !repeat.trim().isEmpty()) {
                 parts.add("\u043f\u043e\u0432\u0442\u043e\u0440 " + repeat.trim());
             }
-            if (repeatUntilDone && repeatUntilDoneValue != null && !repeatUntilDoneValue.trim().isEmpty()) {
-                parts.add("\u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f " + repeatUntilDoneValue.trim());
-            }
-            if (overdueGrace != null && !overdueGrace.trim().isEmpty()) {
-                parts.add("\u0431\u0435\u0437 \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u043a\u0438 " + overdueGrace.trim());
-            }
-            if (snooze != null && !snooze.trim().isEmpty()) {
-                parts.add("\u043e\u0442\u043b\u043e\u0436\u0438\u0442\u044c " + snooze.trim());
-            }
-            if (priority != null && !priority.trim().isEmpty()) {
-                parts.add(priority.trim());
-            }
-            if (tags != null && !tags.trim().isEmpty()) {
-                parts.add(tags.trim());
+            if (completed) {
+                parts.add("\u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0430");
+            } else if (skipped) {
+                parts.add("\u043f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u0430");
             }
             if (parts.isEmpty()) {
                 return "";
