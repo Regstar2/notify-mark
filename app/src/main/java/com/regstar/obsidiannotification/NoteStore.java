@@ -61,6 +61,10 @@ public final class NoteStore {
         return sources.isEmpty() ? null : sources.get(0).getUri();
     }
 
+    static Uri getStoredExternalPrimaryUri(Context context) {
+        return getSavedSourceUri(context);
+    }
+
     public static String getSavedSourceType(Context context) {
         List<NoteSource> sources = getSavedSources(context);
         return sources.isEmpty() ? SOURCE_NOTE : sources.get(0).getType();
@@ -70,8 +74,16 @@ public final class NoteStore {
         return !getSavedSources(context).isEmpty();
     }
 
+    static boolean hasStoredExternalSources(Context context) {
+        return hasSavedSources(context);
+    }
+
     public static int getSavedSourceCount(Context context) {
         return getSavedSources(context).size();
+    }
+
+    static int getStoredExternalSourceCount(Context context) {
+        return getSavedSourceCount(context);
     }
 
     public static List<NoteSource> getSavedSources(Context context) {
@@ -90,6 +102,10 @@ public final class NoteStore {
         List<NoteSource> legacySources = new ArrayList<>();
         legacySources.add(new NoteSource(legacyType, legacyUri));
         return legacySources;
+    }
+
+    static List<NoteSource> getStoredExternalSources(Context context) {
+        return getSavedSources(context);
     }
 
     public static Uri requireSavedSourceUri(Context context) throws IOException {
@@ -153,6 +169,10 @@ public final class NoteStore {
     }
 
     public static boolean canWriteSavedSource(Context context) {
+        return canWriteStoredExternalSources(context);
+    }
+
+    static boolean canWriteStoredExternalSources(Context context) {
         List<NoteSource> sources = getSavedSources(context);
         if (sources.isEmpty()) {
             return false;
@@ -280,6 +300,9 @@ public final class NoteStore {
     }
 
     public static String readMarkdown(Context context, Uri uri) throws IOException {
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            return new String(Files.readAllBytes(Paths.get(uri.getPath())), StandardCharsets.UTF_8);
+        }
         StringBuilder builder = new StringBuilder();
         try (InputStream stream = context.getContentResolver().openInputStream(uri)) {
             if (stream == null) {
@@ -315,6 +338,10 @@ public final class NoteStore {
     }
 
     public static List<NoteDocument> readDocuments(Context context) throws IOException {
+        return TaskSourceManager.currentSource(context).readDocuments(context);
+    }
+
+    static List<NoteDocument> readStoredExternalDocuments(Context context) throws IOException {
         List<NoteSource> sources = getSavedSources(context);
         if (sources.isEmpty()) {
             throw new IOException("заметка или папка не выбрана");
@@ -675,6 +702,10 @@ public final class NoteStore {
     }
 
     public static String sourceLabel(Context context) {
+        return TaskSourceManager.activeSourceLabel(context);
+    }
+
+    static String externalSourceLabel(Context context) {
         List<NoteSource> sources = getSavedSources(context);
         if (sources.isEmpty()) {
             return "не выбрано";
@@ -1310,6 +1341,16 @@ public final class NoteStore {
     }
 
     private static String displayName(Context context, Uri uri) {
+        if (uri == null) {
+            return "";
+        }
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            String path = uri.getPath();
+            if (path == null || path.trim().isEmpty()) {
+                return uri.toString();
+            }
+            return java.nio.file.Paths.get(path).getFileName().toString();
+        }
         try (Cursor cursor = context.getContentResolver().query(
                 uri,
                 new String[]{OpenableColumns.DISPLAY_NAME},

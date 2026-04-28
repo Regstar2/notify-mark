@@ -134,7 +134,13 @@ public final class MainActivity extends AppCompatActivity {
 
         ReminderScheduler.ensureNotificationChannel(this);
 
-        noteUri = NoteStore.getSavedSourceUri(this);
+        try {
+            TaskSourceManager.ensureReady(this);
+        } catch (IOException exception) {
+            ErrorLog.record(this, "Не удалось инициализировать источник задач", exception);
+        }
+
+        noteUri = TaskSourceManager.getActiveSourceUri(this);
 
         buildUi();
         updateNotificationPermissionUi();
@@ -144,13 +150,18 @@ public final class MainActivity extends AppCompatActivity {
         if (noteUri == null) {
             NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
-            setStatus("Выберите markdown-файл или папку с задачами Obsidian.");
+            setStatus(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
+                    ? "Подключите внешнюю markdown-папку или заметку."
+                    : "Не удалось открыть встроенное хранилище задач.");
             setNextReminder(null);
-            renderEmptyState("Задачи появятся здесь после выбора заметки.");
+            renderEmptyState(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
+                    ? "Задачи появятся после выбора внешнего источника."
+                    : "Попробуйте открыть приложение снова или переключиться на внешний источник.");
             showOnboardingIfNeeded();
         } else {
             readAndRenderNote();
             NoteChangeMonitor.ensureScheduled(this);
+            showOnboardingIfNeeded();
         }
     }
 
@@ -165,7 +176,7 @@ public final class MainActivity extends AppCompatActivity {
         if (exactAlarmPermissionButton != null) {
             updateExactAlarmPermissionUi();
         }
-        noteUri = NoteStore.getSavedSourceUri(this);
+        noteUri = TaskSourceManager.getActiveSourceUri(this);
         if (noteUri != null) {
             if (refreshButton != null) {
                 refreshButton.setEnabled(true);
@@ -216,7 +227,7 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (requestCode == REQUEST_SOURCE_MANAGEMENT) {
-            noteUri = NoteStore.getSavedSourceUri(this);
+            noteUri = TaskSourceManager.getActiveSourceUri(this);
             if (noteUri == null) {
                 NoteChangeMonitor.cancel(this);
                 ReminderScheduler.cancelScheduled(this);
@@ -235,7 +246,7 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (requestCode == REQUEST_ONBOARDING) {
-            noteUri = NoteStore.getSavedSourceUri(this);
+            noteUri = TaskSourceManager.getActiveSourceUri(this);
             if (noteUri != null) {
                 readAndRenderNote();
                 NoteChangeMonitor.ensureScheduled(this);
@@ -270,6 +281,8 @@ public final class MainActivity extends AppCompatActivity {
 
         noteUri = selectedUri;
         NoteStore.saveNoteUri(this, selectedUri);
+        TaskSourceManager.useExternalStorage(this);
+        OnboardingPreferences.markCompleted(this);
         readAndRenderNote();
         NoteChangeMonitor.ensureScheduled(this);
     }
@@ -1268,7 +1281,9 @@ public final class MainActivity extends AppCompatActivity {
     private void showAboutDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("ObsidianNotification")
-                .setMessage("Локальные напоминания из markdown-заметок Obsidian.")
+                .setMessage("Локальные напоминания из markdown-задач.\nТекущий режим: "
+                        + TaskSourceManager.storageModeLabel(this)
+                        + "\nИсточник: " + TaskSourceManager.activeSourceLabel(this))
                 .setPositiveButton("OK", null)
                 .show();
     }
@@ -1614,7 +1629,7 @@ public final class MainActivity extends AppCompatActivity {
 
     @SuppressWarnings("deprecation")
     private void showOnboardingIfNeeded() {
-        if (!OnboardingPreferences.shouldShow(this) || NoteStore.hasSavedSources(this)) {
+        if (!OnboardingPreferences.shouldShow(this)) {
             return;
         }
         startActivityForResult(new Intent(this, OnboardingActivity.class), REQUEST_ONBOARDING);
@@ -1624,13 +1639,17 @@ public final class MainActivity extends AppCompatActivity {
         if (noteUri == null) {
             NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
-            setStatus("Файл не выбран.");
+            setStatus(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
+                    ? "Внешний источник не выбран."
+                    : "Встроенное хранилище недоступно.");
             setNextReminder(null);
             if (selectedSection == SECTION_CALENDAR) {
                 renderCalendar(new ArrayList<>());
                 return;
             }
-            renderEmptyState("Нажмите «Выбрать заметку».");
+            renderEmptyState(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
+                    ? "Нажмите «Выбрать заметку»."
+                    : "Не удалось прочитать встроенные markdown-файлы.");
             return;
         }
 
@@ -3806,7 +3825,7 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (uri == null) {
-            uri = NoteStore.getSavedSourceUri(this);
+            uri = TaskSourceManager.getActiveSourceUri(this);
         }
         if (uri == null) {
             Toast.makeText(this, "Источник не выбран", Toast.LENGTH_LONG).show();

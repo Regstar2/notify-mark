@@ -31,7 +31,7 @@ public final class NoteChangeMonitor {
     }
 
     public static void ensureScheduled(Context context) {
-        if (NoteStore.getSavedSourceUri(context) == null) {
+        if (!TaskSourceManager.hasReadableSource(context)) {
             cancel(context);
             return;
         }
@@ -162,7 +162,7 @@ public final class NoteChangeMonitor {
     }
 
     public static boolean restoreFromCache(Context context, String reason) {
-        if (NoteStore.getSavedSourceUri(context) == null) {
+        if (!TaskSourceManager.hasReadableSource(context)) {
             return false;
         }
 
