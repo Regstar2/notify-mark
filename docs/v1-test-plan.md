@@ -1,15 +1,15 @@
-# v1.0.0 test plan
+# NotifyMark v1.0.0 test plan
 
-Цель: проверить, что ObsidianNotification готов к первому ограниченному релизу.
+Goal: verify that NotifyMark is ready for a limited first release.
 
 ## Android matrix
 
-- Android 8 / API 26: базовая совместимость, фоновые alarm-ы, SAF.
-- Android 10 / API 29: SAF, папки, Syncthing-папка.
+- Android 8 / API 26: baseline compatibility, alarms, SAF.
+- Android 10 / API 29: SAF folders, Syncthing folder flow.
 - Android 12 / API 31: exact alarm permission behavior.
 - Android 13 / API 33: `POST_NOTIFICATIONS`.
-- Android 14 / API 34: фоновые ограничения, exact alarms.
-- Android 15 / API 35: целевой SDK и runtime-поведение.
+- Android 14 / API 34: background limits and exact alarms.
+- Android 15 / API 35: target SDK runtime behavior.
 
 ## Parser
 
@@ -20,8 +20,8 @@
 - `@due(19:00)`
 - `@repeat(15m)`
 - `@repeatUntilDone(15m)`
-- задача без чекбокса
-- выполненная задача `- [x]`
+- plain reminder line without checkbox
+- completed task `- [x]`
 - task inside fenced code block
 - custom keywords from settings
 
@@ -30,19 +30,19 @@
 - one-shot future reminder
 - past one-shot reminder should not schedule
 - repeat should schedule next future trigger
-- repeatUntilDone should continue until task is completed
+- repeat-until-done should continue until task is completed
 - notification tap opens app
 - notification action Done updates markdown
 - notification action Snooze schedules new alarm
-- notification sound/vibration repeats on each repeat
+- notification sound and vibration repeat on each nag
 
 ## Syncthing
 
-- edit task on PC, wait sync, app updates list
-- mark task done on PC, wait sync, app cancels repeats
-- partially synced empty/temporary file does not clear active alarms
+- edit task on desktop, wait for sync, app updates list
+- mark task done on desktop, wait for sync, app cancels repeats
+- partially synced empty or temporary file does not clear active alarms
 - conflict file does not corrupt selected source
-- folder scan excludes `.obsidian`, archive, templates, temp files
+- folder scan excludes `.obsidian`, archive, template, and temp files
 
 ## Editing
 
@@ -61,4 +61,4 @@
 - change system time
 - revoke notification permission
 - revoke exact alarm permission
-- remove source permission and select source again
+- revoke source permission and select source again

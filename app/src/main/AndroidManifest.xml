@@ -13,16 +13,16 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <receiver
-            android:name=".ReminderReceiver"
+            android:name=".core.reminders.ReminderReceiver"
             android:exported="false" />
         <receiver
-            android:name=".ReminderActionReceiver"
+            android:name=".core.reminders.ReminderActionReceiver"
             android:exported="false" />
         <receiver
-            android:name=".NoteSyncReceiver"
+            android:name=".core.source.NoteSyncReceiver"
             android:exported="false" />
         <receiver
-            android:name=".ReliabilityReceiver"
+            android:name=".core.reminders.ReliabilityReceiver"
             android:enabled="true"
             android:exported="false">
             <intent-filter>
@@ -35,24 +35,24 @@
         </receiver>
 
         <activity
-            android:name=".SettingsActivity"
+            android:name=".ui.SettingsActivity"
             android:exported="false" />
         <activity
-            android:name=".TaskEditActivity"
+            android:name=".ui.TaskEditActivity"
             android:exported="false"
             android:theme="@style/TaskEditSheetTheme" />
         <activity
-            android:name=".MarkdownFileEditActivity"
+            android:name=".ui.MarkdownFileEditActivity"
             android:exported="false" />
         <activity
-            android:name=".SourceManagementActivity"
+            android:name=".ui.SourceManagementActivity"
             android:exported="false" />
         <activity
-            android:name=".OnboardingActivity"
+            android:name=".ui.OnboardingActivity"
             android:exported="false" />
 
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
