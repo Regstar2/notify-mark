@@ -1,0 +1,29 @@
+<resources>
+    <plurals name="task_count_word">
+        <item quantity="one">задача</item>
+        <item quantity="few">задачи</item>
+        <item quantity="many">задач</item>
+        <item quantity="other">задачи</item>
+    </plurals>
+
+    <plurals name="source_count_label">
+        <item quantity="one">%d источник</item>
+        <item quantity="few">%d источника</item>
+        <item quantity="many">%d источников</item>
+        <item quantity="other">%d источника</item>
+    </plurals>
+
+    <plurals name="external_source_count_label">
+        <item quantity="one">%d внешний источник</item>
+        <item quantity="few">%d внешних источника</item>
+        <item quantity="many">%d внешних источников</item>
+        <item quantity="other">%d внешнего источника</item>
+    </plurals>
+
+    <plurals name="markdown_file_count_label">
+        <item quantity="one">%d markdown-файл</item>
+        <item quantity="few">%d markdown-файла</item>
+        <item quantity="many">%d markdown-файлов</item>
+        <item quantity="other">%d markdown-файла</item>
+    </plurals>
+</resources>

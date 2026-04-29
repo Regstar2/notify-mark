@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ObsidianNotification"
+rootProject.name = "NotifyMark"
 include ":app"

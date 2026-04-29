@@ -1,0 +1,10 @@
+<resources>
+    <string name="reminder_action_skip">Пропустить</string>
+    <string name="reminder_action_snooze">Отложить %1$s</string>
+    <string name="reminder_title_fallback">Задача без текста</string>
+    <string name="reminder_due_at">Срок: %1$s</string>
+    <string name="reminder_snooze_label_error">Не удалось определить подпись отложения для уведомления</string>
+    <string name="reminder_repeat_lookup_error">Не удалось проверить задачу перед повтором</string>
+    <string name="test_notification_title">Тестовое напоминание</string>
+    <string name="test_notification_text">Если это видно и слышно, канал уведомлений работает.</string>
+</resources>

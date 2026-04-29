@@ -1,0 +1,80 @@
+<resources>
+    <string name="task_edit_load_task_missing">Задача не найдена. Возможно, заметка уже синхронизировалась.</string>
+    <string name="task_edit_open_error">Не удалось открыть редактор задачи</string>
+    <string name="task_edit_title_new">Новая задача</string>
+    <string name="task_edit_title_edit">Редактирование задачи</string>
+    <string name="task_edit_title_hint">Что нужно сделать</string>
+    <string name="task_edit_section_basic">Основное</string>
+    <string name="task_edit_field_title">Задача</string>
+    <string name="task_edit_field_date">Дата</string>
+    <string name="task_edit_field_time">Время</string>
+    <string name="task_edit_repeat_until_done_toggle">Повторять до выполнения</string>
+    <string name="task_edit_repeat_until_done_interval">Интервал повтора до выполнения</string>
+    <string name="task_edit_overdue_grace_toggle">Срок выполнения</string>
+    <string name="task_edit_overdue_grace_label">Не считать просроченной</string>
+    <string name="task_edit_section_extra">Дополнительно</string>
+    <string name="task_edit_field_group">Группа</string>
+    <string name="task_edit_field_priority">Приоритет</string>
+    <string name="task_edit_field_tags">Теги</string>
+    <string name="task_edit_field_snooze">Отложить на</string>
+    <string name="task_edit_checkbox_task">Сохранять как checkbox-задачу</string>
+    <string name="task_edit_section_subtasks">Подзадачи</string>
+    <string name="task_edit_add_subtask">Добавить подзадачу</string>
+    <string name="task_edit_section_preview">Markdown preview</string>
+    <string name="task_edit_section_danger">Удаление</string>
+    <string name="task_edit_section_danger_body">Задача и ее вложенные строки будут удалены из markdown-файла.</string>
+    <string name="task_edit_delete_task">Удалить задачу</string>
+    <string name="task_edit_priority_none">Нет</string>
+    <string name="task_edit_priority_low">Низкий</string>
+    <string name="task_edit_priority_medium">Средний</string>
+    <string name="task_edit_priority_high">Высокий</string>
+    <string name="task_edit_subtasks_empty_title">Пока без подзадач</string>
+    <string name="task_edit_subtasks_empty_body">Добавьте шаги, чтобы разбить задачу.</string>
+    <string name="task_edit_subtasks_empty_summary">Вложенных шагов пока нет</string>
+    <string name="task_edit_subtasks_summary">%1$d/%2$d выполнено</string>
+    <string name="task_edit_subtask_default_title">Подзадача</string>
+    <string name="task_edit_delete_subtask">Удалить подзадачу</string>
+    <string name="task_edit_confirm_delete_title">Удалить задачу?</string>
+    <string name="task_edit_confirm_delete_message">Задача и вложенные подзадачи будут удалены из markdown-файла.</string>
+    <string name="task_edit_saved">Изменения сохранены</string>
+    <string name="task_edit_save_failed">Не удалось записать файл</string>
+    <string name="task_edit_discard_title">Закрыть без сохранения?</string>
+    <string name="task_edit_discard_message">Несохраненные изменения будут потеряны.</string>
+    <string name="task_edit_valid_format">Формат корректный.</string>
+    <string name="task_edit_source_unavailable">Источник недоступен: %1$s</string>
+    <string name="task_edit_empty_markdown_block">Markdown-блок пустой.</string>
+    <string name="task_edit_not_a_task_line">Строка не распознана как задача.</string>
+    <string name="task_edit_due_required">Для уведомления нужно указать дату или время через @due(...).</string>
+    <string name="task_edit_write_file_suffix">файл для записи</string>
+    <string name="task_edit_format_error_title">Ошибка формата:</string>
+    <string name="task_edit_more_errors">Еще ошибок: %1$d</string>
+    <string name="task_edit_subtasks_collapse">Свернуть подзадачи</string>
+    <string name="task_edit_subtasks_expand">Показать подзадачи</string>
+    <string name="task_edit_subtask_title_edit">Редактирование подзадачи</string>
+    <string name="task_edit_subtask_title_new">Новая подзадача</string>
+    <string name="task_edit_subtask_subtitle">Внутри текущей задачи</string>
+    <string name="task_edit_subtask_completed">выполнена</string>
+    <string name="task_edit_subtask_repeat_prefix">повтор %1$s</string>
+    <string name="task_edit_subtask_skipped">пропущена</string>
+    <string name="task_edit_subtask_discard_message">Изменения подзадачи будут потеряны.</string>
+    <string name="task_edit_subtask_empty">Подзадача пуста.</string>
+    <string name="task_edit_subtask_not_recognized">Строка подзадачи не распознана.</string>
+
+    <string name="task_parse_error_prefix_line_only">Строка %1$d</string>
+    <string name="task_parse_error_prefix_line_with_source">%1$s, строка %2$d</string>
+
+    <string name="task_parse_error_due_function_invalid">
+        не удалось разобрать @%1$s(...). Используйте дату-время, дату или время: @%1$s(2026-04-20 14:30), @%1$s(2026-04-20), @%1$s(14:30)
+    </string>
+    <string name="task_parse_error_due_time_invalid">
+        не удалось разобрать время. Используйте @%1$s(2026-04-20 14:30), @%1$s(2026-04-20), @%1$s(14:30) или legacy @2026-04-20 14:30
+    </string>
+    <string name="task_parse_error_repeat_rule_invalid">
+        не удалось разобрать repeat-правило. Используйте @%1$s(15m), @%1$s(1w) @days(mon,wed,fri), @%1$s(1mo) @monthday(last) или @%2$s(15m)
+    </string>
+    <string name="task_parse_error_priority_invalid">
+        не удалось разобрать приоритет. Используйте @%1$s(low), @%1$s(medium), @%1$s(high) или @%1$s(urgent)
+    </string>
+    <string name="task_parse_error_grace_invalid">не удалось разобрать @grace(...). Используйте @grace(10m), @grace(1h) или @grace(0m)</string>
+    <string name="task_parse_error_snooze_invalid">не удалось разобрать @snooze(...). Используйте @snooze(10m), @snooze(1h) или @snooze(1d)</string>
+</resources>

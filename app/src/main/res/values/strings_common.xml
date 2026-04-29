@@ -1,0 +1,53 @@
+<resources>
+    <string name="common_ok">OK</string>
+    <string name="common_active">Активно</string>
+    <string name="common_cancel">Отменить</string>
+    <string name="common_skip">Пропустить</string>
+    <string name="common_done_mark">Отметить выполненными</string>
+    <string name="common_snooze">Отложить</string>
+
+    <string name="status_waiting">ожидает</string>
+    <string name="status_completed">завершена</string>
+    <string name="status_skipped">пропущена</string>
+    <string name="status_overdue">просрочена</string>
+    <string name="status_completed_short">выполнено</string>
+    <string name="status_active_short">активные</string>
+    <string name="status_skipped_short">пропущено</string>
+    <string name="status_overdue_short">просрочено</string>
+
+    <string name="filter_all">Все</string>
+    <string name="filter_active">Активные</string>
+    <string name="filter_overdue">Просроченные</string>
+    <string name="filter_completed">Завершенные</string>
+    <string name="filter_skipped">Пропущенные</string>
+    <string name="filter_chip_active_only">Фильтр: только активные</string>
+    <string name="filter_chip_all_tasks">Фильтр: все задачи</string>
+
+    <string name="grouping_tags">теги</string>
+    <string name="grouping_files">файлы</string>
+    <string name="grouping_mixed">смешанная</string>
+
+    <string name="task_remind_prefix">напомнить %1$s</string>
+    <string name="task_time_not_set">время не указано</string>
+    <string name="task_repeat_prefix">повтор %1$s</string>
+    <string name="task_until_done_prefix">до выполнения %1$s</string>
+    <string name="task_tags_prefix">теги:</string>
+
+    <string name="task_priority_urgent">приоритет: срочно</string>
+    <string name="task_priority_high">приоритет: высокий</string>
+    <string name="task_priority_medium">приоритет: средний</string>
+    <string name="task_priority_low">приоритет: низкий</string>
+    <string name="task_priority_none">без приоритета</string>
+    <string name="task_skipped_message">Задача пропущена</string>
+    <string name="task_deleted_message">Задача удалена</string>
+    <string name="task_relative_today">сегодня</string>
+    <string name="task_relative_tomorrow">завтра</string>
+    <string name="task_file_name_fallback">Без имени файла</string>
+    <string name="source_title">Источник</string>
+    <string name="next_reminder_permission_required">Разрешение нужно выдать в системе</string>
+    <string name="next_reminder_notifications_disabled">Уведомления выключены</string>
+    <string name="next_reminder_none">Нет будущих напоминаний</string>
+    <string name="next_reminder_disabled_summary">Ближайшее напоминание: уведомления не разрешены.</string>
+    <string name="next_reminder_missing_summary">Ближайшее напоминание: нет будущих задач со временем.</string>
+    <string name="next_reminder_summary">Ближайшее напоминание: %1$s · %2$s</string>
+</resources>

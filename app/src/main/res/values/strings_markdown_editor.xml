@@ -1,0 +1,26 @@
+<resources>
+    <string name="markdown_editor_open_error">Не удалось открыть markdown-файл</string>
+    <string name="markdown_editor_hint">Редактируется весь markdown-файл. Строка задачи подсвечена при открытии.</string>
+    <string name="markdown_editor_title">Markdown-файл</string>
+    <string name="markdown_editor_source_unavailable">Источник недоступен</string>
+    <string name="markdown_editor_file_closed">Файл не открыт</string>
+    <string name="markdown_editor_check_source_access">Проверьте доступ к источнику</string>
+    <string name="markdown_editor_full_markdown_line">Полный markdown, строка %1$d</string>
+    <string name="markdown_editor_open_error_prefix">Не удалось открыть markdown-файл: %1$s</string>
+    <string name="markdown_editor_insert_due">Вставить @due(...)</string>
+    <string name="markdown_editor_insert_repeat">Вставить @repeat(15m)</string>
+    <string name="markdown_editor_insert_repeat_until_done">Вставить @repeatUntilDone(15m)</string>
+    <string name="markdown_editor_insert_tag">Вставить @tag(work)</string>
+    <string name="markdown_editor_insert_priority">Вставить @priority(medium)</string>
+    <string name="markdown_editor_insert_group">Вставить @group(default)</string>
+    <string name="markdown_editor_saved">Markdown сохранен</string>
+    <string name="markdown_editor_save_failed">Не удалось сохранить markdown-файл</string>
+    <string name="markdown_editor_conflict_title">Файл изменился</string>
+    <string name="markdown_editor_conflict_message">Файл изменился после открытия редактора.</string>
+    <string name="markdown_editor_conflict_prompt">Перезаписать его текущим содержимым редактора?</string>
+    <string name="markdown_editor_dirty">не сохранено</string>
+    <string name="markdown_editor_clean">сохранено</string>
+    <string name="markdown_editor_discard_title">Выйти без сохранения?</string>
+    <string name="markdown_editor_discard_message">Изменения в markdown-файле будут потеряны.</string>
+    <string name="markdown_editor_not_selected">не выбран</string>
+</resources>

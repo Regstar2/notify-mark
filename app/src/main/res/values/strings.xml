@@ -1,5 +1,7 @@
 <resources>
-    <string name="app_name">ObsidianNotification</string>
+    <string name="app_name">NotifyMark</string>
     <string name="choose_note">Выбрать заметку</string>
     <string name="refresh_note">Обновить</string>
+    <string name="reminder_channel_name">Настойчивые напоминания задач</string>
+    <string name="reminder_channel_description">Настойчивые локальные напоминания из markdown-задач Obsidian.</string>
 </resources>

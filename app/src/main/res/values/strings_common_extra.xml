@@ -1,0 +1,10 @@
+<resources>
+    <string name="common_close">Закрыть</string>
+    <string name="common_save">Сохранить</string>
+    <string name="common_delete">Удалить</string>
+    <string name="common_exit">Выйти</string>
+    <string name="common_stay">Остаться</string>
+    <string name="common_overwrite">Перезаписать</string>
+    <string name="common_back">Назад</string>
+    <string name="common_unknown_error">неизвестная ошибка</string>
+</resources>
