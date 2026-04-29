@@ -5,7 +5,10 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.DocumentsContract;
 import android.provider.OpenableColumns;
+
 import androidx.documentfile.provider.DocumentFile;
+
+import com.regstar.obsidiannotification.R;
 
 import java.io.File;
 import java.net.URLDecoder;
@@ -16,14 +19,10 @@ import java.util.Locale;
 /**
  * Resolves human-readable labels for SAF-backed files and folders.
  *
- * <p>UI surfaces should call this helper instead of showing raw `content://`
+ * <p>UI surfaces should call this helper instead of showing raw {@code content://}
  * URIs, encoded path segments, or internal app paths as source names.</p>
  */
 public final class SourceDisplayNameResolver {
-    private static final String FILE_FALLBACK = "Безымянный файл";
-    private static final String FOLDER_FALLBACK = "Безымянная папка";
-    private static final String SOURCE_FALLBACK = "Безымянный источник";
-
     private SourceDisplayNameResolver() {
     }
 
@@ -34,7 +33,8 @@ public final class SourceDisplayNameResolver {
         boolean folder = NoteStore.SOURCE_FOLDER.equals(source.getType());
         String name = resolveDisplayName(context, source.getUri(), folder);
         AccessState accessState = resolveAccessState(context, source);
-        String subtitle = (folder ? "Папка" : "Файл") + " · " + accessState.getLabel();
+        String subtitle = context.getString(folder ? R.string.source_folder_label : R.string.source_file_label)
+                + " · " + accessState.getLabel(context);
         String preview = shortPreview(source.getUri());
         return new SourceItemModel(
                 name,
@@ -54,8 +54,8 @@ public final class SourceDisplayNameResolver {
     ) {
         if (sources == null || sources.isEmpty()) {
             return new ExternalSummaryModel(
-                    "Внешний источник не выбран",
-                    "Подключите markdown-файл или папку",
+                    context.getString(R.string.source_not_selected),
+                    context.getString(R.string.source_connect_markdown),
                     null
             );
         }
@@ -86,16 +86,20 @@ public final class SourceDisplayNameResolver {
 
         String headline;
         String subtitle;
-        String accessLabel = aggregateAccessLabel(sources.size(), readableCount, writableCount);
+        String accessLabel = aggregateAccessLabel(context, sources.size(), readableCount, writableCount);
         if (sources.size() == 1 && firstModel != null) {
-            headline = (firstModel.isFolder() ? "Папка: " : "Файл: ") + firstModel.getTitle();
-            subtitle = (firstModel.isFolder() ? "папка" : "файл") + " · " + accessLabel;
+            headline = context.getString(
+                    firstModel.isFolder() ? R.string.source_folder_title : R.string.source_file_title,
+                    firstModel.getTitle()
+            );
+            subtitle = context.getString(firstModel.isFolder() ? R.string.source_folder_short : R.string.source_file_short)
+                    + " · " + accessLabel;
         } else if (folderCount == 0 && fileCount == sources.size()) {
-            headline = markdownFileCountLabel(sources.size());
-            subtitle = markdownFileCountLabel(sources.size()) + " · " + accessLabel;
+            headline = markdownFileCountLabel(context, sources.size());
+            subtitle = markdownFileCountLabel(context, sources.size()) + " · " + accessLabel;
         } else {
-            headline = externalSourceCountLabel(sources.size());
-            subtitle = externalSourceCountLabel(sources.size()) + " · " + accessLabel;
+            headline = externalSourceCountLabel(context, sources.size());
+            subtitle = externalSourceCountLabel(context, sources.size()) + " · " + accessLabel;
         }
 
         return new ExternalSummaryModel(
@@ -113,8 +117,8 @@ public final class SourceDisplayNameResolver {
     }
 
     /**
-     * Resolves the best human-readable name for a file or folder URI while
-     * honoring an explicit folder hint.
+     * Resolves the best human-readable name for a file or folder URI while honoring an explicit
+     * folder hint.
      */
     public static String resolveDisplayName(Context context, Uri uri, boolean folderHint) {
         String displayName = tryDocumentFileName(context, uri, folderHint);
@@ -137,37 +141,76 @@ public final class SourceDisplayNameResolver {
             return displayName;
         }
 
-        displayName = fallbackNameFromUri(uri, folderHint);
+        displayName = fallbackNameFromUri(context, uri, folderHint);
         if (!isEmpty(displayName)) {
             return displayName;
         }
-        return unnamedFallback(folderHint);
+        return unnamedFallback(context, folderHint);
     }
 
-    public static String sourceCountLabel(int count) {
-        return count + " " + russianPlural(count, "источник", "источника", "источников");
+    public static String sourceCountLabel(Context context, int count) {
+        return context.getResources().getQuantityString(R.plurals.source_count_label, count, count);
     }
 
-    public static String externalSourceCountLabel(int count) {
-        return count + " внешн" + (count % 10 == 1 && count % 100 != 11 ? "ий " : "их ")
-                + russianPlural(count, "источник", "источника", "источников");
+    /**
+     * Legacy fallback used by unit tests and non-Android callers.
+     *
+     * <p>Prefer {@link #sourceCountLabel(Context, int)} for UI.</p>
+     */
+    static String sourceCountLabel(int count) {
+        return formatRussianPlural(count, "%d источник", "%d источника", "%d источников");
     }
 
-    public static String markdownFileCountLabel(int count) {
-        return count + " " + russianPlural(count, "markdown-файл", "markdown-файла", "markdown-файлов");
+    public static String externalSourceCountLabel(Context context, int count) {
+        return context.getResources().getQuantityString(R.plurals.external_source_count_label, count, count);
     }
 
-    public static String fallbackNameFromDocumentId(String documentId, boolean folderHint) {
+    /**
+     * Legacy fallback used by unit tests and non-Android callers.
+     *
+     * <p>Prefer {@link #externalSourceCountLabel(Context, int)} for UI.</p>
+     */
+    static String externalSourceCountLabel(int count) {
+        return formatRussianPlural(count, "%d внешний источник", "%d внешних источника", "%d внешних источников");
+    }
+
+    public static String markdownFileCountLabel(Context context, int count) {
+        return context.getResources().getQuantityString(R.plurals.markdown_file_count_label, count, count);
+    }
+
+    /**
+     * Legacy fallback used by unit tests and non-Android callers.
+     *
+     * <p>Prefer {@link #markdownFileCountLabel(Context, int)} for UI.</p>
+     */
+    static String markdownFileCountLabel(int count) {
+        return formatRussianPlural(count, "%d markdown-файл", "%d markdown-файла", "%d markdown-файлов");
+    }
+
+    public static String fallbackNameFromDocumentId(Context context, String documentId, boolean folderHint) {
         String normalized = sanitizeNameCandidate(documentId);
         if (isEmpty(normalized)) {
-            return unnamedFallback(folderHint);
+            return unnamedFallback(context, folderHint);
         }
         return normalized;
     }
 
-    public static String fallbackNameFromUri(Uri uri, boolean folderHint) {
+    /**
+     * Legacy fallback used by unit tests and non-Android callers.
+     *
+     * <p>Prefer {@link #fallbackNameFromDocumentId(Context, String, boolean)} for UI.</p>
+     */
+    static String fallbackNameFromDocumentId(String documentId, boolean folderHint) {
+        String normalized = sanitizeNameCandidate(documentId);
+        if (!isEmpty(normalized)) {
+            return normalized;
+        }
+        return folderHint ? "Безымянная папка" : "Безымянный файл";
+    }
+
+    public static String fallbackNameFromUri(Context context, Uri uri, boolean folderHint) {
         if (uri == null) {
-            return unnamedFallback(folderHint);
+            return unnamedFallback(context, folderHint);
         }
 
         String documentId = null;
@@ -181,7 +224,7 @@ public final class SourceDisplayNameResolver {
             // Not every content URI is a document URI.
         }
         if (!isEmpty(documentId)) {
-            String fromDocumentId = fallbackNameFromDocumentId(documentId, folderHint);
+            String fromDocumentId = fallbackNameFromDocumentId(context, documentId, folderHint);
             if (!isEmpty(fromDocumentId)) {
                 return fromDocumentId;
             }
@@ -192,19 +235,32 @@ public final class SourceDisplayNameResolver {
             return fromLastSegment;
         }
 
-        String fromUriString = fallbackNameFromRawUri(uri.toString(), folderHint);
+        String fromUriString = fallbackNameFromRawUri(context, uri.toString(), folderHint);
         if (!isEmpty(fromUriString)) {
             return fromUriString;
         }
-        return unnamedFallback(folderHint);
+        return unnamedFallback(context, folderHint);
     }
 
-    public static String fallbackNameFromRawUri(String rawUri, boolean folderHint) {
+    public static String fallbackNameFromRawUri(Context context, String rawUri, boolean folderHint) {
         String normalized = sanitizeNameCandidate(rawUri);
-        if (isEmpty(normalized)) {
-            return unnamedFallback(folderHint);
+        if (!isEmpty(normalized)) {
+            return normalized;
         }
-        return normalized;
+        return context.getString(folderHint ? R.string.source_unnamed_folder : R.string.source_unnamed_source);
+    }
+
+    /**
+     * Legacy fallback used by unit tests and non-Android callers.
+     *
+     * <p>Prefer {@link #fallbackNameFromRawUri(Context, String, boolean)} for UI.</p>
+     */
+    static String fallbackNameFromRawUri(String rawUri, boolean folderHint) {
+        String normalized = sanitizeNameCandidate(rawUri);
+        if (!isEmpty(normalized)) {
+            return normalized;
+        }
+        return folderHint ? "Безымянная папка" : "Безымянный источник";
     }
 
     public static String shortPreview(Uri uri) {
@@ -336,21 +392,36 @@ public final class SourceDisplayNameResolver {
         return !normalizedPreview.endsWith(normalizedTitle);
     }
 
-    private static String aggregateAccessLabel(int totalCount, int readableCount, int writableCount) {
+    private static String aggregateAccessLabel(Context context, int totalCount, int readableCount, int writableCount) {
         if (readableCount <= 0) {
-            return "доступ потерян";
+            return context.getString(R.string.source_access_lost);
         }
         if (readableCount < totalCount) {
-            return "часть источников недоступна";
+            return context.getString(R.string.source_access_partial);
         }
         if (writableCount == totalCount) {
-            return "запись доступна";
+            return context.getString(R.string.source_access_writable);
         }
-        return "только чтение";
+        return context.getString(R.string.source_access_read_only);
     }
 
-    private static String unnamedFallback(boolean folderHint) {
-        return folderHint ? FOLDER_FALLBACK : FILE_FALLBACK;
+    private static String unnamedFallback(Context context, boolean folderHint) {
+        return context.getString(folderHint ? R.string.source_unnamed_folder : R.string.source_unnamed_file);
+    }
+
+    private static String formatRussianPlural(int count, String one, String few, String many) {
+        int normalized = Math.abs(count) % 100;
+        int lastDigit = normalized % 10;
+        if (normalized >= 11 && normalized <= 14) {
+            return String.format(Locale.ROOT, many, count);
+        }
+        if (lastDigit == 1) {
+            return String.format(Locale.ROOT, one, count);
+        }
+        if (lastDigit >= 2 && lastDigit <= 4) {
+            return String.format(Locale.ROOT, few, count);
+        }
+        return String.format(Locale.ROOT, many, count);
     }
 
     private static String sanitizeNameCandidate(String rawValue) {
@@ -393,40 +464,25 @@ public final class SourceDisplayNameResolver {
             return null;
         }
         try {
-            return URLDecoder.decode(rawValue, StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException ignored) {
+            return URLDecoder.decode(rawValue, StandardCharsets.UTF_8.name());
+        } catch (IllegalArgumentException | java.io.UnsupportedEncodingException ignored) {
             return rawValue;
         }
     }
 
-    private static String russianPlural(int count, String one, String few, String many) {
-        int mod100 = count % 100;
-        int mod10 = count % 10;
-        if (mod100 >= 11 && mod100 <= 14) {
-            return many;
-        }
-        if (mod10 == 1) {
-            return one;
-        }
-        if (mod10 >= 2 && mod10 <= 4) {
-            return few;
-        }
-        return many;
-    }
-
     public enum AccessState {
-        WRITABLE("запись доступна"),
-        READ_ONLY("только чтение"),
-        LOST("доступ потерян");
+        WRITABLE(R.string.source_access_writable),
+        READ_ONLY(R.string.source_access_read_only),
+        LOST(R.string.source_access_lost);
 
-        private final String label;
+        private final int labelResId;
 
-        AccessState(String label) {
-            this.label = label;
+        AccessState(int labelResId) {
+            this.labelResId = labelResId;
         }
 
-        public String getLabel() {
-            return label;
+        public String getLabel(Context context) {
+            return context.getString(labelResId);
         }
     }
 

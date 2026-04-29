@@ -231,4 +231,66 @@ public final class ReminderSchedulerTest {
                 ReminderScheduler.occurrenceNotificationIdFor(nextOccurrence)
         );
     }
+
+    @Test
+    public void reminderPayloadHash_changesWhenTitleChanges_evenIfTriggerUnchanged() {
+        ScheduledReminder first = new ScheduledReminder(
+                "tasks.md|1|Old|2026-04-20T11:30||NONE",
+                123,
+                1,
+                "Old title",
+                LocalDateTime.of(2026, 4, 20, 11, 30),
+                LocalDateTime.of(2026, 4, 20, 11, 30).atZone(UTC).toInstant().toEpochMilli(),
+                0L,
+                RepeatMode.NONE,
+                "work"
+        );
+        ScheduledReminder second = new ScheduledReminder(
+                "tasks.md|1|Old|2026-04-20T11:30||NONE",
+                123,
+                1,
+                "New title",
+                LocalDateTime.of(2026, 4, 20, 11, 30),
+                LocalDateTime.of(2026, 4, 20, 11, 30).atZone(UTC).toInstant().toEpochMilli(),
+                0L,
+                RepeatMode.NONE,
+                "work"
+        );
+
+        assertNotEquals(
+                ReminderScheduler.buildReminderPayloadHash(first),
+                ReminderScheduler.buildReminderPayloadHash(second)
+        );
+    }
+
+    @Test
+    public void reminderPayloadHash_changesWhenReminderMetadataChanges_evenIfTriggerUnchanged() {
+        ScheduledReminder first = new ScheduledReminder(
+                "tasks.md|1|Task|2026-04-20T11:30||NONE",
+                123,
+                1,
+                "Task",
+                LocalDateTime.of(2026, 4, 20, 11, 30),
+                LocalDateTime.of(2026, 4, 20, 11, 30).atZone(UTC).toInstant().toEpochMilli(),
+                0L,
+                RepeatMode.NONE,
+                "work"
+        );
+        ScheduledReminder second = new ScheduledReminder(
+                "tasks.md|1|Task|2026-04-20T11:30||NONE",
+                123,
+                7,
+                "Task",
+                LocalDateTime.of(2026, 4, 20, 11, 30),
+                LocalDateTime.of(2026, 4, 20, 11, 30).atZone(UTC).toInstant().toEpochMilli(),
+                Duration.ofMinutes(5).toMillis(),
+                RepeatMode.UNTIL_DONE,
+                "home"
+        );
+
+        assertNotEquals(
+                ReminderScheduler.buildReminderPayloadHash(first),
+                ReminderScheduler.buildReminderPayloadHash(second)
+        );
+    }
 }

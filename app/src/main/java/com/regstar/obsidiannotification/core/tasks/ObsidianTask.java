@@ -21,7 +21,7 @@ import java.util.UUID;
  * the original document without inventing a second source of truth.</p>
  */
 public final class ObsidianTask {
-    public static final String DEFAULT_GROUP = "РћР±С‰РµРµ";
+    public static final String DEFAULT_GROUP = "Общее";
 
     private final String taskKey;
     private final String seriesId;

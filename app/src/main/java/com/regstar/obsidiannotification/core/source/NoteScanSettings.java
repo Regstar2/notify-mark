@@ -17,7 +17,7 @@ public final class NoteScanSettings {
     public static final String DEFAULT_EXCLUDE_PATTERNS =
             ".obsidian/**, **/.obsidian/**, .trash/**, **/.trash/**, "
                     + "archive/**, archives/**, **/archive/**, **/archives/**, "
-                    + "Р°СЂС…РёРІ/**, **/Р°СЂС…РёРІ/**, templates/**, **/templates/**, "
+                    + "архив/**, **/архив/**, templates/**, **/templates/**, "
                     + "_templates/**, **/_templates/**, *.tmp, *.part, "
                     + "*.sync-conflict-*, *.conflict-*";
     public static final int DEFAULT_MAX_FILES = 500;

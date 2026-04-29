@@ -1,0 +1,24 @@
+<resources>
+    <string name="edit_repeat_title">Повтор</string>
+    <string name="edit_weekday_mon">Пн</string>
+    <string name="edit_weekday_tue">Вт</string>
+    <string name="edit_weekday_wed">Ср</string>
+    <string name="edit_weekday_thu">Чт</string>
+    <string name="edit_weekday_fri">Пт</string>
+    <string name="edit_weekday_sat">Сб</string>
+    <string name="edit_weekday_sun">Вс</string>
+    <string name="edit_repeat_mode_none">Нет</string>
+    <string name="edit_repeat_mode_interval">Интервал</string>
+    <string name="edit_repeat_mode_weekly">Неделя</string>
+    <string name="edit_repeat_mode_monthly">Месяц</string>
+    <string name="edit_repeat_mode_custom">Текст</string>
+    <string name="edit_repeat_none">Без повторения</string>
+    <string name="edit_repeat_interval_label">Интервал</string>
+    <string name="edit_repeat_week_suffix">нед.</string>
+    <string name="edit_repeat_month_suffix">мес.</string>
+    <string name="edit_repeat_month_mode_same_day">Как в сроке</string>
+    <string name="edit_repeat_month_mode_fixed_day">День</string>
+    <string name="edit_repeat_month_mode_last_day">Последний</string>
+    <string name="edit_repeat_month_day">День месяца</string>
+    <string name="edit_repeat_custom_rule">Свое правило</string>
+</resources>

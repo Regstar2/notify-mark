@@ -1,9 +1,15 @@
 package com.regstar.obsidiannotification.debug;
 
-import com.regstar.obsidiannotification.core.reminders.*;
-import com.regstar.obsidiannotification.core.source.*;
-import com.regstar.obsidiannotification.core.tasks.*;
-import com.regstar.obsidiannotification.prefs.*;
+import com.regstar.obsidiannotification.R;
+import com.regstar.obsidiannotification.core.reminders.ReminderReceiver;
+import com.regstar.obsidiannotification.core.reminders.ReminderScheduler;
+import com.regstar.obsidiannotification.core.source.NoteChangeMonitor;
+import com.regstar.obsidiannotification.core.source.NoteStore;
+import com.regstar.obsidiannotification.core.tasks.ObsidianTask;
+import com.regstar.obsidiannotification.core.tasks.RepeatMode;
+import com.regstar.obsidiannotification.core.tasks.TaskEditResult;
+import com.regstar.obsidiannotification.core.tasks.TaskParseResult;
+import com.regstar.obsidiannotification.prefs.ActionPreferences;
 import com.regstar.obsidiannotification.support.ErrorLog;
 
 import android.content.Context;
@@ -24,10 +30,10 @@ public final class DebugReminderActions {
     public static DebugActionResult showImmediateReminder(Context context) {
         ObsidianTask task = findDebugTask(context);
         if (task == null) {
-            return DebugActionResult.failure("РќРµС‚ Р°РєС‚РёРІРЅРѕР№ Р·Р°РґР°С‡Рё РґР»СЏ РѕС‚Р»Р°РґРѕС‡РЅРѕРіРѕ СѓРІРµРґРѕРјР»РµРЅРёСЏ");
+            return DebugActionResult.failure(context.getString(R.string.runtime_debug_no_active_task_for_reminder));
         }
         if (!ReminderScheduler.canPostNotifications(context)) {
-            return DebugActionResult.failure("РќРµС‚ СЂР°Р·СЂРµС€РµРЅРёСЏ РЅР° СѓРІРµРґРѕРјР»РµРЅРёСЏ");
+            return DebugActionResult.failure(context.getString(R.string.runtime_debug_notifications_permission_missing));
         }
 
         ReminderScheduler.ensureNotificationChannel(context);
@@ -44,31 +50,31 @@ public final class DebugReminderActions {
         intent.putExtra(ReminderScheduler.EXTRA_REPEAT_MODE, RepeatMode.NONE.name());
         intent.putExtra(ReminderScheduler.EXTRA_GROUP, task.getGroup());
         context.sendBroadcast(intent);
-        return DebugActionResult.success("РћС‚РїСЂР°РІР»РµРЅРѕ РѕС‚Р»Р°РґРѕС‡РЅРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ: " + task.getTitle());
+        return DebugActionResult.success(context.getString(R.string.runtime_debug_reminder_sent, task.getTitle()));
     }
 
     public static DebugActionResult markFirstTaskDone(Context context) {
         ObsidianTask task = findDebugTask(context);
         if (task == null) {
-            return DebugActionResult.failure("РќРµС‚ Р°РєС‚РёРІРЅРѕР№ Р·Р°РґР°С‡Рё РґР»СЏ РѕС‚РјРµС‚РєРё РІС‹РїРѕР»РЅРµРЅРёСЏ");
+            return DebugActionResult.failure(context.getString(R.string.runtime_debug_no_active_task_for_done));
         }
 
         TaskEditResult result = NoteStore.markTaskDone(context, task.getTaskKey());
         if (result.shouldStopReminder()) {
             ReminderScheduler.cancelReminder(context, task.getTaskKey());
             NoteChangeMonitor.syncNow(context, true);
-            return DebugActionResult.success("Р—Р°РґР°С‡Р° РѕС‚РјРµС‡РµРЅР° РІС‹РїРѕР»РЅРµРЅРЅРѕР№: " + task.getTitle());
+            return DebugActionResult.success(context.getString(R.string.runtime_debug_task_marked_done, task.getTitle()));
         }
-        return DebugActionResult.failure("РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РјРµС‚РёС‚СЊ Р·Р°РґР°С‡Сѓ: " + result.getMessage());
+        return DebugActionResult.failure(context.getString(R.string.runtime_debug_mark_done_failed, result.getMessage()));
     }
 
     public static DebugActionResult snoozeFirstTask(Context context) {
         ObsidianTask task = findDebugTask(context);
         if (task == null) {
-            return DebugActionResult.failure("РќРµС‚ Р°РєС‚РёРІРЅРѕР№ Р·Р°РґР°С‡Рё РґР»СЏ РѕС‚Р»РѕР¶РµРЅРёСЏ");
+            return DebugActionResult.failure(context.getString(R.string.runtime_debug_no_active_task_for_snooze));
         }
         if (!ReminderScheduler.canPostNotifications(context)) {
-            return DebugActionResult.failure("РќРµС‚ СЂР°Р·СЂРµС€РµРЅРёСЏ РЅР° СѓРІРµРґРѕРјР»РµРЅРёСЏ");
+            return DebugActionResult.failure(context.getString(R.string.runtime_debug_notifications_permission_missing));
         }
 
         int snoozeMinutes = ActionPreferences.getSnoozeMinutes(context);
@@ -85,11 +91,15 @@ public final class DebugReminderActions {
         if (ActionPreferences.shouldRecordSnoozeCount(context)) {
             TaskEditResult result = NoteStore.incrementSnoozeCount(context, task.getTaskKey());
             if (result.isFailure()) {
-                return DebugActionResult.failure("РћС‚Р»РѕР¶РµРЅРѕ, РЅРѕ СЃС‡РµС‚С‡РёРє РЅРµ Р·Р°РїРёСЃР°РЅ: " + result.getMessage());
+                return DebugActionResult.failure(
+                        context.getString(R.string.runtime_debug_snooze_count_failed, result.getMessage())
+                );
             }
             NoteChangeMonitor.syncNow(context, true);
         }
-        return DebugActionResult.success("Р—Р°РґР°С‡Р° РѕС‚Р»РѕР¶РµРЅР° РЅР° " + snoozeMinutes + " РјРёРЅ: " + task.getTitle());
+        return DebugActionResult.success(
+                context.getString(R.string.runtime_debug_task_snoozed, snoozeMinutes, task.getTitle())
+        );
     }
 
     private static ObsidianTask findDebugTask(Context context) {
@@ -99,7 +109,8 @@ public final class DebugReminderActions {
                 return null;
             }
 
-            List<ObsidianTask> activeTasks = snapshot.getParseResult().getActiveTasks();
+            TaskParseResult parseResult = snapshot.getParseResult();
+            List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
             if (activeTasks.isEmpty()) {
                 return null;
             }
@@ -110,7 +121,7 @@ public final class DebugReminderActions {
             }
             return activeTasks.get(0);
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РѕС‚Р»Р°РґРѕС‡РЅРѕРµ РґРµР№СЃС‚РІРёРµ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_debug_action_failed), exception);
             return null;
         }
     }

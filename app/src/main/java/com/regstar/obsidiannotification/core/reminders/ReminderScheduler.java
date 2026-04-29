@@ -1,5 +1,6 @@
 package com.regstar.obsidiannotification.core.reminders;
 
+import com.regstar.obsidiannotification.R;
 import com.regstar.obsidiannotification.ui.MainActivity;
 
 import com.regstar.obsidiannotification.core.source.*;
@@ -21,6 +22,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -58,6 +61,7 @@ public final class ReminderScheduler {
     private static final String KEY_SCHEDULED_REMINDERS = "scheduled_reminders";
     private static final String KEY_LEGACY_SCHEDULED_IDS = "scheduled_ids";
     private static final String REMINDER_URI_PREFIX = "obsidiannotification://reminder/";
+    private static final Object SCHEDULED_STATE_LOCK = new Object();
 
     private ReminderScheduler() {
     }
@@ -69,10 +73,10 @@ public final class ReminderScheduler {
 
         NotificationChannel channel = new NotificationChannel(
                 CHANNEL_ID,
-                "Р В РЎСљР В Р’В°Р РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В РІвЂћвЂ“Р РЋРІР‚РЋР В РЎвЂР В Р вЂ Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ",
+                context.getString(R.string.reminder_channel_name),
                 NotificationManager.IMPORTANCE_HIGH
         );
-        channel.setDescription("Р В РЎСљР В Р’В°Р РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В РІвЂћвЂ“Р РЋРІР‚РЋР В РЎвЂР В Р вЂ Р РЋРІР‚в„–Р В Р’Вµ Р В Р’В»Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂР В Р’В· markdown-Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Obsidian.");
+        channel.setDescription(context.getString(R.string.reminder_channel_description));
         channel.enableLights(true);
         channel.enableVibration(true);
         channel.setVibrationPattern(new long[]{0L, 500L, 200L, 500L});
@@ -120,59 +124,64 @@ public final class ReminderScheduler {
             ZoneId zoneId,
             boolean preserveExistingRepeats
     ) {
-        cancelLegacyScheduled(context);
+        synchronized (SCHEDULED_STATE_LOCK) {
+            cancelLegacyScheduled(context);
 
-        Map<String, ScheduledState> existingState = loadScheduledState(context);
-        if (!canPostNotifications(context)) {
-            cancelScheduled(context, existingState);
-            return new ReminderSchedule(false, 0, null);
-        }
+            Map<String, ScheduledState> existingState = loadScheduledState(context);
+            if (!canPostNotifications(context)) {
+                cancelScheduled(context, existingState);
+                return new ReminderSchedule(false, 0, null);
+            }
 
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager == null) {
-            return new ReminderSchedule(true, 0, null);
-        }
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) {
+                return new ReminderSchedule(true, 0, null);
+            }
 
-        long nowMillis = now.atZone(zoneId).toInstant().toEpochMilli();
-        Map<String, ScheduledReminder> desiredReminders = new HashMap<>();
-        ScheduledReminder nearest = null;
+            long nowMillis = now.atZone(zoneId).toInstant().toEpochMilli();
+            Map<String, ScheduledReminder> desiredReminders = new HashMap<>();
+            ScheduledReminder nearest = null;
 
-        for (ObsidianTask task : tasks) {
-            ScheduledReminder reminder = buildScheduledReminder(task, now, zoneId);
-            ScheduledState existing = existingState.get(task.getTaskKey());
-            if (reminder == null) {
-                if (existing == null || existing.triggerAtMillis <= nowMillis) {
-                    continue;
+            for (ObsidianTask task : tasks) {
+                ScheduledReminder reminder = buildScheduledReminder(task, now, zoneId);
+                ScheduledState existing = existingState.get(task.getTaskKey());
+                if (reminder == null) {
+                    if (existing == null || existing.triggerAtMillis <= nowMillis) {
+                        continue;
+                    }
+                    reminder = buildScheduledReminderFromExisting(task, existing, zoneId);
                 }
-                reminder = buildScheduledReminderFromExisting(task, existing, zoneId);
+
+                if (preserveExistingRepeats
+                        && shouldKeepExistingReminder(task, reminder, existing, nowMillis)) {
+                    reminder = copyWithExistingTrigger(reminder, existing, zoneId);
+                }
+
+                desiredReminders.put(task.getTaskKey(), reminder);
+                if (nearest == null || reminder.getTriggerAtMillis() < nearest.getTriggerAtMillis()) {
+                    nearest = reminder;
+                }
             }
 
-            if (preserveExistingRepeats
-                    && shouldKeepExistingReminder(task, reminder, existing, nowMillis)) {
-                reminder = copyWithExistingTrigger(reminder, existing, zoneId);
+            for (ScheduledState existing : existingState.values()) {
+                if (!desiredReminders.containsKey(existing.taskKey)) {
+                    cancelReminderAlarm(context, alarmManager, existing.notificationId);
+                }
             }
 
-            desiredReminders.put(task.getTaskKey(), reminder);
-            if (nearest == null || reminder.getTriggerAtMillis() < nearest.getTriggerAtMillis()) {
-                nearest = reminder;
+            for (ScheduledReminder reminder : desiredReminders.values()) {
+                ScheduledState existing = existingState.get(reminder.getTaskKey());
+                String payloadHash = buildReminderPayloadHash(reminder);
+                if (existing == null
+                        || existing.triggerAtMillis != reminder.getTriggerAtMillis()
+                        || !Objects.equals(existing.payloadHash, payloadHash)) {
+                    setReminderAlarm(context, alarmManager, reminder);
+                }
             }
+
+            saveScheduledState(context, desiredReminders.values());
+            return new ReminderSchedule(true, desiredReminders.size(), nearest);
         }
-
-        for (ScheduledState existing : existingState.values()) {
-            if (!desiredReminders.containsKey(existing.taskKey)) {
-                cancelReminderAlarm(context, alarmManager, existing.notificationId);
-            }
-        }
-
-        for (ScheduledReminder reminder : desiredReminders.values()) {
-            ScheduledState existing = existingState.get(reminder.getTaskKey());
-            if (existing == null || existing.triggerAtMillis != reminder.getTriggerAtMillis()) {
-                setReminderAlarm(context, alarmManager, reminder);
-            }
-        }
-
-        saveScheduledState(context, desiredReminders.values());
-        return new ReminderSchedule(true, desiredReminders.size(), nearest);
     }
 
     /**
@@ -184,17 +193,18 @@ public final class ReminderScheduler {
             cancelReminder(context, task.getTaskKey());
             return;
         }
+        synchronized (SCHEDULED_STATE_LOCK) {
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) {
+                return;
+            }
 
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager == null) {
-            return;
+            ZoneId zoneId = ZoneId.systemDefault();
+            LocalDateTime nextTriggerAt = LocalDateTime.now().plus(repeatInterval);
+            ScheduledReminder reminder = buildScheduledReminderAt(task, nextTriggerAt, zoneId);
+            setReminderAlarm(context, alarmManager, reminder);
+            putScheduledState(context, reminder);
         }
-
-        ZoneId zoneId = ZoneId.systemDefault();
-        LocalDateTime nextTriggerAt = LocalDateTime.now().plus(repeatInterval);
-        ScheduledReminder reminder = buildScheduledReminderAt(task, nextTriggerAt, zoneId);
-        setReminderAlarm(context, alarmManager, reminder);
-        putScheduledState(context, reminder);
     }
 
     public static void scheduleNextRepeat(
@@ -210,28 +220,29 @@ public final class ReminderScheduler {
             cancelReminder(context, taskKey);
             return;
         }
+        synchronized (SCHEDULED_STATE_LOCK) {
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) {
+                return;
+            }
 
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager == null) {
-            return;
+            ZoneId zoneId = ZoneId.systemDefault();
+            LocalDateTime nextTriggerAt = LocalDateTime.now().plus(Duration.ofMillis(repeatIntervalMillis));
+            long nextTriggerAtMillis = nextTriggerAt.atZone(zoneId).toInstant().toEpochMilli();
+            ScheduledReminder reminder = new ScheduledReminder(
+                    taskKey,
+                    notificationId,
+                    lineNumber,
+                    title,
+                    nextTriggerAt,
+                    nextTriggerAtMillis,
+                    repeatIntervalMillis,
+                    repeatMode,
+                    ObsidianTask.DEFAULT_GROUP
+            );
+            setReminderAlarm(context, alarmManager, reminder);
+            putScheduledState(context, reminder);
         }
-
-        ZoneId zoneId = ZoneId.systemDefault();
-        LocalDateTime nextTriggerAt = LocalDateTime.now().plus(Duration.ofMillis(repeatIntervalMillis));
-        long nextTriggerAtMillis = nextTriggerAt.atZone(zoneId).toInstant().toEpochMilli();
-        ScheduledReminder reminder = new ScheduledReminder(
-                taskKey,
-                notificationId,
-                lineNumber,
-                title,
-                nextTriggerAt,
-                nextTriggerAtMillis,
-                repeatIntervalMillis,
-                repeatMode,
-                ObsidianTask.DEFAULT_GROUP
-        );
-        setReminderAlarm(context, alarmManager, reminder);
-        putScheduledState(context, reminder);
     }
 
     public static void scheduleSnooze(
@@ -247,50 +258,55 @@ public final class ReminderScheduler {
         if (taskKey == null || taskKey.trim().isEmpty() || !canPostNotifications(context)) {
             return;
         }
+        synchronized (SCHEDULED_STATE_LOCK) {
+            Duration safeDelay = delay == null || delay.isZero() || delay.isNegative()
+                    ? Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(context))
+                    : delay;
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) {
+                return;
+            }
 
-        Duration safeDelay = delay == null || delay.isZero() || delay.isNegative()
-                ? Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(context))
-                : delay;
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager == null) {
-            return;
+            ZoneId zoneId = ZoneId.systemDefault();
+            LocalDateTime nextTriggerAt = LocalDateTime.now().plus(safeDelay);
+            long nextTriggerAtMillis = nextTriggerAt.atZone(zoneId).toInstant().toEpochMilli();
+            ScheduledReminder reminder = new ScheduledReminder(
+                    taskKey,
+                    notificationId,
+                    lineNumber,
+                    title,
+                    nextTriggerAt,
+                    nextTriggerAtMillis,
+                    repeatIntervalMillis,
+                    repeatMode,
+                    ObsidianTask.DEFAULT_GROUP
+            );
+            setReminderAlarm(context, alarmManager, reminder);
+            putScheduledState(context, reminder);
         }
-
-        ZoneId zoneId = ZoneId.systemDefault();
-        LocalDateTime nextTriggerAt = LocalDateTime.now().plus(safeDelay);
-        long nextTriggerAtMillis = nextTriggerAt.atZone(zoneId).toInstant().toEpochMilli();
-        ScheduledReminder reminder = new ScheduledReminder(
-                taskKey,
-                notificationId,
-                lineNumber,
-                title,
-                nextTriggerAt,
-                nextTriggerAtMillis,
-                repeatIntervalMillis,
-                repeatMode,
-                ObsidianTask.DEFAULT_GROUP
-        );
-        setReminderAlarm(context, alarmManager, reminder);
-        putScheduledState(context, reminder);
     }
 
     public static void cancelReminder(Context context, String taskKey) {
-        Map<String, ScheduledState> state = loadScheduledState(context);
-        ScheduledState existing = state.remove(taskKey);
-        if (existing == null) {
-            return;
-        }
+        synchronized (SCHEDULED_STATE_LOCK) {
+            Map<String, ScheduledState> state = loadScheduledState(context);
+            ScheduledState existing = state.remove(taskKey);
+            if (existing == null) {
+                return;
+            }
 
-        AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-        if (alarmManager != null) {
-            cancelReminderAlarm(context, alarmManager, existing.notificationId);
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                cancelReminderAlarm(context, alarmManager, existing.notificationId);
+            }
+            saveScheduledStateEntries(context, state.values());
         }
-        saveScheduledStateEntries(context, state.values());
     }
 
     public static void cancelScheduled(Context context) {
-        cancelScheduled(context, loadScheduledState(context));
-        cancelLegacyScheduled(context);
+        synchronized (SCHEDULED_STATE_LOCK) {
+            cancelScheduled(context, loadScheduledState(context));
+            cancelLegacyScheduled(context);
+        }
     }
 
     public static boolean canPostNotifications(Context context) {
@@ -487,6 +503,8 @@ public final class ReminderScheduler {
         intent.putExtra(EXTRA_REPEAT_MODE, reminder.getRepeatMode().name());
         intent.putExtra(EXTRA_GROUP, reminder.getGroup());
 
+        // Extras do not participate in PendingIntent identity, so reminder updates
+        // must keep a stable requestCode while explicitly replacing the payload.
         return PendingIntent.getBroadcast(
                 context,
                 reminder.getNotificationId(),
@@ -573,8 +591,8 @@ public final class ReminderScheduler {
     }
 
     private static Map<String, ScheduledState> loadScheduledState(Context context) {
-        Set<String> encodedState = getPreferences(context)
-                .getStringSet(KEY_SCHEDULED_REMINDERS, new HashSet<>());
+        Set<String> encodedState = new HashSet<>(getPreferences(context)
+                .getStringSet(KEY_SCHEDULED_REMINDERS, new HashSet<>()));
         Map<String, ScheduledState> state = new HashMap<>();
         for (String encodedEntry : encodedState) {
             ScheduledState entry = ScheduledState.decode(encodedEntry);
@@ -615,18 +633,21 @@ public final class ReminderScheduler {
         private final String taskKey;
         private final int notificationId;
         private final long triggerAtMillis;
+        private final String payloadHash;
 
-        private ScheduledState(String taskKey, int notificationId, long triggerAtMillis) {
+        private ScheduledState(String taskKey, int notificationId, long triggerAtMillis, String payloadHash) {
             this.taskKey = taskKey;
             this.notificationId = notificationId;
             this.triggerAtMillis = triggerAtMillis;
+            this.payloadHash = payloadHash;
         }
 
         private static ScheduledState from(ScheduledReminder reminder) {
             return new ScheduledState(
                     reminder.getTaskKey(),
                     reminder.getNotificationId(),
-                    reminder.getTriggerAtMillis()
+                    reminder.getTriggerAtMillis(),
+                    buildReminderPayloadHash(reminder)
             );
         }
 
@@ -634,12 +655,13 @@ public final class ReminderScheduler {
             String encodedKey = Base64.getUrlEncoder().withoutPadding().encodeToString(
                     taskKey.getBytes(StandardCharsets.UTF_8)
             );
-            return encodedKey + "|" + notificationId + "|" + triggerAtMillis;
+            String safeHash = payloadHash == null ? "" : payloadHash;
+            return encodedKey + "|" + notificationId + "|" + triggerAtMillis + "|" + safeHash;
         }
 
         private static ScheduledState decode(String encoded) {
             String[] parts = encoded.split("\\|", -1);
-            if (parts.length != 3) {
+            if (parts.length != 3 && parts.length != 4) {
                 return null;
             }
 
@@ -650,10 +672,38 @@ public final class ReminderScheduler {
                 );
                 int notificationId = Integer.parseInt(parts[1]);
                 long triggerAtMillis = Long.parseLong(parts[2]);
-                return new ScheduledState(taskKey, notificationId, triggerAtMillis);
+                String payloadHash = parts.length == 4 && !parts[3].isEmpty() ? parts[3] : null;
+                return new ScheduledState(taskKey, notificationId, triggerAtMillis, payloadHash);
             } catch (IllegalArgumentException exception) {
                 return null;
             }
         }
+    }
+
+    static String buildReminderPayloadHash(ScheduledReminder reminder) {
+        if (reminder == null) {
+            return "";
+        }
+        String payload =
+                safe(reminder.getTaskKey()) + "\n"
+                        + reminder.getNotificationId() + "\n"
+                        + safe(reminder.getTitle()) + "\n"
+                        + reminder.getLineNumber() + "\n"
+                        + reminder.getTriggerAtMillis() + "\n"
+                        + reminder.getRepeatIntervalMillis() + "\n"
+                        + safe(reminder.getRepeatMode() == null ? null : reminder.getRepeatMode().name()) + "\n"
+                        + safe(reminder.getGroup());
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(payload.getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
+        } catch (NoSuchAlgorithmException exception) {
+            // Fallback should still be stable across process restarts.
+            return String.valueOf(payload.hashCode());
+        }
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
     }
 }

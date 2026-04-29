@@ -51,11 +51,11 @@ public final class TaskParser {
     private static final Pattern TIME_ONLY_REMINDER =
             Pattern.compile("(?i)(?:^|\\s)@(\\d{1,2}:\\d{2})\\b");
     private static final Pattern REPEAT =
-            Pattern.compile("(?iu)(?:\\b(?:every|repeat|РїРѕРІС‚РѕСЂ|РєР°Р¶РґС‹Рµ)\\s*:?\\s*)(\\d+)\\s*(m|min|РјРёРЅ|Рј|h|hr|С‡|d|day|Рґ)\\b");
+            Pattern.compile("(?iu)(?:\\b(?:every|repeat|повтор|каждые)\\s*:?\\s*)(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д)\\b");
     private static final Pattern ANY_AT_TOKEN =
             Pattern.compile("@\\S+");
     private static final Pattern ANY_REPEAT_WORD =
-            Pattern.compile("(?iu)\\b(?:every|repeat|РїРѕРІС‚РѕСЂ|РєР°Р¶РґС‹Рµ)\\b\\s*:?\\s*\\d+\\S*");
+            Pattern.compile("(?iu)\\b(?:every|repeat|повтор|каждые)\\b\\s*:?\\s*\\d+\\S*");
     private static final Pattern ISO_DATE_TIME_VALUE =
             Pattern.compile("^(\\d{4}-\\d{2}-\\d{2})(?:[ T]+)(\\d{1,2}:\\d{2})$");
     private static final Pattern RU_DATE_TIME_VALUE =
@@ -67,7 +67,7 @@ public final class TaskParser {
     private static final Pattern TIME_VALUE =
             Pattern.compile("^(\\d{1,2}:\\d{2})$");
     private static final Pattern DURATION_VALUE =
-            Pattern.compile("(?iu)^(\\d+)\\s*(m|min|РјРёРЅ|Рј|h|hr|С‡|d|day|Рґ|w|wk|week|mo|mon|month)$");
+            Pattern.compile("(?iu)^(\\d+)\\s*(m|min|мин|м|h|hr|ч|d|day|д|w|wk|week|mo|mon|month)$");
     private static final Pattern HASH_TAG =
             Pattern.compile("(?<!\\S)#([\\p{L}\\p{N}_/-]+)");
     private static final Pattern SNOOZED_COUNT =
@@ -95,9 +95,6 @@ public final class TaskParser {
                 .getActiveTasks();
     }
 
-    /**
-     * Parses one markdown document using today's date for time-only reminders.
-     */
     public static TaskParseResult parseDocument(String markdown, String sourceName) {
         return parseDocument(markdown, LocalDate.now(), sourceName, TaskFormatSettings.defaults());
     }
@@ -106,13 +103,6 @@ public final class TaskParser {
         return parseDocument(markdown, defaultDate, sourceName, TaskFormatSettings.defaults());
     }
 
-    /**
-     * Parses a markdown document into tasks plus non-fatal parse warnings.
-     *
-     * <p>The returned tasks still point back to their source line and raw
-     * markdown so later write-back flows can edit the same document instead of
-     * generating detached copies.</p>
-     */
     public static TaskParseResult parseDocument(
             String markdown,
             LocalDate defaultDate,
@@ -547,13 +537,13 @@ public final class TaskParser {
         }
 
         String unit = rawUnit.toLowerCase(Locale.ROOT);
-        if (unit.equals("m") || unit.equals("min") || unit.equals("РјРёРЅ") || unit.equals("Рј")) {
+        if (unit.equals("m") || unit.equals("min") || unit.equals("мин") || unit.equals("м")) {
             return Duration.ofMinutes(amount);
         }
-        if (unit.equals("h") || unit.equals("hr") || unit.equals("С‡")) {
+        if (unit.equals("h") || unit.equals("hr") || unit.equals("ч")) {
             return Duration.ofHours(amount);
         }
-        if (unit.equals("d") || unit.equals("day") || unit.equals("Рґ")) {
+        if (unit.equals("d") || unit.equals("day") || unit.equals("д")) {
             return Duration.ofDays(amount);
         }
         if (unit.equals("w") || unit.equals("wk") || unit.equals("week")) {
@@ -590,13 +580,13 @@ public final class TaskParser {
 
     private static RepeatRule.Unit parseRepeatUnit(String rawUnit) {
         String unit = rawUnit == null ? "" : rawUnit.trim().toLowerCase(Locale.ROOT);
-        if (unit.equals("m") || unit.equals("min") || unit.equals("РјРёРЅ") || unit.equals("Рј")) {
+        if (unit.equals("m") || unit.equals("min") || unit.equals("мин") || unit.equals("м")) {
             return RepeatRule.Unit.MINUTES;
         }
-        if (unit.equals("h") || unit.equals("hr") || unit.equals("С‡")) {
+        if (unit.equals("h") || unit.equals("hr") || unit.equals("ч")) {
             return RepeatRule.Unit.HOURS;
         }
-        if (unit.equals("d") || unit.equals("day") || unit.equals("Рґ")) {
+        if (unit.equals("d") || unit.equals("day") || unit.equals("д")) {
             return RepeatRule.Unit.DAYS;
         }
         if (unit.equals("w") || unit.equals("wk") || unit.equals("week")) {
@@ -670,27 +660,15 @@ public final class TaskParser {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "РЅРµ СѓРґР°Р»РѕСЃСЊ СЂР°Р·РѕР±СЂР°С‚СЊ @"
-                            + format.getDueKeyword()
-                            + "(...). РСЃРїРѕР»СЊР·СѓР№С‚Рµ РґР°С‚Сѓ-РІСЂРµРјСЏ, РґР°С‚Сѓ РёР»Рё РІСЂРµРјСЏ: @"
-                            + format.getDueKeyword()
-                            + "(2026-04-20 14:30), @"
-                            + format.getDueKeyword()
-                            + "(2026-04-20), @"
-                            + format.getDueKeyword()
-                            + "(14:30)"
+                    TaskParseError.Kind.DUE_FUNCTION_INVALID,
+                    format.getDueKeyword()
             ));
         } else if (fields.reminderAt == null && hasSuspiciousReminderToken(body, format)) {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "РЅРµ СѓРґР°Р»РѕСЃСЊ СЂР°Р·РѕР±СЂР°С‚СЊ РІСЂРµРјСЏ. РСЃРїРѕР»СЊР·СѓР№С‚Рµ @"
-                            + format.getDueKeyword()
-                            + "(2026-04-20 14:30), @"
-                            + format.getDueKeyword()
-                            + "(2026-04-20), @"
-                            + format.getDueKeyword()
-                            + "(14:30) РёР»Рё legacy @2026-04-20 14:30"
+                    TaskParseError.Kind.DUE_TIME_INVALID,
+                    format.getDueKeyword()
             ));
         }
 
@@ -705,15 +683,9 @@ public final class TaskParser {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "РЅРµ СѓРґР°Р»РѕСЃСЊ СЂР°Р·РѕР±СЂР°С‚СЊ repeat-РїСЂР°РІРёР»Рѕ. РСЃРїРѕР»СЊР·СѓР№С‚Рµ @"
-                            + format.getRepeatKeyword()
-                            + "(15m), @"
-                            + format.getRepeatKeyword()
-                            + "(1w) @days(mon,wed,fri), @"
-                            + format.getRepeatKeyword()
-                            + "(1mo) @monthday(last) РёР»Рё @"
-                            + format.getRepeatUntilDoneKeyword()
-                            + "(15m)"
+                    TaskParseError.Kind.REPEAT_RULE_INVALID,
+                    format.getRepeatKeyword(),
+                    format.getRepeatUntilDoneKeyword()
             ));
         }
 
@@ -721,15 +693,8 @@ public final class TaskParser {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "РЅРµ СѓРґР°Р»РѕСЃСЊ СЂР°Р·РѕР±СЂР°С‚СЊ РїСЂРёРѕСЂРёС‚РµС‚. РСЃРїРѕР»СЊР·СѓР№С‚Рµ @"
-                            + format.getPriorityKeyword()
-                            + "(low), @"
-                            + format.getPriorityKeyword()
-                            + "(medium), @"
-                            + format.getPriorityKeyword()
-                            + "(high) РёР»Рё @"
-                            + format.getPriorityKeyword()
-                            + "(urgent)"
+                    TaskParseError.Kind.PRIORITY_INVALID,
+                    format.getPriorityKeyword()
             ));
         }
 
@@ -737,14 +702,14 @@ public final class TaskParser {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "РЅРµ СѓРґР°Р»РѕСЃСЊ СЂР°Р·РѕР±СЂР°С‚СЊ @grace(...). РСЃРїРѕР»СЊР·СѓР№С‚Рµ @grace(10m), @grace(1h) РёР»Рё @grace(0m)"
+                    TaskParseError.Kind.GRACE_INVALID
             ));
         }
         if (fields.snoozeFunctionInvalid) {
             errors.add(new TaskParseError(
                     sourceName,
                     lineNumber,
-                    "РЅРµ СѓРґР°Р»РѕСЃСЊ СЂР°Р·РѕР±СЂР°С‚СЊ @snooze(...). РСЃРїРѕР»СЊР·СѓР№С‚Рµ @snooze(10m), @snooze(1h) РёР»Рё @snooze(1d)"
+                    TaskParseError.Kind.SNOOZE_INVALID
             ));
         }
     }

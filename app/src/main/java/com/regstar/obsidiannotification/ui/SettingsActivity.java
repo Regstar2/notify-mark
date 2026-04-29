@@ -129,7 +129,7 @@ public final class SettingsActivity extends Activity {
 
         String section = getIntent().getStringExtra(EXTRA_SECTION);
         if (section == null || section.trim().isEmpty()) {
-            addHeader(root, "Р В РЎСљР В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р В РЎвЂќР В РЎвЂ", false);
+        addHeader(root, getString(R.string.settings_title), false);
             addSettingsIndex(root);
         } else {
             addHeader(root, sectionTitle(section), true);
@@ -146,7 +146,7 @@ public final class SettingsActivity extends Activity {
         row.setPadding(0, 0, 0, dp(12));
 
         if (back) {
-            Button backButton = createSmallButton("Р Р†Р вЂљРІвЂћвЂ“");
+            Button backButton = createSmallButton("‹");
             backButton.setTextSize(24);
             backButton.setOnClickListener(view -> finish());
             LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(dp(44), dp(42));
@@ -170,37 +170,37 @@ public final class SettingsActivity extends Activity {
 
     private void addSettingsIndex(LinearLayout root) {
         root.addView(createActionCard(
-                "Р В РЎвЂєР РЋР С“Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ",
-                "Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР В Р’Вµ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ, Р В РЎвЂ“Р В Р’В»Р В Р’В°Р В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋР РЉР В РЎвЂќР РЋР вЂљР В Р’В°Р В Р вЂ¦, Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В РЎвЂќР В Р’В° Р В РЎвЂ Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р’В°.",
+                getString(R.string.settings_section_basic_title),
+                getString(R.string.settings_section_basic_subtitle),
                 () -> openSection(SECTION_BASIC)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В РЎвЂ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ",
-                "Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„–, Р В РЎвЂ”Р В Р’В°Р В РЎвЂ”Р В РЎвЂќР В РЎвЂ Р В РЎвЂ Р РЋРЎвЂњР В РЎвЂ”Р РЋР вЂљР В Р’В°Р В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В РЎвЂўР В РЎВ Р РЋРІР‚РЋР В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В· Android picker.",
+                getString(R.string.settings_section_sources_title),
+                getString(R.string.settings_section_sources_subtitle),
                 () -> openSection(SECTION_SOURCES)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Р В Р в‚¬Р В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ",
-                "Exact alarms, Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰, Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР РЋРІР‚в„– Р В РЎвЂ Р В РўвЂР В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР РЋР РЏ Р В РЎвЂР В Р’В· Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ.",
+                getString(R.string.settings_section_notifications_title),
+                getString(R.string.settings_section_notifications_subtitle),
                 () -> openSection(SECTION_NOTIFICATIONS)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Р В Р’В¤Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В°Р РЋРІР‚С™ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ",
-                "Р В РЎв„ўР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ Р РЋРІР‚в„–Р В Р’Вµ Р РЋР С“Р В Р’В»Р В РЎвЂўР В Р вЂ Р В Р’В° @due, @repeat, @tag, @priority Р В РЎвЂ @group.",
+                getString(R.string.settings_section_format_title),
+                getString(R.string.settings_section_format_subtitle),
                 () -> openSection(SECTION_FORMAT)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Р В РЎСџР В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р В Р вЂ  Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°Р РЋРІР‚В¦",
-                "Р В РЎС™Р В Р’В°Р РЋР С“Р В РЎвЂќР В РЎвЂ, Р В РЎвЂР РЋР С“Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂ Р В Р’В»Р В РЎвЂР В РЎВР В РЎвЂР РЋРІР‚С™ Р РЋР С“Р В РЎвЂќР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂ”Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎвЂќ.",
+                getString(R.string.settings_section_scan_title),
+                getString(R.string.settings_section_scan_subtitle),
                 () -> openSection(SECTION_SCAN)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Р В РЎСџР РЋР вЂљР В РЎвЂўР В РўвЂР В Р вЂ Р В РЎвЂР В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™Р РЋРІР‚в„–Р В Р’Вµ / Р В РЎвЂєР РЋРІР‚С™Р В Р’В»Р В Р’В°Р В РўвЂР В РЎвЂќР В Р’В°",
-                "Р В Р Р‹Р В Р’В»Р РЋРЎвЂњР В Р’В¶Р В Р’ВµР В Р’В±Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋР С“Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋР РЏР В Р вЂ¦Р В РЎвЂР В Р’Вµ, Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В Р’В»Р В Р’ВµР В РўвЂР В Р вЂ¦Р РЋР РЏР РЋР РЏ Р В РЎвЂўР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂќР В Р’В°, Р В РЎвЂќР РЋР РЉР РЋРІвЂљВ¬ Р В РЎвЂ debug actions.",
+                getString(R.string.settings_section_advanced_title),
+                getString(R.string.settings_section_advanced_subtitle),
                 () -> openSection(SECTION_ADVANCED)
         ), fullWidthWithBottomMargin());
 
-        Button closeButton = createButton("Р В РІР‚вЂќР В Р’В°Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰");
+        Button closeButton = createButton(getString(R.string.settings_close));
         closeButton.setOnClickListener(view -> finish());
         root.addView(closeButton, fullWidthWithBottomMargin());
     }
@@ -219,30 +219,30 @@ public final class SettingsActivity extends Activity {
         } else if (SECTION_ADVANCED.equals(section)) {
             addAdvancedSettings(root);
         } else {
-            root.addView(createDescription("Р В Р’В Р В Р’В°Р В Р’В·Р В РўвЂР В Р’ВµР В Р’В» Р В Р вЂ¦Р В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В РЎвЂќ Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РІвЂћвЂ“Р В РўвЂР В Р’ВµР В Р вЂ¦."), fullWidthWithBottomMargin());
+        root.addView(createDescription(getString(R.string.settings_section_not_found)), fullWidthWithBottomMargin());
         }
     }
 
     private String sectionTitle(String section) {
         if (SECTION_BASIC.equals(section)) {
-            return "Р В РЎвЂєР РЋР С“Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ";
+            return getString(R.string.settings_section_basic_title);
         }
         if (SECTION_SOURCES.equals(section)) {
-            return "Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В РЎвЂ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ";
+            return getString(R.string.settings_section_sources_title);
         }
         if (SECTION_NOTIFICATIONS.equals(section)) {
-            return "Р В Р в‚¬Р В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ";
+            return getString(R.string.settings_section_notifications_title);
         }
         if (SECTION_FORMAT.equals(section)) {
-            return "Р В Р’В¤Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В°Р РЋРІР‚С™ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ";
+            return getString(R.string.settings_section_format_title);
         }
         if (SECTION_SCAN.equals(section)) {
-            return "Р В РЎСџР В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ";
+            return getString(R.string.settings_section_scan_title);
         }
         if (SECTION_ADVANCED.equals(section)) {
-            return "Р В РЎСџР РЋР вЂљР В РЎвЂўР В РўвЂР В Р вЂ Р В РЎвЂР В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™Р РЋРІР‚в„–Р В Р’Вµ";
+            return getString(R.string.settings_advanced_title);
         }
-        return "Р В РЎСљР В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р В РЎвЂќР В РЎвЂ";
+        return getString(R.string.settings_title);
     }
 
     private void openSection(String section) {
@@ -253,25 +253,25 @@ public final class SettingsActivity extends Activity {
 
     private void addBasicSettings(LinearLayout root) {
         root.addView(createDescription(
-                "Р В РІР‚вЂќР В РўвЂР В Р’ВµР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р РЋР вЂ№Р РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р РЋРІР‚С™Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В РЎвЂќР В РЎвЂў Р В Р вЂ¦Р В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р В РЎвЂќР В РЎвЂ, Р В РЎвЂќР В РЎвЂўР РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР РЋРІР‚в„–Р В Р’Вµ Р В РЎВР В Р’ВµР В Р вЂ¦Р РЋР РЏР РЋР вЂ№Р РЋРІР‚С™ Р В Р’ВµР В Р’В¶Р В Р’ВµР В РўвЂР В Р вЂ¦Р В Р’ВµР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋР С“Р РЋРІР‚В Р В Р’ВµР В Р вЂ¦Р В Р’В°Р РЋР вЂљР В РЎвЂР В РІвЂћвЂ“ Р РЋР вЂљР В Р’В°Р В Р’В±Р В РЎвЂўР РЋРІР‚С™Р РЋРІР‚в„–."
+                getString(R.string.settings_basic_description)
         ), fullWidthWithBottomMargin());
 
-        root.addView(createSubsectionLabel("Р В РЎвЂєР РЋР С“Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р РЋР С“Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В РЎвЂўР В Р’В± Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР РЋР РЏ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ"), fullWidth());
+        root.addView(createSubsectionLabel(getString(R.string.settings_open_mode_title)), fullWidth());
         String mode = EditPreferences.getEditMode(this);
         root.addView(createChoiceCard(
-                "Р В Р’В§Р В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В· UI",
-                "Р В Р’В¤Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В° Р В РЎвЂўР В РўвЂР В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р РЋР С“ preview Р В РЎвЂР РЋРІР‚С™Р В РЎвЂўР В РЎвЂ“Р В РЎвЂўР В Р вЂ Р В РЎвЂўР В РІвЂћвЂ“ markdown-Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РЎвЂќР В РЎвЂ.",
+                getString(R.string.settings_edit_mode_ui_title),
+                getString(R.string.settings_edit_mode_ui_subtitle),
                 EditPreferences.MODE_UI.equals(mode),
                 () -> setEditMode(EditPreferences.MODE_UI)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»",
-                "Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В РЎвЂР РЋР С“Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В Р вЂ¦Р В Р’В° Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РЎвЂќР В Р’Вµ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ.",
+                getString(R.string.settings_edit_mode_markdown_title),
+                getString(R.string.settings_edit_mode_markdown_subtitle),
                 EditPreferences.MODE_MARKDOWN.equals(mode),
                 () -> setEditMode(EditPreferences.MODE_MARKDOWN)
         ), fullWidthWithBottomMargin());
 
-        root.addView(createSubsectionLabel("Р В РІР‚СљР В Р’В»Р В Р’В°Р В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋР РЉР В РЎвЂќР РЋР вЂљР В Р’В°Р В Р вЂ¦"), fullWidth());
+        root.addView(createSubsectionLabel(getString(R.string.settings_main_screen_title)), fullWidth());
         activeFilterButton = createButton("");
         activeFilterButton.setOnClickListener(view -> {
             UserPreferences.setActiveOnly(this, !UserPreferences.isActiveOnly(this));
@@ -281,7 +281,7 @@ public final class SettingsActivity extends Activity {
         root.addView(activeFilterButton, fullWidthWithBottomMargin());
 
         showSourceOnMainCheckbox = createCheckBox(
-                "Р В РЎСџР В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„–Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ¦Р В Р’В° Р В РЎвЂ“Р В Р’В»Р В Р’В°Р В Р вЂ Р В Р вЂ¦Р В РЎвЂўР В РЎВ Р РЋР РЉР В РЎвЂќР РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’Вµ",
+                getString(R.string.settings_show_source_on_main),
                 UserPreferences.shouldShowSourceOnMain(this)
         );
         showSourceOnMainCheckbox.setOnCheckedChangeListener((button, checked) ->
@@ -290,60 +290,60 @@ public final class SettingsActivity extends Activity {
 
         privateMarkerInput = addKeywordInput(
                 root,
-                "Р В РЎСџР РЋР вЂљР В РЎвЂР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р В Р вЂ¦Р В Р’В°Р РЋР РЏ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В Р’В° Р В РЎвЂР В Р’В»Р В РЎвЂ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“",
+                getString(R.string.settings_private_marker_title),
                 UserPreferences.getPrivateMarker(this)
         );
         root.addView(createDescription(
-                "Р В РЎСљР В Р’В°Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎВР В Р’ВµР РЋР вЂљ private: Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р РЋР С“ @group(private) Р В РЎвЂР В Р’В»Р В РЎвЂ #private Р РЋР С“Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р В Р вЂ Р В Р’В°Р РЋР вЂ№Р РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В Р вЂ  Р вЂ™Р’В«Р В РІР‚в„ўР РЋР С“Р В Р’Вµ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р РЋРІР‚в„–Р вЂ™Р’В». Р В РЎСџР РЋРЎвЂњР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В Р’Вµ Р В Р’В·Р В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’В°Р В Р’ВµР РЋРІР‚С™ Р РЋР С“Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР В Р’Вµ."
+                getString(R.string.settings_private_marker_description)
         ), fullWidthWithBottomMargin());
-        Button savePrivateMarkerButton = createButton("Р В Р Р‹Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В РЎВР В Р’В°Р РЋР вЂљР В РЎвЂќР В Р’ВµР РЋР вЂљ");
+        Button savePrivateMarkerButton = createButton(getString(R.string.settings_save_private_marker));
         savePrivateMarkerButton.setOnClickListener(view -> savePrivateMarker());
         root.addView(savePrivateMarkerButton, fullWidthWithBottomMargin());
 
-        root.addView(createSubsectionLabel("Р В РІР‚СљР РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В РЎвЂќР В Р’В°"), fullWidth());
+        root.addView(createSubsectionLabel(getString(R.string.settings_grouping_title)), fullWidth());
         String groupingMode = UserPreferences.getGroupingMode(this);
         root.addView(createChoiceCard(
-                "Р В Р Р‹Р В РЎВР В Р’ВµР РЋРІвЂљВ¬Р В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р В Р’В°Р РЋР РЏ",
-                "Р В Р’ВР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ @group, Р В РЎвЂР В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’Вµ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“ Р В РЎвЂР В Р’В»Р В РЎвЂ Р В РЎвЂР В РЎВР РЋР РЏ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°.",
+                getString(R.string.settings_grouping_smart_title),
+                getString(R.string.settings_grouping_smart_subtitle),
                 UserPreferences.GROUPING_SMART.equals(groupingMode),
                 () -> setGroupingMode(UserPreferences.GROUPING_SMART)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РЎСџР В РЎвЂў @group",
-                "Р В РЎСџР В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„–Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р РЋРІР‚в„– Р РЋРІР‚С™Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В РЎвЂќР В РЎвЂў Р В РЎвЂР В Р’В· @group(...).",
+                getString(R.string.settings_grouping_group_title),
+                getString(R.string.settings_grouping_group_subtitle),
                 UserPreferences.GROUPING_GROUP.equals(groupingMode),
                 () -> setGroupingMode(UserPreferences.GROUPING_GROUP)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РЎСџР В РЎвЂў Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“Р В Р’В°Р В РЎВ",
-                "Р В Р’ВР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В РЎвЂќР В Р’В°Р В РЎвЂќ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р РЋРЎвЂњ.",
+                getString(R.string.settings_grouping_tag_title),
+                getString(R.string.settings_grouping_tag_subtitle),
                 UserPreferences.GROUPING_TAG.equals(groupingMode),
                 () -> setGroupingMode(UserPreferences.GROUPING_TAG)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РЎСџР В РЎвЂў Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°Р В РЎВ",
-                "Р В РІР‚СљР РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В РЎвЂ”Р В РЎвЂў Р В РЎвЂР В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°.",
+                getString(R.string.settings_grouping_file_title),
+                getString(R.string.settings_grouping_file_subtitle),
                 UserPreferences.GROUPING_FILE.equals(groupingMode),
                 () -> setGroupingMode(UserPreferences.GROUPING_FILE)
         ), fullWidthWithBottomMargin());
 
-        root.addView(createSubsectionLabel("Р В РЎС›Р В Р’ВµР В РЎВР В Р’В°"), fullWidth());
+        root.addView(createSubsectionLabel(getString(R.string.settings_theme_title)), fullWidth());
         String themeMode = ThemePreferences.getThemeMode(this);
         root.addView(createChoiceCard(
-                "Р В Р Р‹Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р В Р’В°Р РЋР РЏ",
-                "Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ¦Р В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р В РЎвЂќР В Р’Вµ Р РЋРІР‚С™Р В Р’ВµР В РЎВР РЋРІР‚в„– Android.",
+                getString(R.string.settings_theme_system_title),
+                getString(R.string.settings_theme_system_subtitle),
                 ThemePreferences.MODE_SYSTEM.equals(themeMode),
                 () -> setThemeMode(ThemePreferences.MODE_SYSTEM)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В Р Р‹Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В»Р В Р’В°Р РЋР РЏ",
-                "Р В РІР‚в„ўР РЋР С“Р В Р’ВµР В РЎвЂ“Р В РўвЂР В Р’В° Р В РЎвЂР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР С“Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В»Р РЋРЎвЂњР РЋР вЂ№ Р РЋРІР‚С™Р В Р’ВµР В РЎВР РЋРЎвЂњ.",
+                getString(R.string.settings_theme_light_title),
+                getString(R.string.settings_theme_light_subtitle),
                 ThemePreferences.MODE_LIGHT.equals(themeMode),
                 () -> setThemeMode(ThemePreferences.MODE_LIGHT)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РЎС›Р В Р’ВµР В РЎВР В Р вЂ¦Р В Р’В°Р РЋР РЏ",
-                "Р В РІР‚в„ўР РЋР С“Р В Р’ВµР В РЎвЂ“Р В РўвЂР В Р’В° Р В РЎвЂР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р РЋРЎвЂњР РЋР вЂ№ Р РЋРІР‚С™Р В Р’ВµР В РЎВР РЋРЎвЂњ.",
+                getString(R.string.settings_theme_dark_title),
+                getString(R.string.settings_theme_dark_subtitle),
                 ThemePreferences.MODE_DARK.equals(themeMode),
                 () -> setThemeMode(ThemePreferences.MODE_DARK)
         ), fullWidthWithBottomMargin());
@@ -354,53 +354,53 @@ public final class SettingsActivity extends Activity {
                 TaskSourceManager.getStorageMode(this) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE;
         boolean hasExternalSources = TaskSourceManager.hasExternalSources(this);
         String externalSubtitle = hasExternalSources
-                ? "Р В РЎС›Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ: " + compactName(NoteStore.externalSourceLabel(this))
-                : "Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„– Р В РЎвЂ Р В РЎвЂ”Р В Р’В°Р В РЎвЂ”Р В РЎвЂќР В РЎвЂ Р РЋРІР‚РЋР В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В· Android picker. Р В РЎСџР В РЎвЂўР В РўвЂР РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В РЎвЂР РЋРІР‚С™ Р В РўвЂР В Р’В»Р РЋР РЏ Obsidian, Syncthing Р В РЎвЂ Р В РЎвЂўР В Р’В±Р РЋРІР‚в„–Р РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В РЎвЂўР В Р вЂ .";
+                ? getString(R.string.settings_external_current_source, compactName(NoteStore.externalSourceLabel(this)))
+                : getString(R.string.storage_external_description_long);
         root.addView(createDescription(
-                "Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В Р’ВµР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’Вµ, Р В РЎвЂ“Р В РўвЂР В Р’Вµ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В Р’В±Р РЋРЎвЂњР В РўвЂР В Р’ВµР РЋРІР‚С™ Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ markdown-Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ: Р В Р вЂ Р В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™Р РЋР вЂљР В РЎвЂ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂР В Р’В»Р В РЎвЂ Р В Р вЂ Р В РЎвЂў Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР РЋРІР‚В¦ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°Р РЋРІР‚В¦."
+                getString(R.string.settings_sources_description)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ",
-                "Р В РІР‚С”Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„– Р В Р вЂ Р В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™Р РЋР вЂљР В РЎвЂ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ. Р В РЎСљР В Р’Вµ Р РЋРІР‚С™Р РЋР вЂљР В Р’ВµР В Р’В±Р РЋРЎвЂњР В Р’ВµР РЋРІР‚С™ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р В РЎвЂўР РЋР вЂљР В Р’В° Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В Р’ВµР В РІвЂћвЂ“ Р В РЎвЂ”Р В Р’В°Р В РЎвЂ”Р В РЎвЂќР В РЎвЂ.",
+                getString(R.string.storage_internal_label),
+                getString(R.string.storage_internal_description_long),
                 internalSelected,
                 this::switchToInternalStorage
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РІР‚в„ўР В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В Р’Вµ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„–",
+                getString(R.string.storage_external_label),
                 externalSubtitle,
                 !internalSelected,
                 this::activateOrSelectExternalStorage
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Р В Р в‚¬Р В РЎвЂ”Р РЋР вЂљР В Р’В°Р В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В РЎВР В РЎвЂ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В Р’В°Р В РЎВР В РЎвЂ",
-                "Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р РЋРІР‚С™Р РЋР Р‰, Р В РўвЂР В РЎвЂўР В Р’В±Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР В Р’В»Р В РЎвЂ Р В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В Р’Вµ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„– Р В РЎвЂ Р В РЎвЂ”Р В Р’В°Р В РЎвЂ”Р В РЎвЂќР В РЎвЂ.",
+                getString(R.string.settings_manage_external_sources),
+                getString(R.string.settings_manage_external_sources_subtitle),
                 this::openSourceManagement
         ), fullWidthWithBottomMargin());
         root.addView(createDescription(
-                "Р В Р Р‹Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’В° Р РЋР вЂљР В Р’ВµР В Р’В¶Р В РЎвЂР В РЎВР В Р’В° Р В Р вЂ¦Р В Р’Вµ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР В Р вЂ¦Р В РЎвЂўР РЋР С“Р В РЎвЂР РЋРІР‚С™ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В Р’В°Р В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР В РЎВР В Р’В°Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚РЋР В Р’ВµР РЋР С“Р В РЎвЂќР В РЎвЂ. Р В РІР‚СћР РЋР С“Р В Р’В»Р В РЎвЂ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР В Р вЂ¦Р В РЎвЂўР РЋР С“ Р В Р вЂ¦Р РЋРЎвЂњР В Р’В¶Р В Р’ВµР В Р вЂ¦, markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„– Р В РЎвЂ”Р В РЎвЂўР В РЎвЂќР В Р’В° Р В Р вЂ¦Р РЋРЎвЂњР В Р’В¶Р В Р вЂ¦Р В РЎвЂў Р В РЎвЂќР В РЎвЂўР В РЎвЂ”Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋР вЂљР РЋРЎвЂњР РЋРІР‚РЋР В Р вЂ¦Р РЋРЎвЂњР РЋР вЂ№."
+                getString(R.string.settings_source_switch_hint)
         ), fullWidthWithBottomMargin());
     }
 
     private void addNotificationSettings(LinearLayout root) {
         root.addView(createDescription(
-                "Р В РЎСџР В Р’В°Р РЋР вЂљР В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р РЋР вЂљР РЋРІР‚в„– Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В РЎвЂ, Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂ Р В РўвЂР В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂР В Р’В· Р РЋР С“Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“."
+                getString(R.string.settings_notifications_description)
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Exact alarms",
+                getString(R.string.settings_exact_alarms_title),
                 ReminderScheduler.canScheduleExactAlarms(this)
-                        ? "Р В РЎС›Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–."
-                        : "Р В Р’В Р В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ  Р РЋР С“Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В Р вЂ¦Р В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р В РЎвЂќР В Р’В°Р РЋРІР‚В¦.",
+                        ? getString(R.string.settings_exact_alarms_enabled)
+                        : getString(R.string.settings_exact_alarms_disabled),
                 this::requestExactAlarmPermission
         ), fullWidthWithBottomMargin());
         addNotificationActionSettings(root);
         root.addView(createActionCard(
-                "Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В РЎвЂ”Р В Р’В»Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋР С“Р В Р’Вµ",
-                "Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В РЎвЂ Р В Р’В·Р В Р’В°Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В РЎвЂў Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ.",
+                getString(R.string.settings_reschedule_all),
+                getString(R.string.settings_reschedule_all_subtitle),
                 this::rescheduleAll
         ), fullWidthWithBottomMargin());
         root.addView(createActionCard(
-                "Р В РЎС›Р В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В РЎвЂўР В Р’Вµ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ",
-                "Р В РЎСџР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р вЂ Р РЋРЎвЂњР В РЎвЂќ, Р В Р вЂ Р В РЎвЂР В Р’В±Р РЋР вЂљР В Р’В°Р РЋРІР‚В Р В РЎвЂР РЋР вЂ№ Р В РЎвЂ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“.",
+                getString(R.string.settings_test_notification),
+                getString(R.string.settings_test_notification_subtitle),
                 this::sendTestNotification
         ), fullWidthWithBottomMargin());
     }
@@ -408,7 +408,7 @@ public final class SettingsActivity extends Activity {
     private void addAdvancedSettings(LinearLayout root) {
         LinearLayout summaryCard = createSettingsCard();
         TextView summaryTitle = new TextView(this);
-        summaryTitle.setText("Р В Р Р‹Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋР РЏР В Р вЂ¦Р В РЎвЂР В Р’Вµ");
+        summaryTitle.setText(getString(R.string.settings_state_title));
         summaryTitle.setTextSize(15);
         summaryTitle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         summaryTitle.setTextColor(getColor(R.color.text_primary));
@@ -424,30 +424,30 @@ public final class SettingsActivity extends Activity {
 
     private void addEditingSettings(LinearLayout root) {
         TextView editTitle = new TextView(this);
-        editTitle.setText("Р В РЎСџР В РЎвЂўР В Р вЂ Р В Р’ВµР В РўвЂР В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ");
+        editTitle.setText(getString(R.string.settings_behavior_title));
         editTitle.setTextSize(18);
         editTitle.setTextColor(getColor(R.color.text_primary));
         editTitle.setPadding(0, dp(12), 0, dp(6));
         root.addView(editTitle, fullWidth());
 
         TextView editDescription = new TextView(this);
-        editDescription.setText("Р В РЎвЂєР РЋР С“Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р РЋР С“Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В РЎвЂўР В Р’В± Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР РЋР РЏ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В РЎвЂР В Р’В· Р РЋР С“Р В РЎвЂ”Р В РЎвЂР РЋР С“Р В РЎвЂќР В Р’В° Р В РЎвЂ Р В Р’В±Р В Р’В°Р В Р’В·Р В РЎвЂўР В Р вЂ Р В РЎвЂўР В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р В Р’ВµР В РўвЂР В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂ“Р В Р’В»Р В Р’В°Р В Р вЂ Р В Р вЂ¦Р В РЎвЂўР В РЎвЂ“Р В РЎвЂў Р РЋР РЉР В РЎвЂќР РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’В°.");
+        editDescription.setText(getString(R.string.settings_behavior_description));
         editDescription.setTextSize(14);
         editDescription.setTextColor(getColor(R.color.text_secondary));
         editDescription.setPadding(0, 0, 0, dp(8));
         root.addView(editDescription, fullWidth());
 
-        root.addView(createSubsectionLabel("Р В РЎвЂєР РЋР С“Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р РЋР С“Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В РЎвЂўР В Р’В± Р РЋР вЂљР В Р’ВµР В РўвЂР В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ"), fullWidth());
+        root.addView(createSubsectionLabel(getString(R.string.settings_open_mode_title)), fullWidth());
         String mode = EditPreferences.getEditMode(this);
         root.addView(createChoiceCard(
-                "Р В Р’В§Р В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В· UI",
-                "Р В Р’В¤Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В° Р В РЎвЂўР В РўвЂР В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р РЋР С“ preview Р В РЎвЂР РЋРІР‚С™Р В РЎвЂўР В РЎвЂ“Р В РЎвЂўР В Р вЂ Р В РЎвЂўР В РІвЂћвЂ“ markdown-Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РЎвЂќР В РЎвЂ.",
+                getString(R.string.settings_edit_mode_ui_title),
+                getString(R.string.settings_edit_mode_ui_subtitle),
                 EditPreferences.MODE_UI.equals(mode),
                 () -> setEditMode(EditPreferences.MODE_UI)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»",
-                "Р В РЎСџР В РЎвЂўР В Р’В»Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В РЎвЂР РЋР С“Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р РЋР С“ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР РЋРІР‚В¦Р В РЎвЂўР В РўвЂР В РЎвЂўР В РЎВ Р В РЎвЂќ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РЎвЂќР В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ.",
+                getString(R.string.settings_edit_mode_markdown_title),
+                getString(R.string.settings_edit_mode_markdown_subtitle),
                 EditPreferences.MODE_MARKDOWN.equals(mode),
                 () -> setEditMode(EditPreferences.MODE_MARKDOWN)
         ), fullWidthWithBottomMargin());
@@ -461,29 +461,29 @@ public final class SettingsActivity extends Activity {
         updateActiveFilterButton();
         root.addView(activeFilterButton, fullWidthWithBottomMargin());
 
-        root.addView(createSubsectionLabel("Р В РІР‚СљР РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В РЎвЂќР В Р’В° Р В Р вЂ¦Р В Р’В° Р В РЎвЂ“Р В Р’В»Р В Р’В°Р В Р вЂ Р В Р вЂ¦Р В РЎвЂўР В РЎВ Р РЋР РЉР В РЎвЂќР РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’Вµ"), fullWidth());
+        root.addView(createSubsectionLabel(getString(R.string.settings_main_grouping_title)), fullWidth());
         String groupingMode = UserPreferences.getGroupingMode(this);
         root.addView(createChoiceCard(
-                "Р В Р Р‹Р В РЎВР В Р’ВµР РЋРІвЂљВ¬Р В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р В Р’В°Р РЋР РЏ",
-                "Р В Р’ВР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ @group, Р В РЎвЂР В Р вЂ¦Р В Р’В°Р РЋРІР‚РЋР В Р’Вµ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“ Р В РЎвЂР В Р’В»Р В РЎвЂ Р В РЎвЂР В РЎВР РЋР РЏ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°.",
+                getString(R.string.settings_grouping_smart_title),
+                getString(R.string.settings_grouping_smart_subtitle),
                 UserPreferences.GROUPING_SMART.equals(groupingMode),
                 () -> setGroupingMode(UserPreferences.GROUPING_SMART)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РЎСџР В РЎвЂў @group",
-                "Р В РЎСџР В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В·Р РЋРІР‚в„–Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р РЋРІР‚в„– Р РЋРІР‚С™Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В РЎвЂќР В РЎвЂў Р В РЎвЂР В Р’В· @group(...).",
+                getString(R.string.settings_grouping_group_title),
+                getString(R.string.settings_grouping_group_subtitle),
                 UserPreferences.GROUPING_GROUP.equals(groupingMode),
                 () -> setGroupingMode(UserPreferences.GROUPING_GROUP)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РЎСџР В РЎвЂў Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“Р В Р’В°Р В РЎВ",
-                "Р В Р’ВР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В РЎвЂќР В Р’В°Р В РЎвЂќ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р РЋРЎвЂњ.",
+                getString(R.string.settings_grouping_tag_title),
+                getString(R.string.settings_grouping_tag_subtitle),
                 UserPreferences.GROUPING_TAG.equals(groupingMode),
                 () -> setGroupingMode(UserPreferences.GROUPING_TAG)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РЎСџР В РЎвЂў Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°Р В РЎВ",
-                "Р В РІР‚СљР РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В РЎвЂ”Р В РЎвЂў Р В РЎвЂР В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°.",
+                getString(R.string.settings_grouping_file_title),
+                getString(R.string.settings_grouping_file_subtitle),
                 UserPreferences.GROUPING_FILE.equals(groupingMode),
                 () -> setGroupingMode(UserPreferences.GROUPING_FILE)
         ), fullWidthWithBottomMargin());
@@ -491,14 +491,14 @@ public final class SettingsActivity extends Activity {
 
     private void addAppearanceSettings(LinearLayout root) {
         TextView appearanceTitle = new TextView(this);
-        appearanceTitle.setText("Р В РІР‚в„ўР В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“ Р В Р вЂ Р В РЎвЂР В РўвЂ");
+        appearanceTitle.setText(getString(R.string.settings_appearance_title));
         appearanceTitle.setTextSize(18);
         appearanceTitle.setTextColor(getColor(R.color.text_primary));
         appearanceTitle.setPadding(0, dp(12), 0, dp(6));
         root.addView(appearanceTitle, fullWidth());
 
         TextView appearanceDescription = new TextView(this);
-        appearanceDescription.setText("Р В РЎС›Р В Р’ВµР В РЎВР В Р’В° Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ: Р РЋР С“Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р В Р’В°Р РЋР РЏ, Р РЋР С“Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В»Р В Р’В°Р РЋР РЏ Р В РЎвЂР В Р’В»Р В РЎвЂ Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р В Р’В°Р РЋР РЏ.");
+        appearanceDescription.setText(getString(R.string.settings_appearance_description));
         appearanceDescription.setTextSize(14);
         appearanceDescription.setTextColor(getColor(R.color.text_secondary));
         appearanceDescription.setPadding(0, 0, 0, dp(8));
@@ -506,20 +506,20 @@ public final class SettingsActivity extends Activity {
 
         String themeMode = ThemePreferences.getThemeMode(this);
         root.addView(createChoiceCard(
-                "Р В Р Р‹Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р В Р’В°Р РЋР РЏ",
-                "Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ¦Р В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р В РЎвЂќР В Р’Вµ Р РЋРІР‚С™Р В Р’ВµР В РЎВР РЋРІР‚в„– Android.",
+                getString(R.string.settings_theme_system_title),
+                getString(R.string.settings_theme_system_subtitle),
                 ThemePreferences.MODE_SYSTEM.equals(themeMode),
                 () -> setThemeMode(ThemePreferences.MODE_SYSTEM)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В Р Р‹Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В»Р В Р’В°Р РЋР РЏ",
-                "Р В РІР‚в„ўР РЋР С“Р В Р’ВµР В РЎвЂ“Р В РўвЂР В Р’В° Р В РЎвЂР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР С“Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В»Р РЋРЎвЂњР РЋР вЂ№ Р РЋРІР‚С™Р В Р’ВµР В РЎВР РЋРЎвЂњ.",
+                getString(R.string.settings_theme_light_title),
+                getString(R.string.settings_theme_light_subtitle),
                 ThemePreferences.MODE_LIGHT.equals(themeMode),
                 () -> setThemeMode(ThemePreferences.MODE_LIGHT)
         ), fullWidthWithBottomMargin());
         root.addView(createChoiceCard(
-                "Р В РЎС›Р В Р’ВµР В РЎВР В Р вЂ¦Р В Р’В°Р РЋР РЏ",
-                "Р В РІР‚в„ўР РЋР С“Р В Р’ВµР В РЎвЂ“Р В РўвЂР В Р’В° Р В РЎвЂР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р РЋРЎвЂњР РЋР вЂ№ Р РЋРІР‚С™Р В Р’ВµР В РЎВР РЋРЎвЂњ.",
+                getString(R.string.settings_theme_dark_title),
+                getString(R.string.settings_theme_dark_subtitle),
                 ThemePreferences.MODE_DARK.equals(themeMode),
                 () -> setThemeMode(ThemePreferences.MODE_DARK)
         ), fullWidthWithBottomMargin());
@@ -527,33 +527,33 @@ public final class SettingsActivity extends Activity {
 
     private void addFormatSettings(LinearLayout root) {
         TextView formatTitle = new TextView(this);
-        formatTitle.setText("Р В Р’В¤Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В°Р РЋРІР‚С™ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ");
+        formatTitle.setText(getString(R.string.settings_task_format_title));
         formatTitle.setTextSize(18);
         formatTitle.setTextColor(getColor(R.color.text_primary));
         formatTitle.setPadding(0, dp(12), 0, dp(6));
         root.addView(formatTitle, fullWidth());
 
         TaskFormatSettings settings = TaskFormatSettings.load(this);
-        dueKeywordInput = addKeywordInput(root, "Р В РЎв„ўР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋ Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂ", settings.getDueKeyword());
-        repeatKeywordInput = addKeywordInput(root, "Р В РЎв„ўР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋ Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В Р’В°", settings.getRepeatKeyword());
+        dueKeywordInput = addKeywordInput(root, getString(R.string.settings_due_keyword), settings.getDueKeyword());
+        repeatKeywordInput = addKeywordInput(root, getString(R.string.settings_repeat_keyword), settings.getRepeatKeyword());
         repeatUntilDoneKeywordInput = addKeywordInput(
                 root,
-                "Р В РЎв„ўР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋ Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В Р’В° Р В РўвЂР В РЎвЂў Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ",
+                getString(R.string.settings_repeat_until_done_keyword),
                 settings.getRepeatUntilDoneKeyword()
         );
-        tagKeywordInput = addKeywordInput(root, "Р В РЎв„ўР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“Р В РЎвЂўР В Р вЂ ", settings.getTagKeyword());
+        tagKeywordInput = addKeywordInput(root, getString(R.string.settings_tag_keyword), settings.getTagKeyword());
         priorityKeywordInput = addKeywordInput(
                 root,
-                "Р В РЎв„ўР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р’В°",
+                getString(R.string.settings_priority_keyword),
                 settings.getPriorityKeyword()
         );
-        groupKeywordInput = addKeywordInput(root, "Р В РЎв„ўР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р РЋРІР‚в„–", settings.getGroupKeyword());
+        groupKeywordInput = addKeywordInput(root, getString(R.string.settings_group_keyword), settings.getGroupKeyword());
 
-        Button saveFormatButton = createButton("Р В Р Р‹Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰");
+        Button saveFormatButton = createButton(getString(R.string.settings_save));
         saveFormatButton.setOnClickListener(view -> saveFormatSettings());
         root.addView(saveFormatButton, fullWidthWithBottomMargin());
 
-        Button resetFormatButton = createButton("Р В Р Р‹Р В Р’В±Р РЋР вЂљР В РЎвЂўР РЋР С“Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰");
+        Button resetFormatButton = createButton(getString(R.string.settings_reset));
         resetFormatButton.setOnClickListener(view -> resetFormatSettings());
         root.addView(resetFormatButton, fullWidthWithBottomMargin());
     }
@@ -576,7 +576,7 @@ public final class SettingsActivity extends Activity {
 
     private void addScanSettings(LinearLayout root) {
         TextView scanTitle = new TextView(this);
-        scanTitle.setText("Р В РЎСџР В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р В Р вЂ  Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°Р РЋРІР‚В¦");
+        scanTitle.setText(getString(R.string.settings_scan_title));
         scanTitle.setTextSize(18);
         scanTitle.setTextColor(getColor(R.color.text_primary));
         scanTitle.setPadding(0, dp(12), 0, dp(6));
@@ -585,33 +585,33 @@ public final class SettingsActivity extends Activity {
         NoteScanSettings settings = NoteScanSettings.load(this);
         includePatternsInput = addKeywordInput(
                 root,
-                "Р В Р’ВР РЋР С“Р В РЎвЂќР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„–",
+                getString(R.string.settings_scan_include_patterns),
                 settings.getIncludePatternsText()
         );
         excludePatternsInput = addKeywordInput(
                 root,
-                "Р В Р’ВР РЋР С“Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„– Р В РЎвЂ Р В РЎвЂ”Р В Р’В°Р В РЎвЂ”Р В РЎвЂќР В РЎвЂ",
+                getString(R.string.settings_scan_exclude_patterns),
                 settings.getExcludePatternsText()
         );
         maxFilesInput = addKeywordInput(
                 root,
-                "Р В РЎС™Р В Р’В°Р В РЎвЂќР РЋР С“Р В РЎвЂР В РЎВР РЋРЎвЂњР В РЎВ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В РЎвЂўР В Р вЂ  Р В Р’В·Р В Р’В° Р РЋР С“Р В РЎвЂќР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’Вµ",
+                getString(R.string.settings_scan_max_files),
                 String.valueOf(settings.getMaxFiles())
         );
         maxFilesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
 
-        Button saveScanButton = createButton("Р В Р Р‹Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ");
+        Button saveScanButton = createButton(getString(R.string.settings_scan_save));
         saveScanButton.setOnClickListener(view -> saveScanSettings());
         root.addView(saveScanButton, fullWidthWithBottomMargin());
 
-        Button resetScanButton = createButton("Р В Р Р‹Р В Р’В±Р РЋР вЂљР В РЎвЂўР РЋР С“Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ");
+        Button resetScanButton = createButton(getString(R.string.settings_scan_reset));
         resetScanButton.setOnClickListener(view -> resetScanSettings());
         root.addView(resetScanButton, fullWidthWithBottomMargin());
     }
 
     private void addNotificationActionSettings(LinearLayout root) {
         TextView actionTitle = new TextView(this);
-        actionTitle.setText("Р В РІР‚СњР В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР РЋР РЏ Р В РЎвЂР В Р’В· Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ");
+        actionTitle.setText(getString(R.string.settings_notification_actions_title));
         actionTitle.setTextSize(18);
         actionTitle.setTextColor(getColor(R.color.text_primary));
         actionTitle.setPadding(0, dp(12), 0, dp(6));
@@ -619,66 +619,66 @@ public final class SettingsActivity extends Activity {
 
         snoozeMinutesInput = addKeywordInput(
                 root,
-                "Р В РЎвЂєР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ¦Р В Р’В° Р В РЎВР В РЎвЂР В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™",
+                getString(R.string.settings_snooze_minutes),
                 String.valueOf(ActionPreferences.getSnoozeMinutes(this))
         );
         snoozeMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
 
         repeatUntilDoneMinutesInput = addKeywordInput(
                 root,
-                "Р В РЎСџР В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ Р В РўвЂР В РЎвЂў Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ, Р В РЎВР В РЎвЂР В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™",
+                getString(R.string.settings_repeat_until_done_minutes),
                 String.valueOf(ActionPreferences.getRepeatUntilDoneMinutes(this))
         );
         repeatUntilDoneMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
 
         overdueGraceMinutesInput = addKeywordInput(
                 root,
-                "Р В Р Р‹Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р РЋРІР‚РЋР В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В· Р В РЎВР В РЎвЂР В Р вЂ¦Р РЋРЎвЂњР РЋРІР‚С™",
+                getString(R.string.settings_overdue_grace_minutes),
                 String.valueOf(ActionPreferences.getOverdueGraceMinutes(this))
         );
         overdueGraceMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
 
         recordSnoozeCountCheckbox = new CheckBox(this);
-        recordSnoozeCountCheckbox.setText("Р В РІР‚вЂќР В Р’В°Р В РЎвЂ”Р В РЎвЂР РЋР С“Р РЋРІР‚в„–Р В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂќР В РЎвЂўР В Р’В»Р В РЎвЂР РЋРІР‚РЋР В Р’ВµР РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂў Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“ Р В Р вЂ  Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњ");
+        recordSnoozeCountCheckbox.setText(getString(R.string.settings_record_snooze_count));
         recordSnoozeCountCheckbox.setTextColor(getColor(R.color.text_secondary));
         recordSnoozeCountCheckbox.setChecked(ActionPreferences.shouldRecordSnoozeCount(this));
         root.addView(recordSnoozeCountCheckbox, fullWidthWithBottomMargin());
 
-        Button saveActionSettingsButton = createButton("Р В Р Р‹Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РўвЂР В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР РЋР РЏ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ");
+        Button saveActionSettingsButton = createButton(getString(R.string.settings_save_notification_actions));
         saveActionSettingsButton.setOnClickListener(view -> saveActionSettings());
         root.addView(saveActionSettingsButton, fullWidthWithBottomMargin());
     }
 
     private void addDebugSettings(LinearLayout root) {
         TextView debugTitle = new TextView(this);
-        debugTitle.setText("Р В РЎвЂєР РЋРІР‚С™Р В Р’В»Р В Р’В°Р В РўвЂР В РЎвЂќР В Р’В°");
+        debugTitle.setText(getString(R.string.settings_debug_title));
         debugTitle.setTextSize(18);
         debugTitle.setTextColor(getColor(R.color.text_primary));
         debugTitle.setPadding(0, dp(12), 0, dp(6));
         root.addView(debugTitle, fullWidth());
 
         TextView debugDescription = new TextView(this);
-        debugDescription.setText("Р В РЎв„ўР В Р вЂ¦Р В РЎвЂўР В РЎвЂ”Р В РЎвЂќР В РЎвЂ Р РЋР вЂљР В Р’В°Р В Р’В±Р В РЎвЂўР РЋРІР‚С™Р В Р’В°Р РЋР вЂ№Р РЋРІР‚С™ Р РЋР С“ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р В РЎвЂўР В РІвЂћвЂ“ Р В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В Р’ВµР В РІвЂћвЂ“ Р В Р вЂ  Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР В Р’Вµ.");
+        debugDescription.setText(getString(R.string.settings_debug_description));
         debugDescription.setTextSize(14);
         debugDescription.setTextColor(getColor(R.color.text_secondary));
         debugDescription.setPadding(0, 0, 0, dp(8));
         root.addView(debugDescription, fullWidth());
 
-        Button debugActionsButton = createButton("Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В Р’В°Р В РўвЂР В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В РўвЂР В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР РЋР РЏ");
+        Button debugActionsButton = createButton(getString(R.string.settings_open_debug_actions));
         debugActionsButton.setOnClickListener(view -> showDebugActions());
         root.addView(debugActionsButton, fullWidthWithBottomMargin());
     }
 
     private void showDebugActions() {
         String[] actions = new String[]{
-                "Р В Р в‚¬Р В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р РЋР С“Р В Р’ВµР В РІвЂћвЂ“Р РЋРІР‚РЋР В Р’В°Р РЋР С“",
-                "Р В РІР‚в„ўР РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р РЋРЎвЂњР РЋР вЂ№ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР РЋРЎвЂњ",
-                "Р В РЎвЂєР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р вЂ Р РЋРЎвЂњР РЋР вЂ№ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР РЋРЎвЂњ",
-                "Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В РЎвЂ”Р В Р’В»Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋР С“Р В Р’Вµ",
-                "Р В РЎС›Р В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В РЎвЂўР В Р’Вµ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ"
+                getString(R.string.settings_debug_action_show_now),
+                getString(R.string.settings_debug_action_complete_first),
+                getString(R.string.settings_debug_action_snooze_first),
+                getString(R.string.settings_reschedule_all),
+                getString(R.string.settings_test_notification)
         };
         new android.app.AlertDialog.Builder(this)
-                .setTitle("Р В РЎвЂєР РЋРІР‚С™Р В Р’В»Р В Р’В°Р В РўвЂР В РЎвЂќР В Р’В°")
+                .setTitle(getString(R.string.settings_debug_dialog_title))
                 .setItems(actions, (dialog, which) -> {
                     if (which == 0) {
                         runDebugAction(DebugReminderActions.showImmediateReminder(this));
@@ -705,21 +705,21 @@ public final class SettingsActivity extends Activity {
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle("Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ")
-                .setMessage(TaskSourceManager.switchWithoutMigrationWarning(TaskStorageMode.INTERNAL_MARKDOWN_STORAGE))
-                .setNegativeButton("Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’В°", null)
-                .setPositiveButton("Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р РЋР Р‰", (dialog, which) -> {
+                .setTitle(getString(R.string.settings_switch_source_title))
+                .setMessage(TaskSourceManager.switchWithoutMigrationWarning(this, TaskStorageMode.INTERNAL_MARKDOWN_STORAGE))
+                .setNegativeButton(getString(R.string.common_cancel), null)
+                .setPositiveButton(getString(R.string.settings_switch_source_confirm), (dialog, which) -> {
                     try {
                         TaskSourceManager.useInternalStorage(this);
                         OnboardingPreferences.markCompleted(this);
                         rescheduleAll();
                         updateStatus();
-                        Toast.makeText(this, "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ Р В Р вЂ Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂў", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, getString(R.string.settings_internal_enabled), Toast.LENGTH_SHORT).show();
                     } catch (IOException exception) {
-                        ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В Р вЂ Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ", exception);
+                        ErrorLog.record(this, getString(R.string.settings_enable_internal_error), exception);
                         Toast.makeText(
                                 this,
-                                "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В Р вЂ Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ: " + safeMessage(exception),
+                                getString(R.string.settings_enable_internal_error_prefix, safeMessage(exception)),
                                 Toast.LENGTH_LONG
                         ).show();
                     }
@@ -736,7 +736,7 @@ public final class SettingsActivity extends Activity {
         OnboardingPreferences.markCompleted(this);
         rescheduleAll();
         updateStatus();
-        Toast.makeText(this, "Р В РІР‚в„ўР В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_external_activated), Toast.LENGTH_SHORT).show();
     }
 
     @SuppressWarnings("deprecation")
@@ -808,14 +808,14 @@ public final class SettingsActivity extends Activity {
             rescheduleAll();
             Toast.makeText(
                     this,
-                    "Р В РІР‚в„ўР В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР В РўвЂР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–, Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂў Р В Р вЂ¦Р В Р’В° Р В Р вЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ",
+                    getString(R.string.settings_external_cleared_internal_active),
                     Toast.LENGTH_SHORT
             ).show();
         } catch (IOException exception) {
-            ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р РЋР Р‰Р РЋР С“Р РЋР РЏ Р В Р вЂ¦Р В Р’В° Р В Р вЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В Р’В»Р В Р’Вµ Р В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂќР В РЎвЂ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В РЎвЂўР В Р вЂ ", exception);
+            ErrorLog.record(this, getString(R.string.settings_clear_sources_internal_error), exception);
             Toast.makeText(
                     this,
-                    "Р В РІР‚в„ўР В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР В РўвЂР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–, Р В Р вЂ¦Р В РЎвЂў Р В Р вЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ Р В Р вЂ¦Р В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РўвЂР В РЎвЂ“Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰: " + safeMessage(exception),
+                    getString(R.string.settings_clear_sources_internal_error_prefix, safeMessage(exception)),
                     Toast.LENGTH_LONG
             ).show();
         }
@@ -825,7 +825,7 @@ public final class SettingsActivity extends Activity {
     private String safeMessage(Exception exception) {
         String message = exception == null ? null : exception.getMessage();
         return message == null || message.trim().isEmpty()
-                ? "Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљР РЋР Р‰Р РЋРІР‚С™Р В Р’Вµ Р В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ” Р В РЎвЂќ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР РЋРЎвЂњ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ"
+                ? getString(R.string.settings_source_access_check)
                 : message;
     }
 
@@ -835,13 +835,13 @@ public final class SettingsActivity extends Activity {
         if (result.isSuccess()) {
             Toast.makeText(
                     this,
-                    "Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В РЎвЂ”Р В Р’В»Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В РЎвЂў Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ: " + result.getTaskCount(),
+                    getString(R.string.settings_rescheduled_count, result.getTaskCount()),
                     Toast.LENGTH_SHORT
             ).show();
         } else {
             String message = result.isRestoredFromCache()
-                    ? "Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ¦Р В Р’Вµ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’В°Р В Р вЂ¦, Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ Р В РЎвЂўР РЋР С“Р РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„– Р В РЎвЂР В Р’В· Р В РЎвЂќР РЋР РЉР РЋРІвЂљВ¬Р В Р’В°"
-                    : "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ: " + result.getErrorMessage();
+                    ? getString(R.string.settings_source_cache_restored)
+                    : getString(R.string.settings_source_read_error_prefix, result.getErrorMessage());
             Toast.makeText(
                     this,
                     message,
@@ -880,36 +880,38 @@ public final class SettingsActivity extends Activity {
         snoozeMinutesInput.setText(String.valueOf(ActionPreferences.getSnoozeMinutes(this)));
         repeatUntilDoneMinutesInput.setText(String.valueOf(ActionPreferences.getRepeatUntilDoneMinutes(this)));
         overdueGraceMinutesInput.setText(String.valueOf(ActionPreferences.getOverdueGraceMinutes(this)));
-        Toast.makeText(this, "Р В РІР‚СњР В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р РЋРІР‚С™Р В Р вЂ Р В РЎвЂР РЋР РЏ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_notification_actions_saved), Toast.LENGTH_SHORT).show();
         updateStatus();
     }
 
     private void setEditMode(String mode) {
         EditPreferences.setEditMode(this, mode);
-        Toast.makeText(this, "Р В Р’В Р В Р’ВµР В Р’В¶Р В РЎвЂР В РЎВ Р РЋР вЂљР В Р’ВµР В РўвЂР В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_edit_mode_saved), Toast.LENGTH_SHORT).show();
         rebuild();
     }
 
     private void setGroupingMode(String mode) {
         UserPreferences.setGroupingMode(this, mode);
-        Toast.makeText(this, "Р В РІР‚СљР РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В РЎвЂќР В Р’В° Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В Р’В°", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_grouping_saved), Toast.LENGTH_SHORT).show();
         rebuild();
     }
 
     private void setThemeMode(String mode) {
         ThemePreferences.setThemeMode(this, mode);
-        Toast.makeText(this, "Р В РЎС›Р В Р’ВµР В РЎВР В Р’В° Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В Р’В°", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_theme_saved), Toast.LENGTH_SHORT).show();
         recreate();
     }
 
     private void savePrivateMarker() {
         UserPreferences.setPrivateMarker(this, privateMarkerInput.getText().toString());
         privateMarkerInput.setText(UserPreferences.getPrivateMarker(this));
-        Toast.makeText(this, "Р В РЎСџР РЋР вЂљР В РЎвЂР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В РЎВР В Р’В°Р РЋР вЂљР В РЎвЂќР В Р’ВµР РЋР вЂљ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_private_marker_saved), Toast.LENGTH_SHORT).show();
     }
 
     private String themeButtonText(String mode, String label) {
-        return mode.equals(ThemePreferences.getThemeMode(this)) ? label + " Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’В°" : label;
+        return mode.equals(ThemePreferences.getThemeMode(this))
+                ? getString(R.string.settings_theme_selected, label)
+                : label;
     }
 
     private void rebuild() {
@@ -929,7 +931,7 @@ public final class SettingsActivity extends Activity {
         if (settings.hasDuplicateKeywords()) {
             Toast.makeText(
                     this,
-                    "Р В РЎв„ўР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ Р РЋРІР‚в„–Р В Р’Вµ Р РЋР С“Р В Р’В»Р В РЎвЂўР В Р вЂ Р В Р’В° Р В РўвЂР В РЎвЂўР В Р’В»Р В Р’В¶Р В Р вЂ¦Р РЋРІР‚в„– Р В Р’В±Р РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р РЋР вЂљР В Р’В°Р В Р’В·Р В Р вЂ¦Р РЋРІР‚в„–Р В РЎВР В РЎвЂ",
+                    getString(R.string.settings_keywords_must_differ),
                     Toast.LENGTH_LONG
             ).show();
             return;
@@ -937,14 +939,14 @@ public final class SettingsActivity extends Activity {
 
         TaskFormatSettings.save(this, settings);
         populateFormatInputs(settings);
-        Toast.makeText(this, "Р В Р’В¤Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В°Р РЋРІР‚С™ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_task_format_saved), Toast.LENGTH_SHORT).show();
         rescheduleAll();
     }
 
     private void resetFormatSettings() {
         TaskFormatSettings.reset(this);
         populateFormatInputs(TaskFormatSettings.defaults());
-        Toast.makeText(this, "Р В Р’В¤Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В°Р РЋРІР‚С™ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р РЋР С“Р В Р’В±Р РЋР вЂљР В РЎвЂўР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_task_format_reset), Toast.LENGTH_SHORT).show();
         rescheduleAll();
     }
 
@@ -963,14 +965,14 @@ public final class SettingsActivity extends Activity {
         );
         NoteScanSettings.save(this, settings);
         populateScanInputs(settings);
-        Toast.makeText(this, "Р В РЎСџР В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_scan_saved), Toast.LENGTH_SHORT).show();
         rescheduleAll();
     }
 
     private void resetScanSettings() {
         NoteScanSettings.reset(this);
         populateScanInputs(NoteScanSettings.defaults());
-        Toast.makeText(this, "Р В РЎСџР В РЎвЂўР В РЎвЂР РЋР С“Р В РЎвЂќ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р РЋР С“Р В Р’В±Р РЋР вЂљР В РЎвЂўР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, getString(R.string.settings_scan_reset_done), Toast.LENGTH_SHORT).show();
         rescheduleAll();
     }
 
@@ -993,7 +995,8 @@ public final class SettingsActivity extends Activity {
         boolean sent = TestNotificationSender.send(this);
         Toast.makeText(
                 this,
-                sent ? "Р В РЎС›Р В Р’ВµР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В РЎвЂўР В Р’Вµ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂ”Р РЋР вЂљР В Р’В°Р В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂў" : "Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ¦Р В Р’В° Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ",
+                sent ? getString(R.string.settings_test_notification_sent)
+                        : getString(R.string.settings_notification_permission_missing),
                 Toast.LENGTH_SHORT
         ).show();
     }
@@ -1001,7 +1004,7 @@ public final class SettingsActivity extends Activity {
     private void requestExactAlarmPermission() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S
                 || ReminderScheduler.canScheduleExactAlarms(this)) {
-            Toast.makeText(this, "Р В РЎС›Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋРЎвЂњР В Р’В¶Р В Р’Вµ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.settings_exact_alarms_already_enabled), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -1023,18 +1026,18 @@ public final class SettingsActivity extends Activity {
 
     private String formatEditMode(String mode) {
         return EditPreferences.MODE_MARKDOWN.equals(mode)
-                ? "markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»"
-                : "UI-Р РЋРІР‚С›Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В°";
+                ? getString(R.string.settings_edit_mode_markdown_value)
+                : getString(R.string.settings_edit_mode_ui_value);
     }
 
     private String formatThemeMode(String mode) {
         if (ThemePreferences.MODE_LIGHT.equals(mode)) {
-            return "Р РЋР С“Р В Р вЂ Р В Р’ВµР РЋРІР‚С™Р В Р’В»Р В Р’В°Р РЋР РЏ";
+            return getString(R.string.settings_theme_light_value);
         }
         if (ThemePreferences.MODE_DARK.equals(mode)) {
-            return "Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р В Р’В°Р РЋР РЏ";
+            return getString(R.string.settings_theme_dark_value);
         }
-        return "Р РЋР С“Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р вЂ¦Р В Р’В°Р РЋР РЏ";
+        return getString(R.string.settings_theme_system_value);
     }
 
     private void updateStatus() {
@@ -1043,31 +1046,39 @@ public final class SettingsActivity extends Activity {
         }
         String cachedAt = TaskCache.getSavedAt(this);
         String latestError = ErrorLog.latest(this);
-        StringBuilder status = new StringBuilder("Р В Р’В Р В Р’ВµР В Р’В¶Р В РЎвЂР В РЎВ: " + TaskSourceManager.storageModeLabel(this)
-                + "\nР В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ: " + compactName(TaskSourceManager.activeSourceLabel(this))
-                + " Р вЂ™Р’В· Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В РЎвЂўР В Р вЂ /Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В РЎвЂўР В Р вЂ : " + TaskSourceManager.activeSourceCount(this)
-                + " Р вЂ™Р’В· Р В Р’В·Р В Р’В°Р В РЎвЂ”Р В РЎвЂР РЋР С“Р РЋР Р‰: " + (TaskSourceManager.canWriteActiveSource(this) ? "Р В РўвЂР В Р’В°" : "Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™")
-                + "\nР В Р’В¤Р В РЎвЂР В Р’В»Р РЋР Р‰Р РЋРІР‚С™Р РЋР вЂљ: " + UserPreferences.getTaskFilterLabel(this)
-                + "\nР В РЎСљР В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ: Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ "
-                + (ReminderScheduler.canScheduleExactAlarms(this) ? "Р В РўвЂР В Р’В°" : "Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™")
-                + " Р вЂ™Р’В· Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ " + ActionPreferences.getSnoozeMinutes(this) + " Р В РЎВР В РЎвЂР В Р вЂ¦."
-                + " Р вЂ™Р’В· Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В РЎвЂќР В Р’В° +" + ActionPreferences.getOverdueGraceMinutes(this) + " Р В РЎВР В РЎвЂР В Р вЂ¦."
-                + " Р вЂ™Р’В· Р РЋР С“Р РЋРІР‚РЋР В Р’ВµР РЋРІР‚С™Р РЋРІР‚РЋР В РЎвЂР В РЎвЂќ: " + (ActionPreferences.shouldRecordSnoozeCount(this) ? "Р В Р вЂ Р В РЎвЂќР В Р’В»." : "Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂќР В Р’В».")
-                + "\nР В Р’В Р В Р’ВµР В РўвЂР В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’Вµ: " + formatEditMode(EditPreferences.getEditMode(this))
-                + " Р вЂ™Р’В· Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р’В°: " + formatThemeMode(ThemePreferences.getThemeMode(this))
-                + "\nР В РІР‚СљР РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В РЎвЂќР В Р’В°: " + UserPreferences.getGroupingModeLabel(this)
-                + "\nР В РЎв„ўР РЋР РЉР РЋРІвЂљВ¬ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ: " + TaskCache.getCachedTaskCount(this)
-                + (cachedAt == null ? "" : " Р вЂ™Р’В· " + cachedAt));
+        StringBuilder status = new StringBuilder(getString(
+                R.string.settings_status_template,
+                TaskSourceManager.storageModeLabel(this),
+                compactName(TaskSourceManager.activeSourceLabel(this)),
+                TaskSourceManager.activeSourceCount(this),
+                getString(TaskSourceManager.canWriteActiveSource(this)
+                        ? R.string.settings_status_yes
+                        : R.string.settings_status_no),
+                UserPreferences.getTaskFilterLabel(this),
+                getString(ReminderScheduler.canScheduleExactAlarms(this)
+                        ? R.string.settings_status_yes
+                        : R.string.settings_status_no),
+                ActionPreferences.getSnoozeMinutes(this),
+                ActionPreferences.getOverdueGraceMinutes(this),
+                getString(ActionPreferences.shouldRecordSnoozeCount(this)
+                        ? R.string.settings_status_enabled_short
+                        : R.string.settings_status_disabled_short),
+                formatEditMode(EditPreferences.getEditMode(this)),
+                formatThemeMode(ThemePreferences.getThemeMode(this)),
+                UserPreferences.getGroupingModeLabel(this),
+                TaskCache.getCachedTaskCount(this),
+                cachedAt == null ? "" : " · " + cachedAt
+        ));
         if (latestError != null) {
-            status.append("\nР В РЎСџР В РЎвЂўР РЋР С“Р В Р’В»Р В Р’ВµР В РўвЂР В Р вЂ¦Р РЋР РЏР РЋР РЏ Р В РЎвЂўР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂќР В Р’В° Р В Р’В·Р В Р’В°Р В РЎвЂ”Р В РЎвЂР РЋР С“Р В Р’В°Р В Р вЂ¦Р В Р’В° Р В Р вЂ  Р В Р’В»Р В РЎвЂўР В РЎвЂ“.");
+            status.append('\n').append(getString(R.string.settings_status_last_error_logged));
         }
         statusText.setText(status.toString());
     }
 
     private void updateActiveFilterButton() {
         activeFilterButton.setText(UserPreferences.isActiveOnly(this)
-                ? "Р В РІР‚СљР В Р’В»Р В Р’В°Р В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋР РЉР В РЎвЂќР РЋР вЂљР В Р’В°Р В Р вЂ¦: Р РЋРІР‚С™Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В РЎвЂќР В РЎвЂў Р В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ"
-                : "Р В РІР‚СљР В Р’В»Р В Р’В°Р В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р РЋР РЉР В РЎвЂќР РЋР вЂљР В Р’В°Р В Р вЂ¦: Р В Р вЂ Р РЋР С“Р В Р’Вµ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ");
+                ? getString(R.string.settings_main_filter_active_only)
+                : getString(R.string.settings_main_filter_all_tasks));
     }
 
     private void addSectionTitle(LinearLayout root, String text) {
@@ -1137,7 +1148,7 @@ public final class SettingsActivity extends Activity {
         ));
 
         TextView chevron = new TextView(this);
-        chevron.setText("Р Р†Р вЂљРЎвЂќ");
+        chevron.setText("›");
         chevron.setTextSize(24);
         chevron.setTextColor(getColor(R.color.text_secondary));
         chevron.setGravity(android.view.Gravity.CENTER);
@@ -1188,7 +1199,7 @@ public final class SettingsActivity extends Activity {
         ));
 
         TextView state = new TextView(this);
-        state.setText(selected ? "Р В РЎвЂ™Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р В РЎвЂў" : "");
+        state.setText(selected ? getString(R.string.common_active) : "");
         state.setTextSize(12);
         state.setTextColor(getColor(R.color.chip_selected_text));
         state.setPadding(dp(10), 0, 0, 0);
@@ -1252,13 +1263,13 @@ public final class SettingsActivity extends Activity {
 
     private String compactName(String rawName) {
         if (rawName == null || rawName.trim().isEmpty()) {
-            return "Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦";
+        return getString(R.string.settings_not_selected_short);
         }
         String value = rawName.trim();
-        if (value.startsWith("Р В РЎСџР В Р’В°Р В РЎвЂ”Р В РЎвЂќР В Р’В°:")) {
-            value = value.substring("Р В РЎСџР В Р’В°Р В РЎвЂ”Р В РЎвЂќР В Р’В°:".length()).trim();
-        } else if (value.startsWith("Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»:")) {
-            value = value.substring("Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»:".length()).trim();
+        if (value.startsWith(getString(R.string.source_folder_prefix))) {
+            value = value.substring(getString(R.string.source_folder_prefix).length()).trim();
+        } else if (value.startsWith(getString(R.string.source_file_prefix))) {
+            value = value.substring(getString(R.string.source_file_prefix).length()).trim();
         }
         int queryIndex = value.indexOf('?');
         if (queryIndex >= 0) {

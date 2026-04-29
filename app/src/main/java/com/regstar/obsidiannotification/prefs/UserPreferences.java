@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification.prefs;
 
 import android.content.Context;
+import com.regstar.obsidiannotification.R;
 
 public final class UserPreferences {
     public static final String FILTER_ALL = "all";
@@ -57,18 +58,18 @@ public final class UserPreferences {
     public static String getTaskFilterLabel(Context context) {
         String filter = getTaskFilter(context);
         if (FILTER_ACTIVE.equals(filter)) {
-            return "Р°РєС‚РёРІРЅС‹Рµ";
+            return context.getString(R.string.filter_active);
         }
         if (FILTER_OVERDUE.equals(filter)) {
-            return "РїСЂРѕСЃСЂРѕС‡РµРЅРЅС‹Рµ";
+            return context.getString(R.string.filter_overdue);
         }
         if (FILTER_COMPLETED.equals(filter)) {
-            return "Р·Р°РІРµСЂС€РµРЅРЅС‹Рµ";
+            return context.getString(R.string.filter_completed);
         }
         if (FILTER_SKIPPED.equals(filter)) {
-            return "РїСЂРѕРїСѓС‰РµРЅРЅС‹Рµ";
+            return context.getString(R.string.filter_skipped);
         }
-        return "РІСЃРµ";
+        return context.getString(R.string.filter_all);
     }
 
     public static String getTaskGroup(Context context) {
@@ -103,12 +104,12 @@ public final class UserPreferences {
             return "@group";
         }
         if (GROUPING_TAG.equals(mode)) {
-            return "С‚РµРіРё";
+            return context.getString(R.string.grouping_tags);
         }
         if (GROUPING_FILE.equals(mode)) {
-            return "С„Р°Р№Р»С‹";
+            return context.getString(R.string.grouping_files);
         }
-        return "СЃРјРµС€Р°РЅРЅР°СЏ";
+        return context.getString(R.string.grouping_mixed);
     }
 
     public static boolean shouldShowSourceOnMain(Context context) {

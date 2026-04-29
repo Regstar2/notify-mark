@@ -166,7 +166,7 @@ public final class TaskEditActivity extends Activity {
             if (taskKey != null && !taskKey.trim().isEmpty()) {
                 taskMatch = NoteStore.findTaskDocument(this, taskKey);
                 if (taskMatch == null) {
-                    loadError = "\u0417\u0430\u0434\u0430\u0447\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430. \u0412\u043e\u0437\u043c\u043e\u0436\u043d\u043e, \u0437\u0430\u043c\u0435\u0442\u043a\u0430 \u0443\u0436\u0435 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0438\u0440\u043e\u0432\u0430\u043b\u0430\u0441\u044c.";
+                    loadError = getString(R.string.task_edit_load_task_missing);
                     return;
                 }
                 task = taskMatch.getTask();
@@ -179,7 +179,7 @@ public final class TaskEditActivity extends Activity {
             }
         } catch (IOException | RuntimeException exception) {
             loadError = exception.getMessage();
-            ErrorLog.record(this, "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u043a\u0440\u044b\u0442\u044c \u0440\u0435\u0434\u0430\u043a\u0442\u043e\u0440 \u0437\u0430\u0434\u0430\u0447\u0438", exception);
+            ErrorLog.record(this, getString(R.string.task_edit_open_error), exception);
         }
     }
 
@@ -266,13 +266,20 @@ public final class TaskEditActivity extends Activity {
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(0, 0, 0, dp(2));
 
-        ImageButton close = createIconButton(R.drawable.ic_close, "\u0417\u0430\u043a\u0440\u044b\u0442\u044c");
+        ImageButton close = createIconButton(R.drawable.ic_close, getString(R.string.common_close));
         close.setOnClickListener(view -> requestClose());
         header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        TextView title = createText(task == null ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430" : "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u0437\u0430\u0434\u0430\u0447\u0438", 18, R.color.text_primary, true);
+        TextView title = createText(
+                task == null
+                        ? getString(R.string.task_edit_title_new)
+                        : getString(R.string.task_edit_title_edit),
+                18,
+                R.color.text_primary,
+                true
+        );
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         texts.addView(title, fullWidth());
@@ -289,18 +296,18 @@ public final class TaskEditActivity extends Activity {
         textParams.setMargins(dp(10), 0, dp(8), 0);
         header.addView(texts, textParams);
 
-        saveButton = createPrimaryIconButton(R.drawable.ic_check, "\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c");
+        saveButton = createPrimaryIconButton(R.drawable.ic_check, getString(R.string.common_save));
         saveButton.setOnClickListener(view -> saveTask());
         header.addView(saveButton, new LinearLayout.LayoutParams(dp(42), dp(42)));
         return header;
     }
 
     private LinearLayout createBasicSection() {
-        LinearLayout card = createSectionCard("\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435", null);
-        titleInput = createInput(task == null ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430" : task.getTitle());
-        titleInput.setHint("\u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0441\u0434\u0435\u043b\u0430\u0442\u044c");
+        LinearLayout card = createSectionCard(getString(R.string.task_edit_section_basic), null);
+        titleInput = createInput(task == null ? getString(R.string.task_edit_title_new) : task.getTitle());
+        titleInput.setHint(getString(R.string.task_edit_title_hint));
         titleInput.addTextChangedListener(previewWatcher());
-        card.addView(createInputBlock("\u0417\u0430\u0434\u0430\u0447\u0430", titleInput), fullWidthWithBottomMargin(dp(8)));
+        card.addView(createInputBlock(getString(R.string.task_edit_field_title), titleInput), fullWidthWithBottomMargin(dp(8)));
 
         LocalDateTime due = task == null || task.getReminderAt() == null
                 ? defaultDueDateTime()
@@ -323,7 +330,7 @@ public final class TaskEditActivity extends Activity {
         timeInput.addTextChangedListener(previewWatcher());
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(createInputBlock("\u0414\u0430\u0442\u0430", dateInput), new LinearLayout.LayoutParams(
+        row.addView(createInputBlock(getString(R.string.task_edit_field_date), dateInput), new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
@@ -334,7 +341,7 @@ public final class TaskEditActivity extends Activity {
                 1
         );
         timeParams.setMargins(dp(6), 0, 0, 0);
-        row.addView(createInputBlock("\u0412\u0440\u0435\u043c\u044f", timeInput), timeParams);
+        row.addView(createInputBlock(getString(R.string.task_edit_field_time), timeInput), timeParams);
         card.addView(row, fullWidthWithBottomMargin(dp(8)));
 
         repeatInput = createInput(initialRepeatToken());
@@ -345,7 +352,7 @@ public final class TaskEditActivity extends Activity {
         );
 
         repeatUntilDoneInput = new CheckBox(this);
-        repeatUntilDoneInput.setText("\u041f\u043e\u0432\u0442\u043e\u0440\u044f\u0442\u044c \u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f");
+        repeatUntilDoneInput.setText(getString(R.string.task_edit_repeat_until_done_toggle));
         repeatUntilDoneInput.setTextColor(getColor(R.color.text_secondary));
         repeatUntilDoneInput.setChecked(!initialRepeatUntilDoneToken().isEmpty());
         repeatUntilDoneInput.setOnCheckedChangeListener((button, checked) -> {
@@ -358,13 +365,13 @@ public final class TaskEditActivity extends Activity {
         repeatUntilDoneIntervalInput.setHint("15m, 1h, 1d");
         repeatUntilDoneIntervalInput.addTextChangedListener(previewWatcher());
         repeatUntilDoneIntervalRow = createInputBlock(
-                "\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b \u043f\u043e\u0432\u0442\u043e\u0440\u0430 \u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f",
+                getString(R.string.task_edit_repeat_until_done_interval),
                 repeatUntilDoneIntervalInput
         );
         card.addView(repeatUntilDoneIntervalRow, fullWidthWithBottomMargin(dp(8)));
 
         overdueGraceEnabledInput = new CheckBox(this);
-        overdueGraceEnabledInput.setText("\u0421\u0440\u043e\u043a \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f");
+        overdueGraceEnabledInput.setText(getString(R.string.task_edit_overdue_grace_toggle));
         overdueGraceEnabledInput.setTextColor(getColor(R.color.text_secondary));
         overdueGraceEnabledInput.setChecked(!initialOverdueGraceToken().isEmpty());
         overdueGraceEnabledInput.setOnCheckedChangeListener((buttonView, checked) -> {
@@ -377,7 +384,7 @@ public final class TaskEditActivity extends Activity {
         overdueGraceInput.setHint("0m, 10m, 1h");
         overdueGraceInput.addTextChangedListener(previewWatcher());
         overdueGraceRow = createInputBlock(
-                "\u041d\u0435 \u0441\u0447\u0438\u0442\u0430\u0442\u044c \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043d\u043e\u0439",
+                getString(R.string.task_edit_overdue_grace_label),
                 overdueGraceInput
         );
         card.addView(overdueGraceRow, fullWidth());
@@ -398,7 +405,7 @@ public final class TaskEditActivity extends Activity {
         });
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        texts.addView(createText("\u0414\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u043e", 15, R.color.text_primary, true), fullWidth());
+        texts.addView(createText(getString(R.string.task_edit_section_extra), 15, R.color.text_primary, true), fullWidth());
         extraSummaryText = createText("", 12, R.color.text_secondary, false);
         texts.addView(extraSummaryText, fullWidthWithTopMargin(dp(2)));
         header.addView(texts, new LinearLayout.LayoutParams(
@@ -415,8 +422,8 @@ public final class TaskEditActivity extends Activity {
         groupInput = createInput(task == null ? "" : task.getGroup());
         groupInput.setHint(ObsidianTask.DEFAULT_GROUP);
         groupInput.addTextChangedListener(previewWatcher());
-        extraContent.addView(createInputBlock("\u0413\u0440\u0443\u043f\u043f\u0430", groupInput), fullWidthWithBottomMargin(dp(8)));
-        extraContent.addView(createLabel("\u041f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442"), fullWidthWithBottomMargin(dp(4)));
+        extraContent.addView(createInputBlock(getString(R.string.task_edit_field_group), groupInput), fullWidthWithBottomMargin(dp(8)));
+        extraContent.addView(createLabel(getString(R.string.task_edit_field_priority)), fullWidthWithBottomMargin(dp(4)));
         LinearLayout priorityRow = new LinearLayout(this);
         priorityRow.setOrientation(LinearLayout.HORIZONTAL);
         rebuildPriorityRow(priorityRow);
@@ -424,13 +431,13 @@ public final class TaskEditActivity extends Activity {
         tagsInput = createInput(tagsToText(task == null ? Collections.emptyList() : task.getTags()));
         tagsInput.setHint("#work #health");
         tagsInput.addTextChangedListener(previewWatcher());
-        extraContent.addView(createInputBlock("\u0422\u0435\u0433\u0438", tagsInput), fullWidthWithBottomMargin(dp(8)));
+        extraContent.addView(createInputBlock(getString(R.string.task_edit_field_tags), tagsInput), fullWidthWithBottomMargin(dp(8)));
         snoozeInput = createInput(initialSnoozeToken());
         snoozeInput.setHint(defaultSnoozeToken());
         snoozeInput.addTextChangedListener(previewWatcher());
-        extraContent.addView(createInputBlock("\u041e\u0442\u043b\u043e\u0436\u0438\u0442\u044c \u043d\u0430", snoozeInput), fullWidthWithBottomMargin(dp(8)));
+        extraContent.addView(createInputBlock(getString(R.string.task_edit_field_snooze), snoozeInput), fullWidthWithBottomMargin(dp(8)));
         checkboxTaskInput = new CheckBox(this);
-        checkboxTaskInput.setText("\u0421\u043e\u0445\u0440\u0430\u043d\u044f\u0442\u044c \u043a\u0430\u043a checkbox-\u0437\u0430\u0434\u0430\u0447\u0443");
+        checkboxTaskInput.setText(getString(R.string.task_edit_checkbox_task));
         checkboxTaskInput.setTextColor(getColor(R.color.text_secondary));
         checkboxTaskInput.setChecked(task == null || isCheckboxTask(task.getRawLine()));
         checkboxTaskInput.setOnCheckedChangeListener((button, checked) -> updatePreview());
@@ -448,7 +455,7 @@ public final class TaskEditActivity extends Activity {
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
-        texts.addView(createText("\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438", 15, R.color.text_primary, true), fullWidth());
+        texts.addView(createText(getString(R.string.task_edit_section_subtasks), 15, R.color.text_primary, true), fullWidth());
         subtaskSummaryText = createText("", 12, R.color.text_secondary, false);
         texts.addView(subtaskSummaryText, fullWidthWithTopMargin(dp(2)));
         header.addView(texts, new LinearLayout.LayoutParams(
@@ -461,7 +468,7 @@ public final class TaskEditActivity extends Activity {
         add.setTextSize(22);
         add.setGravity(Gravity.CENTER);
         add.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
-        add.setContentDescription("\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0443");
+        add.setContentDescription(getString(R.string.task_edit_add_subtask));
         add.setOnClickListener(view -> showSubtaskDialog(-1));
         header.addView(add, new LinearLayout.LayoutParams(
                 dp(48),
@@ -486,7 +493,7 @@ public final class TaskEditActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        TextView previewTitle = createText("Markdown preview", 14, R.color.text_primary, true);
+        TextView previewTitle = createText(getString(R.string.task_edit_section_preview), 14, R.color.text_primary, true);
         row.addView(previewTitle, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -769,15 +776,15 @@ public final class TaskEditActivity extends Activity {
 
     private String priorityLabel(TaskPriority priority) {
         if (priority == TaskPriority.LOW) {
-            return "\u041d\u0438\u0437\u043a\u0438\u0439";
+            return getString(R.string.task_edit_priority_low);
         }
         if (priority == TaskPriority.MEDIUM) {
-            return "\u0421\u0440\u0435\u0434\u043d\u0438\u0439";
+            return getString(R.string.task_edit_priority_medium);
         }
         if (priority == TaskPriority.HIGH) {
-            return "\u0412\u044b\u0441\u043e\u043a\u0438\u0439";
+            return getString(R.string.task_edit_priority_high);
         }
-        return "\u0411\u0435\u0437 \u043f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442\u0430";
+        return getString(R.string.task_edit_priority_none);
     }
 
     private void setStatusMessage(String message) {
@@ -791,10 +798,10 @@ public final class TaskEditActivity extends Activity {
 
     private LinearLayout createDangerSection() {
         LinearLayout card = createSectionCard(
-                "\u0423\u0434\u0430\u043b\u0435\u043d\u0438\u0435",
-                "\u0417\u0430\u0434\u0430\u0447\u0430 \u0438 \u0435\u0435 \u0432\u043b\u043e\u0436\u0435\u043d\u043d\u044b\u0435 \u0441\u0442\u0440\u043e\u043a\u0438 \u0431\u0443\u0434\u0443\u0442 \u0443\u0434\u0430\u043b\u0435\u043d\u044b \u0438\u0437 markdown-\u0444\u0430\u0439\u043b\u0430."
+                getString(R.string.task_edit_section_danger),
+                getString(R.string.task_edit_section_danger_body)
         );
-        Button delete = createSecondaryButton("\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0437\u0430\u0434\u0430\u0447\u0443");
+        Button delete = createSecondaryButton(getString(R.string.task_edit_delete_task));
         delete.setTextColor(getColor(R.color.error_text));
         delete.setOnClickListener(view -> confirmDelete());
         card.addView(delete, new LinearLayout.LayoutParams(
@@ -886,10 +893,10 @@ public final class TaskEditActivity extends Activity {
 
     private void rebuildPriorityRow(LinearLayout row) {
         row.removeAllViews();
-        addPriorityButton(row, "\u041d\u0435\u0442", TaskPriority.NONE, 0);
-        addPriorityButton(row, "\u041d\u0438\u0437\u043a\u0438\u0439", TaskPriority.LOW, dp(6));
-        addPriorityButton(row, "\u0421\u0440\u0435\u0434\u043d\u0438\u0439", TaskPriority.MEDIUM, dp(6));
-        addPriorityButton(row, "\u0412\u044b\u0441\u043e\u043a\u0438\u0439", TaskPriority.HIGH, dp(6));
+        addPriorityButton(row, getString(R.string.task_edit_priority_none), TaskPriority.NONE, 0);
+        addPriorityButton(row, getString(R.string.task_edit_priority_low), TaskPriority.LOW, dp(6));
+        addPriorityButton(row, getString(R.string.task_edit_priority_medium), TaskPriority.MEDIUM, dp(6));
+        addPriorityButton(row, getString(R.string.task_edit_priority_high), TaskPriority.HIGH, dp(6));
     }
 
     private void addCompactButton(LinearLayout row, Button button, int leftMargin) {
@@ -933,19 +940,19 @@ public final class TaskEditActivity extends Activity {
     private String dayLabel(DayOfWeek dayOfWeek) {
         switch (dayOfWeek) {
             case MONDAY:
-                return "Р В РЎСџР В Р вЂ¦";
+                return getString(R.string.edit_weekday_mon);
             case TUESDAY:
-                return "Р В РІР‚в„ўР РЋРІР‚С™";
+                return getString(R.string.edit_weekday_tue);
             case WEDNESDAY:
-                return "Р В Р Р‹Р РЋР вЂљ";
+                return getString(R.string.edit_weekday_wed);
             case THURSDAY:
-                return "Р В Р’В§Р РЋРІР‚С™";
+                return getString(R.string.edit_weekday_thu);
             case FRIDAY:
-                return "Р В РЎСџР РЋРІР‚С™";
+                return getString(R.string.edit_weekday_fri);
             case SATURDAY:
-                return "Р В Р Р‹Р В Р’В±";
+                return getString(R.string.edit_weekday_sat);
             case SUNDAY:
-                return "Р В РІР‚в„ўР РЋР С“";
+                return getString(R.string.edit_weekday_sun);
             default:
                 return "";
         }
@@ -982,7 +989,7 @@ public final class TaskEditActivity extends Activity {
         private LinearLayout createView() {
             LinearLayout block = new LinearLayout(TaskEditActivity.this);
             block.setOrientation(LinearLayout.VERTICAL);
-            block.addView(createLabel("Р В РЎСџР В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ"), fullWidthWithBottomMargin(dp(3)));
+            block.addView(createLabel(getString(R.string.edit_repeat_title)), fullWidthWithBottomMargin(dp(3)));
 
             modeRow = new LinearLayout(TaskEditActivity.this);
             modeRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -1040,12 +1047,12 @@ public final class TaskEditActivity extends Activity {
 
         private void rebuildModeRow() {
             modeRow.removeAllViews();
-            addCompactButton(modeRow, createModeButton("Р В РЎСљР В Р’ВµР РЋРІР‚С™", RepeatEditorMode.NONE), 0);
-            addCompactButton(modeRow, createModeButton("Р В Р’ВР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР В Р вЂ Р В Р’В°Р В Р’В»", RepeatEditorMode.INTERVAL), dp(6));
-            addCompactButton(modeRow, createModeButton("Р В РЎСљР В Р’ВµР В РўвЂР В Р’ВµР В Р’В»Р РЋР РЏ", RepeatEditorMode.WEEKLY), dp(6));
-            addCompactButton(modeRow, createModeButton("Р В РЎС™Р В Р’ВµР РЋР С“Р РЋР РЏР РЋРІР‚В ", RepeatEditorMode.MONTHLY), dp(6));
+            addCompactButton(modeRow, createModeButton(getString(R.string.edit_repeat_mode_none), RepeatEditorMode.NONE), 0);
+            addCompactButton(modeRow, createModeButton(getString(R.string.edit_repeat_mode_interval), RepeatEditorMode.INTERVAL), dp(6));
+            addCompactButton(modeRow, createModeButton(getString(R.string.edit_repeat_mode_weekly), RepeatEditorMode.WEEKLY), dp(6));
+            addCompactButton(modeRow, createModeButton(getString(R.string.edit_repeat_mode_monthly), RepeatEditorMode.MONTHLY), dp(6));
             if (mode == RepeatEditorMode.CUSTOM) {
-                addCompactButton(modeRow, createModeButton("Р В РЎС›Р В Р’ВµР В РЎвЂќР РЋР С“Р РЋРІР‚С™", RepeatEditorMode.CUSTOM), dp(6));
+                addCompactButton(modeRow, createModeButton(getString(R.string.edit_repeat_mode_custom), RepeatEditorMode.CUSTOM), dp(6));
             }
         }
 
@@ -1085,7 +1092,7 @@ public final class TaskEditActivity extends Activity {
             switch (mode) {
                 case NONE:
                     contentContainer.addView(
-                            createText("Р В РІР‚ВР В Р’ВµР В Р’В· Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ", 12, R.color.text_secondary, false),
+                            createText(getString(R.string.edit_repeat_none), 12, R.color.text_secondary, false),
                             fullWidth()
                     );
                     break;
@@ -1113,7 +1120,7 @@ public final class TaskEditActivity extends Activity {
                 pushValue();
             }));
             contentContainer.addView(
-                    createInputBlockWithSuffix("Р В Р’ВР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР В Р вЂ Р В Р’В°Р В Р’В»", intervalAmountInput, intervalUnit.getToken()),
+                    createInputBlockWithSuffix(getString(R.string.edit_repeat_interval_label), intervalAmountInput, intervalUnit.getToken()),
                     fullWidthWithBottomMargin(dp(4))
             );
             LinearLayout unitsRow = new LinearLayout(TaskEditActivity.this);
@@ -1147,7 +1154,11 @@ public final class TaskEditActivity extends Activity {
                 pushValue();
             }));
             contentContainer.addView(
-                    createInputBlockWithSuffix("Р В Р’ВР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР В Р вЂ Р В Р’В°Р В Р’В»", weeklyIntervalInput, "Р В Р вЂ¦Р В Р’ВµР В РўвЂ."),
+                    createInputBlockWithSuffix(
+                            getString(R.string.edit_repeat_interval_label),
+                            weeklyIntervalInput,
+                            getString(R.string.edit_repeat_week_suffix)
+                    ),
                     fullWidthWithBottomMargin(dp(8))
             );
 
@@ -1191,15 +1202,19 @@ public final class TaskEditActivity extends Activity {
                 pushValue();
             }));
             contentContainer.addView(
-                    createInputBlockWithSuffix("Р В Р’ВР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР В Р вЂ Р В Р’В°Р В Р’В»", monthlyIntervalInput, "Р В РЎВР В Р’ВµР РЋР С“."),
+                    createInputBlockWithSuffix(
+                            getString(R.string.edit_repeat_interval_label),
+                            monthlyIntervalInput,
+                            getString(R.string.edit_repeat_month_suffix)
+                    ),
                     fullWidthWithBottomMargin(dp(8))
             );
 
             LinearLayout modeButtons = new LinearLayout(TaskEditActivity.this);
             modeButtons.setOrientation(LinearLayout.HORIZONTAL);
-            addCompactButton(modeButtons, createMonthModeButton("Р В РЎв„ўР В Р’В°Р В РЎвЂќ Р В Р вЂ  Р РЋР С“Р РЋР вЂљР В РЎвЂўР В РЎвЂќР В Р’Вµ", MonthRepeatMode.SAME_DAY), 0);
-            addCompactButton(modeButtons, createMonthModeButton("Р В РІР‚СњР В Р’ВµР В Р вЂ¦Р РЋР Р‰", MonthRepeatMode.FIXED_DAY), dp(6));
-            addCompactButton(modeButtons, createMonthModeButton("Р В РЎСџР В РЎвЂўР РЋР С“Р В Р’В»Р В Р’ВµР В РўвЂР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“", MonthRepeatMode.LAST_DAY), dp(6));
+            addCompactButton(modeButtons, createMonthModeButton(getString(R.string.edit_repeat_month_mode_same_day), MonthRepeatMode.SAME_DAY), 0);
+            addCompactButton(modeButtons, createMonthModeButton(getString(R.string.edit_repeat_month_mode_fixed_day), MonthRepeatMode.FIXED_DAY), dp(6));
+            addCompactButton(modeButtons, createMonthModeButton(getString(R.string.edit_repeat_month_mode_last_day), MonthRepeatMode.LAST_DAY), dp(6));
             contentContainer.addView(modeButtons, fullWidthWithBottomMargin(dp(8)));
 
             if (monthMode == MonthRepeatMode.FIXED_DAY) {
@@ -1209,7 +1224,7 @@ public final class TaskEditActivity extends Activity {
                     pushValue();
                 }));
                 contentContainer.addView(
-                        createInputBlock("Р В РІР‚СњР В Р’ВµР В Р вЂ¦Р РЋР Р‰ Р В РЎВР В Р’ВµР РЋР С“Р РЋР РЏР РЋРІР‚В Р В Р’В°", monthlyDayInput),
+                        createInputBlock(getString(R.string.edit_repeat_month_day), monthlyDayInput),
                         fullWidth()
                     );
             }
@@ -1237,7 +1252,7 @@ public final class TaskEditActivity extends Activity {
                 pushValue();
             }));
             contentContainer.addView(
-                    createInputBlock("Р В Р Р‹Р В Р вЂ Р В РЎвЂўР В Р’Вµ Р В РЎвЂ”Р РЋР вЂљР В Р’В°Р В Р вЂ Р В РЎвЂР В Р’В»Р В РЎвЂў", customInput),
+                    createInputBlock(getString(R.string.edit_repeat_custom_rule), customInput),
                     fullWidth()
             );
         }
@@ -1348,11 +1363,11 @@ public final class TaskEditActivity extends Activity {
             empty.setGravity(Gravity.CENTER_HORIZONTAL);
             empty.setPadding(dp(8), dp(10), dp(8), dp(4));
 
-            TextView title = createText("\u041f\u043e\u043a\u0430 \u0431\u0435\u0437 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447", 13, R.color.text_primary, true);
+            TextView title = createText(getString(R.string.task_edit_subtasks_empty_title), 13, R.color.text_primary, true);
             title.setGravity(Gravity.CENTER_HORIZONTAL);
             empty.addView(title, fullWidth());
 
-            TextView body = createText("\u0414\u043e\u0431\u0430\u0432\u044c\u0442\u0435 \u0448\u0430\u0433\u0438, \u0447\u0442\u043e\u0431\u044b \u0440\u0430\u0437\u0431\u0438\u0442\u044c \u0437\u0430\u0434\u0430\u0447\u0443.", 12, R.color.text_secondary, false);
+            TextView body = createText(getString(R.string.task_edit_subtasks_empty_body), 12, R.color.text_secondary, false);
             body.setGravity(Gravity.CENTER_HORIZONTAL);
             empty.addView(body, fullWidthWithTopMargin(dp(3)));
             subtaskList.addView(empty, fullWidth());
@@ -1366,7 +1381,7 @@ public final class TaskEditActivity extends Activity {
 
     private String formatSubtaskSummary() {
         if (subtaskDrafts.isEmpty()) {
-            return "\u0412\u043b\u043e\u0436\u0435\u043d\u043d\u044b\u0445 \u0448\u0430\u0433\u043e\u0432 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442";
+            return getString(R.string.task_edit_subtasks_empty_summary);
         }
         int completed = 0;
         for (SubtaskDraft draft : subtaskDrafts) {
@@ -1374,7 +1389,7 @@ public final class TaskEditActivity extends Activity {
                 completed++;
             }
         }
-        return completed + "/" + subtaskDrafts.size() + " \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e";
+        return getString(R.string.task_edit_subtasks_summary, completed, subtaskDrafts.size());
     }
 
     private LinearLayout createSubtaskRow(int index) {
@@ -1420,7 +1435,7 @@ public final class TaskEditActivity extends Activity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         TextView title = createText(
-                draft.title.isEmpty() ? "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430" : draft.title,
+                draft.title.isEmpty() ? getString(R.string.task_edit_subtask_default_title) : draft.title,
                 13,
                 R.color.text_primary,
                 true
@@ -1428,7 +1443,7 @@ public final class TaskEditActivity extends Activity {
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         texts.addView(title, fullWidth());
-        String meta = draft.meta();
+        String meta = draft.meta(this);
         if (!meta.isEmpty()) {
             TextView metaView = createText(meta, 11, R.color.text_secondary, false);
             metaView.setSingleLine(true);
@@ -1449,7 +1464,7 @@ public final class TaskEditActivity extends Activity {
 
         ImageButton delete = createPlainIconButton(
                 R.drawable.ic_delete,
-                "\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0443"
+                getString(R.string.task_edit_delete_subtask)
         );
         delete.setOnClickListener(view -> {
             subtaskDrafts.remove(index);
@@ -1482,24 +1497,24 @@ public final class TaskEditActivity extends Activity {
 
     private void confirmDelete() {
         new AlertDialog.Builder(this)
-                .setTitle("\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0437\u0430\u0434\u0430\u0447\u0443?")
-                .setMessage("\u0417\u0430\u0434\u0430\u0447\u0430 \u0438 \u0432\u043b\u043e\u0436\u0435\u043d\u043d\u044b\u0435 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438 \u0431\u0443\u0434\u0443\u0442 \u0443\u0434\u0430\u043b\u0435\u043d\u044b \u0438\u0437 markdown-\u0444\u0430\u0439\u043b\u0430.")
-                .setPositiveButton("\u0423\u0434\u0430\u043b\u0438\u0442\u044c", (dialog, which) ->
+                .setTitle(R.string.task_edit_confirm_delete_title)
+                .setMessage(R.string.task_edit_confirm_delete_message)
+                .setPositiveButton(R.string.common_delete, (dialog, which) ->
                         handleWriteResult(NoteStore.deleteTaskBlock(this, taskKey)))
-                .setNegativeButton("\u041e\u0442\u043c\u0435\u043d\u0430", null)
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void handleWriteResult(TaskEditResult result) {
         if (result.isUpdated()) {
             NoteChangeMonitor.syncNow(this, true);
-            Toast.makeText(this, "\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u044b", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.task_edit_saved), Toast.LENGTH_SHORT).show();
             setResult(RESULT_OK);
             finish();
             return;
         }
 
-        String message = result.getMessage() == null ? "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u0444\u0430\u0439\u043b" : result.getMessage();
+        String message = result.getMessage() == null ? getString(R.string.task_edit_save_failed) : result.getMessage();
         setStatusMessage(message);
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
@@ -1510,11 +1525,11 @@ public final class TaskEditActivity extends Activity {
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle("\u0417\u0430\u043a\u0440\u044b\u0442\u044c \u0431\u0435\u0437 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f?")
-                .setMessage("\u041d\u0435\u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043d\u044b\u0435 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f \u0431\u0443\u0434\u0443\u0442 \u043f\u043e\u0442\u0435\u0440\u044f\u043d\u044b.")
-                .setPositiveButton("\u0417\u0430\u043a\u0440\u044b\u0442\u044c", (dialog, which) -> finish())
-                .setNeutralButton("\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c", (dialog, which) -> saveTask())
-                .setNegativeButton("\u041e\u0441\u0442\u0430\u0442\u044c\u0441\u044f", null)
+                .setTitle(R.string.task_edit_discard_title)
+                .setMessage(R.string.task_edit_discard_message)
+                .setPositiveButton(R.string.common_close, (dialog, which) -> finish())
+                .setNeutralButton(R.string.common_save, (dialog, which) -> saveTask())
+                .setNegativeButton(R.string.common_stay, null)
                 .show();
     }
 
@@ -1528,16 +1543,16 @@ public final class TaskEditActivity extends Activity {
             setStatusMessage(error);
             return false;
         }
-        setStatusMessage(showSuccess ? "\u0424\u043e\u0440\u043c\u0430\u0442 \u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u044b\u0439." : "");
+        setStatusMessage(showSuccess ? getString(R.string.task_edit_valid_format) : "");
         return true;
     }
 
     private String validationError(String candidate) {
         if (loadError != null && task == null && defaultDocument == null) {
-            return "\u0418\u0441\u0442\u043e\u0447\u043d\u0438\u043a \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d: " + loadError;
+            return getString(R.string.task_edit_source_unavailable, loadError);
         }
         if (candidate == null || candidate.trim().isEmpty()) {
-            return "Markdown-\u0431\u043b\u043e\u043a \u043f\u0443\u0441\u0442\u043e\u0439.";
+            return getString(R.string.task_edit_empty_markdown_block);
         }
 
         TaskParseResult result = TaskParser.parseDocument(
@@ -1550,10 +1565,10 @@ public final class TaskEditActivity extends Activity {
             return formatErrors(result.getErrors());
         }
         if (result.getTasks().isEmpty()) {
-            return "\u0421\u0442\u0440\u043e\u043a\u0430 \u043d\u0435 \u0440\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u043d\u0430 \u043a\u0430\u043a \u0437\u0430\u0434\u0430\u0447\u0430.";
+            return getString(R.string.task_edit_not_a_task_line);
         }
         if (result.getTasks().get(0).getReminderAt() == null) {
-            return "\u0414\u043b\u044f \u0443\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f \u043d\u0443\u0436\u043d\u043e \u0443\u043a\u0430\u0437\u0430\u0442\u044c \u0434\u0430\u0442\u0443 \u0438\u043b\u0438 \u0432\u0440\u0435\u043c\u044f \u0447\u0435\u0440\u0435\u0437 @due(...).";
+            return getString(R.string.task_edit_due_required);
         }
         return "";
     }
@@ -1572,7 +1587,7 @@ public final class TaskEditActivity extends Activity {
     private String currentParentMarkdownLine() {
         String title = valueOf(titleInput);
         if (title.isEmpty()) {
-            title = "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430";
+            title = getString(R.string.task_edit_title_new);
         }
 
         StringBuilder builder = new StringBuilder();
@@ -1762,19 +1777,21 @@ public final class TaskEditActivity extends Activity {
             return compactName(taskMatch.getDisplayName());
         }
         if (defaultDocument != null) {
-            return compactName(defaultDocument.getDisplayName()) + " \u00b7 \u0444\u0430\u0439\u043b \u0434\u043b\u044f \u0437\u0430\u043f\u0438\u0441\u0438";
+            return compactName(defaultDocument.getDisplayName())
+                    + " \u00b7 "
+                    + getString(R.string.task_edit_write_file_suffix);
         }
         return loadError == null ? compactName(NoteStore.sourceLabel(this)) : loadError;
     }
 
     private String formatErrors(List<TaskParseError> errors) {
-        StringBuilder builder = new StringBuilder("\u041e\u0448\u0438\u0431\u043a\u0430 \u0444\u043e\u0440\u043c\u0430\u0442\u0430:");
+        StringBuilder builder = new StringBuilder(getString(R.string.task_edit_format_error_title));
         int limit = Math.min(3, errors.size());
         for (int i = 0; i < limit; i++) {
-            builder.append('\n').append(errors.get(i).format());
+            builder.append('\n').append(errors.get(i).format(this));
         }
         if (errors.size() > limit) {
-            builder.append('\n').append("\u0415\u0449\u0435 \u043e\u0448\u0438\u0431\u043e\u043a: ").append(errors.size() - limit);
+            builder.append('\n').append(getString(R.string.task_edit_more_errors, errors.size() - limit));
         }
         return builder.toString();
     }
@@ -2015,7 +2032,7 @@ public final class TaskEditActivity extends Activity {
 
     private String compactName(String rawName) {
         if (rawName == null || rawName.trim().isEmpty()) {
-            return "\u0418\u0441\u0442\u043e\u0447\u043d\u0438\u043a \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d";
+            return getString(R.string.source_not_selected);
         }
 
         String value = rawName.trim();
@@ -2168,19 +2185,19 @@ public final class TaskEditActivity extends Activity {
             header.setOrientation(LinearLayout.HORIZONTAL);
             header.setGravity(Gravity.CENTER_VERTICAL);
 
-            ImageButton close = createIconButton(R.drawable.ic_close, "\u0417\u0430\u043a\u0440\u044b\u0442\u044c");
+            ImageButton close = createIconButton(R.drawable.ic_close, getString(R.string.common_close));
             close.setOnClickListener(view -> requestClose());
             header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
             LinearLayout texts = new LinearLayout(TaskEditActivity.this);
             texts.setOrientation(LinearLayout.VERTICAL);
             TextView title = createText(index >= 0
-                    ? "\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438"
-                    : "\u041d\u043e\u0432\u0430\u044f \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430", 17, R.color.text_primary, true);
+                    ? getString(R.string.task_edit_subtask_title_edit)
+                    : getString(R.string.task_edit_subtask_title_new), 17, R.color.text_primary, true);
             title.setSingleLine(true);
             title.setEllipsize(TextUtils.TruncateAt.END);
             texts.addView(title, fullWidth());
-            TextView subtitle = createText("\u0412\u043d\u0443\u0442\u0440\u0438 \u0442\u0435\u043a\u0443\u0449\u0435\u0439 \u0437\u0430\u0434\u0430\u0447\u0438", 12, R.color.text_secondary, false);
+            TextView subtitle = createText(getString(R.string.task_edit_subtask_subtitle), 12, R.color.text_secondary, false);
             subtitle.setSingleLine(true);
             texts.addView(subtitle, fullWidthWithTopMargin(dp(1)));
             header.addView(texts, new LinearLayout.LayoutParams(
@@ -2189,7 +2206,7 @@ public final class TaskEditActivity extends Activity {
                     1
             ));
 
-            saveView = createPrimaryIconButton(R.drawable.ic_check, "\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c");
+            saveView = createPrimaryIconButton(R.drawable.ic_check, getString(R.string.common_save));
             saveView.setOnClickListener(view -> save());
             header.addView(saveView, new LinearLayout.LayoutParams(
                     dp(42),
@@ -2199,11 +2216,11 @@ public final class TaskEditActivity extends Activity {
         }
 
         private LinearLayout createBasicSection() {
-            LinearLayout card = createSectionCard("\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435", null);
+            LinearLayout card = createSectionCard(getString(R.string.task_edit_section_basic), null);
             titleView = createInput(workingCopy.title);
-            titleView.setHint("\u0427\u0442\u043e \u043d\u0443\u0436\u043d\u043e \u0441\u0434\u0435\u043b\u0430\u0442\u044c");
+            titleView.setHint(getString(R.string.task_edit_title_hint));
             titleView.addTextChangedListener(localWatcher());
-            card.addView(createInputBlock("\u0417\u0430\u0434\u0430\u0447\u0430", titleView), fullWidthWithBottomMargin(dp(8)));
+            card.addView(createInputBlock(getString(R.string.task_edit_field_title), titleView), fullWidthWithBottomMargin(dp(8)));
 
             dateView = createInput(workingCopy.date);
             dateView.setHint("yyyy-MM-dd");
@@ -2227,7 +2244,7 @@ public final class TaskEditActivity extends Activity {
 
             LinearLayout row = new LinearLayout(TaskEditActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            row.addView(createInputBlock("\u0414\u0430\u0442\u0430", dateView), new LinearLayout.LayoutParams(
+            row.addView(createInputBlock(getString(R.string.task_edit_field_date), dateView), new LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1
@@ -2238,7 +2255,7 @@ public final class TaskEditActivity extends Activity {
                     1
             );
             timeParams.setMargins(dp(6), 0, 0, 0);
-            row.addView(createInputBlock("\u0412\u0440\u0435\u043c\u044f", timeView), timeParams);
+            row.addView(createInputBlock(getString(R.string.task_edit_field_time), timeView), timeParams);
             card.addView(row, fullWidthWithBottomMargin(dp(8)));
 
             repeatView = createInput(workingCopy.repeat);
@@ -2249,7 +2266,7 @@ public final class TaskEditActivity extends Activity {
             );
 
             repeatUntilDoneView = new CheckBox(TaskEditActivity.this);
-            repeatUntilDoneView.setText("\u041f\u043e\u0432\u0442\u043e\u0440\u044f\u0442\u044c \u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f");
+            repeatUntilDoneView.setText(getString(R.string.task_edit_repeat_until_done_toggle));
             repeatUntilDoneView.setTextColor(getColor(R.color.text_secondary));
             repeatUntilDoneView.setChecked(workingCopy.repeatUntilDone);
             repeatUntilDoneView.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -2262,13 +2279,13 @@ public final class TaskEditActivity extends Activity {
             repeatUntilDoneIntervalView.setHint("15m, 1h, 1d");
             repeatUntilDoneIntervalView.addTextChangedListener(localWatcher());
             repeatUntilDoneIntervalRowView = createInputBlock(
-                    "\u0418\u043d\u0442\u0435\u0440\u0432\u0430\u043b \u043f\u043e\u0432\u0442\u043e\u0440\u0430 \u0434\u043e \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f",
+                    getString(R.string.task_edit_repeat_until_done_interval),
                     repeatUntilDoneIntervalView
             );
             card.addView(repeatUntilDoneIntervalRowView, fullWidthWithBottomMargin(dp(8)));
 
             overdueGraceEnabledView = new CheckBox(TaskEditActivity.this);
-            overdueGraceEnabledView.setText("\u0421\u0440\u043e\u043a \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f");
+            overdueGraceEnabledView.setText(getString(R.string.task_edit_overdue_grace_toggle));
             overdueGraceEnabledView.setTextColor(getColor(R.color.text_secondary));
             overdueGraceEnabledView.setChecked(!workingCopy.overdueGrace.isEmpty());
             overdueGraceEnabledView.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -2281,7 +2298,7 @@ public final class TaskEditActivity extends Activity {
             overdueGraceView.setHint("0m, 10m, 1h");
             overdueGraceView.addTextChangedListener(localWatcher());
             overdueGraceRowView = createInputBlock(
-                    "\u041d\u0435 \u0441\u0447\u0438\u0442\u0430\u0442\u044c \u043f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043d\u043e\u0439",
+                    getString(R.string.task_edit_overdue_grace_label),
                     overdueGraceView
             );
             card.addView(overdueGraceRowView, fullWidth());
@@ -2303,7 +2320,7 @@ public final class TaskEditActivity extends Activity {
 
             LinearLayout texts = new LinearLayout(TaskEditActivity.this);
             texts.setOrientation(LinearLayout.VERTICAL);
-            texts.addView(createText("\u0414\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u043e", 15, R.color.text_primary, true), fullWidth());
+            texts.addView(createText(getString(R.string.task_edit_section_extra), 15, R.color.text_primary, true), fullWidth());
             extraSummaryView = createText("", 12, R.color.text_secondary, false);
             texts.addView(extraSummaryView, fullWidthWithTopMargin(dp(2)));
             header.addView(texts, new LinearLayout.LayoutParams(
@@ -2319,7 +2336,7 @@ public final class TaskEditActivity extends Activity {
 
             extraContentView = new LinearLayout(TaskEditActivity.this);
             extraContentView.setOrientation(LinearLayout.VERTICAL);
-            extraContentView.addView(createLabel("\u041f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442"), fullWidthWithBottomMargin(dp(4)));
+            extraContentView.addView(createLabel(getString(R.string.task_edit_field_priority)), fullWidthWithBottomMargin(dp(4)));
             LinearLayout priorityRow = new LinearLayout(TaskEditActivity.this);
             priorityRow.setOrientation(LinearLayout.HORIZONTAL);
             rebuildPriorityRow(priorityRow);
@@ -2328,15 +2345,15 @@ public final class TaskEditActivity extends Activity {
             tagsView = createInput(workingCopy.tags);
             tagsView.setHint("#work #health");
             tagsView.addTextChangedListener(localWatcher());
-            extraContentView.addView(createInputBlock("\u0422\u0435\u0433\u0438", tagsView), fullWidthWithBottomMargin(dp(8)));
+            extraContentView.addView(createInputBlock(getString(R.string.task_edit_field_tags), tagsView), fullWidthWithBottomMargin(dp(8)));
 
             snoozeView = createInput(workingCopy.snooze.isEmpty() ? defaultSnoozeToken() : workingCopy.snooze);
             snoozeView.setHint(defaultSnoozeToken());
             snoozeView.addTextChangedListener(localWatcher());
-            extraContentView.addView(createInputBlock("\u041e\u0442\u043b\u043e\u0436\u0438\u0442\u044c \u043d\u0430", snoozeView), fullWidthWithBottomMargin(dp(8)));
+            extraContentView.addView(createInputBlock(getString(R.string.task_edit_field_snooze), snoozeView), fullWidthWithBottomMargin(dp(8)));
 
             completedView = new CheckBox(TaskEditActivity.this);
-            completedView.setText("\u0412\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0430");
+            completedView.setText(getString(R.string.task_edit_subtask_completed));
             completedView.setTextColor(getColor(R.color.text_secondary));
             completedView.setChecked(workingCopy.completed);
             completedView.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -2362,7 +2379,7 @@ public final class TaskEditActivity extends Activity {
             LinearLayout row = new LinearLayout(TaskEditActivity.this);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.addView(createText("Markdown preview", 14, R.color.text_primary, true), new LinearLayout.LayoutParams(
+            row.addView(createText(getString(R.string.task_edit_section_preview), 14, R.color.text_primary, true), new LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     1
@@ -2390,10 +2407,10 @@ public final class TaskEditActivity extends Activity {
 
         private void rebuildPriorityRow(LinearLayout row) {
             row.removeAllViews();
-            addPriorityButton(row, "\u041d\u0435\u0442", TaskPriority.NONE, 0);
-            addPriorityButton(row, "\u041d\u0438\u0437\u043a\u0438\u0439", TaskPriority.LOW, dp(6));
-            addPriorityButton(row, "\u0421\u0440\u0435\u0434\u043d\u0438\u0439", TaskPriority.MEDIUM, dp(6));
-            addPriorityButton(row, "\u0412\u044b\u0441\u043e\u043a\u0438\u0439", TaskPriority.HIGH, dp(6));
+            addPriorityButton(row, getString(R.string.task_edit_priority_none), TaskPriority.NONE, 0);
+            addPriorityButton(row, getString(R.string.task_edit_priority_low), TaskPriority.LOW, dp(6));
+            addPriorityButton(row, getString(R.string.task_edit_priority_medium), TaskPriority.MEDIUM, dp(6));
+            addPriorityButton(row, getString(R.string.task_edit_priority_high), TaskPriority.HIGH, dp(6));
         }
 
         private void addPriorityButton(LinearLayout row, String label, TaskPriority value, int leftMargin) {
@@ -2570,11 +2587,11 @@ public final class TaskEditActivity extends Activity {
                 return;
             }
             new AlertDialog.Builder(TaskEditActivity.this)
-                    .setTitle("\u0417\u0430\u043a\u0440\u044b\u0442\u044c \u0431\u0435\u0437 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f?")
-                    .setMessage("\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438 \u0431\u0443\u0434\u0443\u0442 \u043f\u043e\u0442\u0435\u0440\u044f\u043d\u044b.")
-                    .setPositiveButton("\u0417\u0430\u043a\u0440\u044b\u0442\u044c", (dialog, which) -> dismiss(false))
-                    .setNeutralButton("\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c", (dialog, which) -> save())
-                    .setNegativeButton("\u041e\u0441\u0442\u0430\u0442\u044c\u0441\u044f", null)
+                    .setTitle(R.string.task_edit_discard_title)
+                    .setMessage(R.string.task_edit_subtask_discard_message)
+                    .setPositiveButton(R.string.common_close, (dialog, which) -> dismiss(false))
+                    .setNeutralButton(R.string.common_save, (dialog, which) -> save())
+                    .setNegativeButton(R.string.common_stay, null)
                     .show();
         }
 
@@ -2643,7 +2660,7 @@ public final class TaskEditActivity extends Activity {
 
         private String validationError(String candidate) {
             if (candidate == null || candidate.trim().isEmpty()) {
-                return "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430 \u043f\u0443\u0441\u0442\u0430.";
+                return getString(R.string.task_edit_subtask_empty);
             }
             TaskParseResult result = TaskParser.parseDocument(
                     candidate + "\n",
@@ -2655,7 +2672,7 @@ public final class TaskEditActivity extends Activity {
                 return formatErrors(result.getErrors());
             }
             if (result.getTasks().isEmpty()) {
-                return "\u0421\u0442\u0440\u043e\u043a\u0430 \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438 \u043d\u0435 \u0440\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u043d\u0430.";
+                return getString(R.string.task_edit_subtask_not_recognized);
             }
             return "";
         }
@@ -2719,7 +2736,7 @@ public final class TaskEditActivity extends Activity {
                 parts.add(tags);
             }
             if (completedView != null && completedView.isChecked()) {
-                parts.add("\u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0430");
+                parts.add(getString(R.string.task_edit_subtask_completed));
             }
             String summary = parts.isEmpty() ? "" : TextUtils.join(" \u00b7 ", parts);
             extraSummaryView.setText(summary);
@@ -2825,7 +2842,7 @@ public final class TaskEditActivity extends Activity {
         private String toMarkdownLine(TaskEditActivity activity) {
             String normalizedTitle = title == null ? "" : title.trim();
             if (normalizedTitle.isEmpty()) {
-                normalizedTitle = "\u041f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0430";
+                normalizedTitle = activity.getString(R.string.task_edit_subtask_default_title);
             }
 
             StringBuilder builder = new StringBuilder(completed ? "- [x] " : "- [ ] ");
@@ -2906,19 +2923,19 @@ public final class TaskEditActivity extends Activity {
             return cleanTime;
         }
 
-        private String meta() {
+        private String meta(TaskEditActivity activity) {
             List<String> parts = new ArrayList<>();
             String due = dueValue();
             if (!due.isEmpty()) {
                 parts.add(due);
             }
             if (repeat != null && !repeat.trim().isEmpty()) {
-                parts.add("\u043f\u043e\u0432\u0442\u043e\u0440 " + repeat.trim());
+                parts.add(activity.getString(R.string.task_edit_subtask_repeat_prefix, repeat.trim()));
             }
             if (completed) {
-                parts.add("\u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0430");
+                parts.add(activity.getString(R.string.task_edit_subtask_completed));
             } else if (skipped) {
-                parts.add("\u043f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u0430");
+                parts.add(activity.getString(R.string.task_edit_subtask_skipped));
             }
             if (parts.isEmpty()) {
                 return "";

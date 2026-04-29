@@ -1,8 +1,7 @@
 package com.regstar.obsidiannotification.core.tasks;
 
-import com.regstar.obsidiannotification.core.reminders.*;
-import com.regstar.obsidiannotification.core.source.*;
-import com.regstar.obsidiannotification.prefs.*;
+import com.regstar.obsidiannotification.R;
+import com.regstar.obsidiannotification.core.source.NoteStore;
 import com.regstar.obsidiannotification.support.ErrorLog;
 
 import android.content.Context;
@@ -31,33 +30,47 @@ public final class RepeatSeriesManager {
             String taskKey,
             OccurrenceStatus resolutionStatus
     ) {
+        return advance(
+                context,
+                taskKey,
+                resolutionStatus,
+                TaskFormatSettings.load(context)
+        );
+    }
+
+    public static TaskEditResult advance(
+            Context context,
+            String taskKey,
+            OccurrenceStatus resolutionStatus,
+            TaskFormatSettings formatSettings
+    ) {
         if (taskKey == null || taskKey.trim().isEmpty()) {
-            return TaskEditResult.notFound("РєР»СЋС‡ Р·Р°РґР°С‡Рё РїСѓСЃС‚РѕР№");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_task_key_empty));
         }
 
         try {
             NoteStore.TaskDocumentMatch match = NoteStore.findTaskDocument(context, taskKey);
             if (match == null || match.getTask() == null) {
-                return TaskEditResult.notFound("Р·Р°РґР°С‡Р° РЅРµ РЅР°Р№РґРµРЅР° РёР»Рё СѓР¶Рµ РёР·РјРµРЅРёР»Р°СЃСЊ");
+                return TaskEditResult.notFound(context.getString(R.string.runtime_task_not_found_or_changed));
             }
 
             ObsidianTask task = match.getTask();
             if (!task.hasRepeatSchedule() || task.getReminderAt() == null) {
-                return TaskEditResult.notFound("repeat-СЃРµСЂРёСЏ РґР»СЏ РїСЂРѕРґРІРёР¶РµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅР°");
+                return TaskEditResult.notFound(context.getString(R.string.runtime_repeat_series_not_found));
             }
 
             NoteStore.TaskBlockSnapshot snapshot = NoteStore.captureTaskBlockSnapshot(context, taskKey);
             if (snapshot == null) {
-                return TaskEditResult.conflict("Р±Р»РѕРє Р·Р°РґР°С‡Рё Р±РѕР»СЊС€Рµ РЅРµ РЅР°Р№РґРµРЅ");
+                return TaskEditResult.conflict(context.getString(R.string.runtime_task_block_not_found));
             }
 
             LocalDateTime nextDue = task.getRepeatRule().nextDueAfter(task.getReminderAt());
             if (nextDue == null) {
-                return TaskEditResult.conflict("РЅРµ СѓРґР°Р»РѕСЃСЊ РІС‹С‡РёСЃР»РёС‚СЊ СЃР»РµРґСѓСЋС‰РёР№ due");
+                return TaskEditResult.conflict(context.getString(R.string.runtime_next_due_calc_error));
             }
 
             String seriesId = task.hasStableSeriesId() ? task.getSeriesId() : ObsidianTask.newSeriesId();
-            String updatedBlock = advanceBlock(task, snapshot.getDeletedBlock(), nextDue, seriesId);
+            String updatedBlock = advanceBlock(task, snapshot.getDeletedBlock(), nextDue, seriesId, formatSettings);
             TaskEditResult replaceResult = NoteStore.replaceTaskBlock(context, taskKey, updatedBlock);
             if (replaceResult.isFailure()) {
                 return replaceResult;
@@ -81,23 +94,24 @@ public final class RepeatSeriesManager {
             OccurrenceHistoryStore.removePendingExternalCompletion(context, seriesId);
             return replaceResult;
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРґРІРёРЅСѓС‚СЊ repeat-СЃРµСЂРёСЋ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_repeat_series_advance_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
 
-    private static String advanceBlock(
+    static String advanceBlock(
             ObsidianTask task,
             String rawBlock,
             LocalDateTime nextDue,
-            String seriesId
+            String seriesId,
+            TaskFormatSettings formatSettings
     ) {
         String[] lines = rawBlock == null ? new String[0] : rawBlock.split("\\R", -1);
         if (lines.length == 0) {
             return TaskMarkdownWriter.rewriteSeriesHeadLine(
                     task,
                     nextDue,
-                    TaskFormatSettings.defaults(),
+                    formatSettings == null ? TaskFormatSettings.defaults() : formatSettings,
                     seriesId
             );
         }
@@ -105,7 +119,7 @@ public final class RepeatSeriesManager {
         lines[0] = TaskMarkdownWriter.rewriteSeriesHeadLine(
                 task,
                 nextDue,
-                TaskFormatSettings.defaults(),
+                formatSettings == null ? TaskFormatSettings.defaults() : formatSettings,
                 seriesId
         );
         for (int i = 1; i < lines.length; i++) {

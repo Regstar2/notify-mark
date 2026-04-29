@@ -1,0 +1,4 @@
+<resources>
+    <string name="main_subtasks_collapse">Свернуть подзадачи</string>
+    <string name="main_subtasks_expand">Показать подзадачи</string>
+</resources>

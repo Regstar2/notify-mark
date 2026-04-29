@@ -11,6 +11,7 @@ import com.regstar.obsidiannotification.support.ErrorLog;
 
 import android.Manifest;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -57,6 +58,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Main entry point for the app.
@@ -81,13 +86,13 @@ public final class MainActivity extends AppCompatActivity {
     private static final DateTimeFormatter DATE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
     private static final DateTimeFormatter CALENDAR_MONTH_FORMAT =
-            DateTimeFormatter.ofPattern("LLLL yyyy", new Locale("ru"));
+            DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault());
     private static final DateTimeFormatter CALENDAR_DAY_HEADER_FORMAT =
-            DateTimeFormatter.ofPattern("d MMMM, EEEE", new Locale("ru"));
+            DateTimeFormatter.ofPattern("d MMMM, EEEE", Locale.getDefault());
     private static final DateTimeFormatter CALENDAR_WEEK_DAY_FORMAT =
-            DateTimeFormatter.ofPattern("d MMMM", new Locale("ru"));
+            DateTimeFormatter.ofPattern("d MMMM", Locale.getDefault());
     private static final DateTimeFormatter CALENDAR_MONTH_NAME_FORMAT =
-            DateTimeFormatter.ofPattern("LLLL", new Locale("ru"));
+            DateTimeFormatter.ofPattern("LLLL", Locale.getDefault());
 
     private Uri noteUri;
     private TextView statusText;
@@ -135,6 +140,14 @@ public final class MainActivity extends AppCompatActivity {
     private boolean showTaskSourceNames;
     private boolean renderedShowSourceOnMain;
     private final Handler noteRefreshHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService snapshotExecutor = Executors.newSingleThreadExecutor();
+    private final Object snapshotLoadLock = new Object();
+    private final AtomicInteger snapshotRequestId = new AtomicInteger(0);
+    private volatile Future<?> runningSnapshotTask;
+    private volatile int latestSnapshotRequestId;
+    private volatile boolean pendingSnapshotReload;
+    private volatile boolean pendingSnapshotForceRender;
+    private volatile boolean snapshotCallbacksClosed;
     private final Runnable noteRefreshRunnable = new Runnable() {
         @Override
         public void run() {
@@ -154,7 +167,7 @@ public final class MainActivity extends AppCompatActivity {
         try {
             TaskSourceManager.ensureReady(this);
         } catch (IOException exception) {
-            ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂР В Р вЂ¦Р В РЎвЂР РЋРІР‚В Р В РЎвЂР В Р’В°Р В Р’В»Р В РЎвЂР В Р’В·Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ", exception);
+            ErrorLog.record(this, getString(R.string.main_init_source_error), exception);
         }
 
         noteUri = TaskSourceManager.getActiveSourceUri(this);
@@ -168,12 +181,12 @@ public final class MainActivity extends AppCompatActivity {
             NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
             setStatus(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
-                    ? "Р В РЎСџР В РЎвЂўР В РўвЂР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р РЋР вЂ№Р РЋР вЂ№ markdown-Р В РЎвЂ”Р В Р’В°Р В РЎвЂ”Р В РЎвЂќР РЋРЎвЂњ Р В РЎвЂР В Р’В»Р В РЎвЂ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњ."
-                    : "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ.");
+                    ? getString(R.string.main_status_connect_external_source)
+                    : getString(R.string.main_status_internal_storage_open_failed));
             setNextReminder(null);
             renderEmptyState(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
-                    ? "Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В РЎвЂ”Р В РЎвЂўР РЋР РЏР В Р вЂ Р РЋР РЏР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В Р’В»Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р В РЎвЂўР РЋР вЂљР В Р’В° Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В Р’ВµР В РЎвЂ“Р В РЎвЂў Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В Р’В°."
-                    : "Р В РЎСџР В РЎвЂўР В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р’В±Р РЋРЎвЂњР В РІвЂћвЂ“Р РЋРІР‚С™Р В Р’Вµ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р РЋР С“Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р’В° Р В РЎвЂР В Р’В»Р В РЎвЂ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р РЋР Р‰Р РЋР С“Р РЋР РЏ Р В Р вЂ¦Р В Р’В° Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ.");
+                    ? getString(R.string.main_empty_after_external_source_select)
+                    : getString(R.string.main_empty_retry_or_switch_source));
             showOnboardingIfNeeded();
         } else {
             readAndRenderNote();
@@ -208,6 +221,22 @@ public final class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         stopForegroundNotePolling();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopForegroundNotePolling();
+        snapshotCallbacksClosed = true;
+        synchronized (snapshotLoadLock) {
+            pendingSnapshotReload = false;
+            pendingSnapshotForceRender = false;
+            if (runningSnapshotTask != null) {
+                runningSnapshotTask.cancel(true);
+                runningSnapshotTask = null;
+            }
+        }
+        snapshotExecutor.shutdownNow();
     }
 
     @Override
@@ -248,13 +277,13 @@ public final class MainActivity extends AppCompatActivity {
             if (noteUri == null) {
                 NoteChangeMonitor.cancel(this);
                 ReminderScheduler.cancelScheduled(this);
-                setStatus("Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦.");
+                setStatus(getString(R.string.main_status_source_not_selected));
                 setNextReminder(null);
                 if (selectedSection == SECTION_CALENDAR) {
                     renderCalendar(new ArrayList<>());
                     return;
                 }
-                renderEmptyState("Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В РЎвЂ”Р В РЎвЂўР РЋР РЏР В Р вЂ Р РЋР РЏР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В Р’В·Р В РўвЂР В Р’ВµР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В Р’В»Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р В РЎвЂўР РЋР вЂљР В Р’В° Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В Р’В°.");
+                renderEmptyState(getString(R.string.main_empty_after_source_select));
             } else {
                 readAndRenderNote();
                 NoteChangeMonitor.ensureScheduled(this);
@@ -318,14 +347,14 @@ public final class MainActivity extends AppCompatActivity {
         updateNotificationPermissionUi();
         if (hasNotificationPermission()) {
             if (noteUri == null) {
-                setStatus("Р В Р в‚¬Р В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–. Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р В Р’ВµР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’Вµ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р РЋР С“ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В Р’В°Р В РЎВР В РЎвЂ Obsidian.");
+                setStatus(getString(R.string.main_status_notification_granted_pick_markdown));
             } else {
                 readAndRenderNote();
                 NoteChangeMonitor.ensureScheduled(this);
             }
         } else {
             ReminderScheduler.cancelScheduled(this);
-            setStatus("Р В Р’В Р В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В Р вЂ¦Р В Р’В° Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В РўвЂР В Р’В°Р В Р вЂ¦Р В РЎвЂў. Р В РЎСљР В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ¦Р В Р’Вµ Р В Р’В±Р РЋРЎвЂњР В РўвЂР РЋРЎвЂњР РЋРІР‚С™ Р В РЎвЂ”Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°Р В Р вЂ¦Р РЋРІР‚в„–.");
+            setStatus(getString(R.string.main_status_notification_denied));
             setNextReminder(null);
         }
     }
@@ -353,7 +382,7 @@ public final class MainActivity extends AppCompatActivity {
 
         ImageButton settingsButton = new ImageButton(this);
         settingsButton.setImageResource(R.drawable.ic_settings);
-        settingsButton.setContentDescription("Р В РЎСљР В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р В РЎвЂќР В РЎвЂ");
+        settingsButton.setContentDescription(getString(R.string.main_cd_settings));
         settingsButton.setBackgroundColor(Color.TRANSPARENT);
         settingsButton.setOnClickListener(view -> openSettings());
         header.addView(settingsButton, new LinearLayout.LayoutParams(dp(48), dp(48)));
@@ -364,7 +393,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Р В Р’В§Р В РЎвЂР РЋРІР‚С™Р В Р’В°Р В Р’ВµР РЋРІР‚С™ markdown-Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂР В Р’В· Obsidian Р В РЎвЂ Р В РЎвЂ”Р В Р’В»Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР вЂљР РЋРЎвЂњР В Р’ВµР РЋРІР‚С™ Р В Р’В»Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ.");
+        subtitle.setText(getString(R.string.main_hero_subtitle));
         subtitle.setTextColor(getColor(R.color.text_secondary));
         subtitle.setTextSize(15);
         subtitle.setPadding(0, dp(8), 0, dp(16));
@@ -407,7 +436,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
 
         Button addTaskButton = new Button(this);
-        addTaskButton.setText("Р В РІР‚СњР В РЎвЂўР В Р’В±Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ");
+        addTaskButton.setText(getString(R.string.main_add_notification));
         addTaskButton.setAllCaps(false);
         addTaskButton.setOnClickListener(view -> openTaskEditor(null));
         LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
@@ -433,7 +462,7 @@ public final class MainActivity extends AppCompatActivity {
         root.addView(activeFilterButton, filterParams);
 
         notificationPermissionButton = new Button(this);
-        notificationPermissionButton.setText("Р В Р’В Р В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ");
+        notificationPermissionButton.setText(getString(R.string.main_allow_notifications));
         notificationPermissionButton.setAllCaps(false);
         notificationPermissionButton.setOnClickListener(view -> requestNotificationPermission());
         LinearLayout.LayoutParams permissionParams = new LinearLayout.LayoutParams(
@@ -444,7 +473,7 @@ public final class MainActivity extends AppCompatActivity {
         root.addView(notificationPermissionButton, permissionParams);
 
         exactAlarmPermissionButton = new Button(this);
-        exactAlarmPermissionButton.setText("Р В Р’В Р В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ");
+        exactAlarmPermissionButton.setText(getString(R.string.main_allow_exact_alarms));
         exactAlarmPermissionButton.setAllCaps(false);
         exactAlarmPermissionButton.setOnClickListener(view -> requestExactAlarmPermission());
         LinearLayout.LayoutParams exactAlarmParams = new LinearLayout.LayoutParams(
@@ -596,11 +625,13 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void populateDefaultTopAppBar(LinearLayout appBar) {
-        ImageButton menuButton = createPlainIconButton(R.drawable.ic_menu, "Р В РЎвЂєР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р В РЎВР В Р’ВµР В Р вЂ¦Р РЋР вЂ№");
+        ImageButton menuButton = createPlainIconButton(R.drawable.ic_menu, getString(R.string.main_cd_open_menu));
         menuButton.setOnClickListener(view -> openDrawer());
         appBar.addView(menuButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        TextView title = createText(selectedSection == SECTION_CALENDAR ? "Р В РЎв„ўР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋР Р‰" : "Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ",
+        TextView title = createText(selectedSection == SECTION_CALENDAR
+                        ? getString(R.string.main_calendar_title)
+                        : getString(R.string.main_tasks_title),
                 selectedSection == SECTION_TASKS ? 19 : 21,
                 R.color.text_primary,
                 true);
@@ -617,7 +648,7 @@ public final class MainActivity extends AppCompatActivity {
         titleParams.setMargins(dp(8), 0, dp(8), 0);
         appBar.addView(title, titleParams);
 
-        ImageButton topRefreshButton = createPlainIconButton(R.drawable.ic_refresh, "Р В РЎвЂєР В Р’В±Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰");
+        ImageButton topRefreshButton = createPlainIconButton(R.drawable.ic_refresh, getString(R.string.main_cd_refresh));
         topRefreshButton.setEnabled(noteUri != null);
         topRefreshButton.setOnClickListener(view -> refreshFromTopBar());
         refreshButton = topRefreshButton;
@@ -626,11 +657,11 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void populateSelectionTopAppBar(LinearLayout appBar) {
-        ImageButton closeButton = createPlainIconButton(R.drawable.ic_close, "Р В Р Р‹Р В Р вЂ¦Р РЋР РЏР РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋРІР‚в„–Р В РўвЂР В Р’ВµР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ");
+        ImageButton closeButton = createPlainIconButton(R.drawable.ic_close, getString(R.string.main_cd_clear_selection));
         closeButton.setOnClickListener(view -> exitSelectionMode());
         appBar.addView(closeButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        TextView title = createText(selectedTaskKeys.size() + " Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂў",
+        TextView title = createText(getString(R.string.main_selected_count, selectedTaskKeys.size()),
                 19,
                 R.color.text_primary,
                 true);
@@ -644,19 +675,19 @@ public final class MainActivity extends AppCompatActivity {
         titleParams.setMargins(dp(8), 0, dp(8), 0);
         appBar.addView(title, titleParams);
 
-        ImageButton doneButton = createPlainIconButton(R.drawable.ic_check, "Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РЎВР В РЎвЂ");
+        ImageButton doneButton = createPlainIconButton(R.drawable.ic_check, getString(R.string.common_done_mark));
         doneButton.setOnClickListener(view -> bulkMarkSelectedDone());
         appBar.addView(doneButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        ImageButton skipButton = createPlainIconButton(R.drawable.ic_skip, "Р В РЎСџР РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋР С“Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰");
+        ImageButton skipButton = createPlainIconButton(R.drawable.ic_skip, getString(R.string.common_skip));
         skipButton.setOnClickListener(view -> bulkSkipSelected());
         appBar.addView(skipButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        ImageButton snoozeButton = createPlainIconButton(R.drawable.ic_clock, "Р В РЎвЂєР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰");
+        ImageButton snoozeButton = createPlainIconButton(R.drawable.ic_clock, getString(R.string.common_snooze));
         snoozeButton.setOnClickListener(view -> bulkSnoozeSelected());
         appBar.addView(snoozeButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        ImageButton deleteButton = createPlainIconButton(R.drawable.ic_delete, "Р В Р в‚¬Р В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰");
+        ImageButton deleteButton = createPlainIconButton(R.drawable.ic_delete, getString(R.string.main_cd_delete));
         deleteButton.setOnClickListener(view -> confirmBulkDeleteSelected());
         appBar.addView(deleteButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
     }
@@ -695,7 +726,7 @@ public final class MainActivity extends AppCompatActivity {
             root.addView(sourceCard, sourceParams);
         }
 
-        notificationPermissionButton = createActionButton("Р В Р’В Р В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ", true);
+        notificationPermissionButton = createActionButton(getString(R.string.main_allow_notifications), true);
         notificationPermissionButton.setOnClickListener(view -> requestNotificationPermission());
         LinearLayout.LayoutParams permissionParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -704,7 +735,7 @@ public final class MainActivity extends AppCompatActivity {
         permissionParams.setMargins(0, 0, 0, dp(10));
         root.addView(notificationPermissionButton, permissionParams);
 
-        exactAlarmPermissionButton = createActionButton("Р В Р’В Р В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ", false);
+        exactAlarmPermissionButton = createActionButton(getString(R.string.main_allow_exact_alarms), false);
         exactAlarmPermissionButton.setOnClickListener(view -> requestExactAlarmPermission());
         LinearLayout.LayoutParams exactAlarmParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -739,12 +770,12 @@ public final class MainActivity extends AppCompatActivity {
         updateNotificationPermissionUi();
         updateExactAlarmPermissionUi();
         if (noteUri == null) {
-            setStatus("Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦.");
+            setStatus(getString(R.string.main_file_not_selected));
             setNextReminder(null);
             if (selectedSection == SECTION_CALENDAR) {
                 renderCalendar(new ArrayList<>());
             } else {
-                renderEmptyState("Р В РЎСљР В Р’В°Р В Р’В¶Р В РЎВР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р вЂ™Р’В«Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњР вЂ™Р’В».");
+                renderEmptyState(getString(R.string.main_empty_choose_note));
             }
             return;
         }
@@ -840,7 +871,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
 
         bottomBar.addView(createBottomNavItem(
-                "Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ",
+                getString(R.string.main_tasks_title),
                 R.drawable.ic_task_list,
                 selectedSection == SECTION_TASKS,
                 () -> {
@@ -854,7 +885,7 @@ public final class MainActivity extends AppCompatActivity {
 
         LinearLayout.LayoutParams calendarParams = new LinearLayout.LayoutParams(0, dp(60), 1);
         bottomBar.addView(createBottomNavItem(
-                "Р В РЎв„ўР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋР Р‰",
+                getString(R.string.main_calendar_title),
                 R.drawable.ic_calendar,
                 selectedSection == SECTION_CALENDAR,
                 () -> {
@@ -938,7 +969,7 @@ public final class MainActivity extends AppCompatActivity {
 
         panel.addView(createDrawerItem(
                 R.drawable.ic_task_list,
-                "Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ",
+                getString(R.string.main_tasks_title),
                 "",
                 selectedSection == SECTION_TASKS,
                 () -> {
@@ -952,7 +983,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
         panel.addView(createDrawerItem(
                 R.drawable.ic_calendar,
-                "Р В РЎв„ўР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РўвЂР В Р’В°Р РЋР вЂљР РЋР Р‰",
+                getString(R.string.main_calendar_title),
                 "",
                 selectedSection == SECTION_CALENDAR,
                 () -> {
@@ -966,8 +997,8 @@ public final class MainActivity extends AppCompatActivity {
         ));
         panel.addView(createDrawerItem(
                 R.drawable.ic_file,
-                "Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В РЎвЂ",
-                "Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„– Р В РЎвЂ Р В РЎвЂ”Р В Р’В°Р В РЎвЂ”Р В РЎвЂќР В РЎвЂ Р РЋР С“ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В Р’В°Р В РЎВР В РЎвЂ",
+                getString(R.string.main_nav_sources),
+                getString(R.string.main_nav_sources_subtitle),
                 false,
                 () -> {
                     closeDrawer();
@@ -976,8 +1007,8 @@ public final class MainActivity extends AppCompatActivity {
         ));
         panel.addView(createDrawerItem(
                 R.drawable.ic_settings,
-                "Р В РЎСљР В Р’В°Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РІвЂћвЂ“Р В РЎвЂќР В РЎвЂ",
-                "Р В Р’В¤Р В РЎвЂўР РЋР вЂљР В РЎВР В Р’В°Р РЋРІР‚С™, Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ, Р В Р вЂ Р В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“ Р В Р вЂ Р В РЎвЂР В РўвЂ",
+                getString(R.string.main_nav_settings),
+                getString(R.string.main_nav_settings_subtitle),
                 false,
                 () -> {
                     closeDrawer();
@@ -986,7 +1017,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
         panel.addView(createDrawerItem(
                 R.drawable.ic_info,
-                "Р В РЎвЂє Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В РЎвЂ",
+                getString(R.string.main_nav_about),
                 "",
                 false,
                 () -> {
@@ -1168,14 +1199,14 @@ public final class MainActivity extends AppCompatActivity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        TextView title = createText("Р В Р’В¤Р В РЎвЂР В Р’В»Р РЋР Р‰Р РЋРІР‚С™Р РЋР вЂљ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ", 18, R.color.text_primary, true);
+        TextView title = createText(getString(R.string.main_filter_title), 18, R.color.text_primary, true);
         header.addView(title, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
 
-        ImageButton closeButton = createPlainIconButton(R.drawable.ic_close, "Р В РІР‚вЂќР В Р’В°Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р РЋРІР‚С›Р В РЎвЂР В Р’В»Р РЋР Р‰Р РЋРІР‚С™Р РЋР вЂљ");
+        ImageButton closeButton = createPlainIconButton(R.drawable.ic_close, getString(R.string.main_filter_close));
         closeButton.setOnClickListener(view -> closeTaskFilterSheet());
         header.addView(closeButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
         panel.addView(header, fullWidth());
@@ -1242,11 +1273,11 @@ public final class MainActivity extends AppCompatActivity {
             return;
         }
         filterSheetOptions.removeAllViews();
-        addTaskFilterSheetItem(UserPreferences.FILTER_ALL, "Р В РІР‚в„ўР РЋР С“Р В Р’Вµ");
-        addTaskFilterSheetItem(UserPreferences.FILTER_ACTIVE, "Р В РЎвЂ™Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ");
-        addTaskFilterSheetItem(UserPreferences.FILTER_OVERDUE, "Р В РЎСџР РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ");
-        addTaskFilterSheetItem(UserPreferences.FILTER_COMPLETED, "Р В РІР‚вЂќР В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ");
-        addTaskFilterSheetItem(UserPreferences.FILTER_SKIPPED, "Р В РЎСџР РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ");
+        addTaskFilterSheetItem(UserPreferences.FILTER_ALL, getString(R.string.filter_all));
+        addTaskFilterSheetItem(UserPreferences.FILTER_ACTIVE, getString(R.string.filter_active));
+        addTaskFilterSheetItem(UserPreferences.FILTER_OVERDUE, getString(R.string.filter_overdue));
+        addTaskFilterSheetItem(UserPreferences.FILTER_COMPLETED, getString(R.string.filter_completed));
+        addTaskFilterSheetItem(UserPreferences.FILTER_SKIPPED, getString(R.string.filter_skipped));
     }
 
     private void addTaskFilterSheetItem(String filter, String label) {
@@ -1297,11 +1328,13 @@ public final class MainActivity extends AppCompatActivity {
 
     private void showAboutDialog() {
         new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.app_name))
-                .setMessage("Р В РІР‚С”Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РЎвЂР В Р’В· markdown-Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ.\nР В РЎС›Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р РЋР вЂљР В Р’ВµР В Р’В¶Р В РЎвЂР В РЎВ: "
-                        + TaskSourceManager.storageModeLabel(this)
-                        + "\nР В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ: " + TaskSourceManager.activeSourceLabel(this))
-                .setPositiveButton("OK", null)
+                .setTitle(R.string.app_name)
+                .setMessage(getString(
+                        R.string.main_about_message,
+                        TaskSourceManager.storageModeLabel(this),
+                        TaskSourceManager.activeSourceLabel(this)
+                ))
+                .setPositiveButton(R.string.common_ok, null)
                 .show();
     }
 
@@ -1321,8 +1354,8 @@ public final class MainActivity extends AppCompatActivity {
 
         LinearLayout textColumn = new LinearLayout(this);
         textColumn.setOrientation(LinearLayout.VERTICAL);
-        sourceTitleText = createText("Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ", 15, R.color.text_primary, true);
-        sourceMetaText = createText("Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦", 13, R.color.text_secondary, false);
+        sourceTitleText = createText(getString(R.string.source_title), 15, R.color.text_primary, true);
+        sourceMetaText = createText(getString(R.string.source_not_selected), 13, R.color.text_secondary, false);
         sourceTitleText.setSingleLine(true);
         sourceTitleText.setEllipsize(TextUtils.TruncateAt.END);
         sourceMetaText.setSingleLine(true);
@@ -1337,7 +1370,7 @@ public final class MainActivity extends AppCompatActivity {
         textParams.setMargins(dp(12), 0, dp(8), 0);
         row.addView(textColumn, textParams);
 
-        ImageButton manageButton = createPlainIconButton(R.drawable.ic_settings, "Р В Р в‚¬Р В РЎвЂ”Р РЋР вЂљР В Р’В°Р В Р вЂ Р В Р’В»Р РЋР РЏР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР В Р’В°Р В РЎВР В РЎвЂ");
+        ImageButton manageButton = createPlainIconButton(R.drawable.ic_settings, getString(R.string.main_manage_sources));
         manageButton.setOnClickListener(view -> openSourceManagement());
         row.addView(manageButton, new LinearLayout.LayoutParams(dp(36), dp(36)));
 
@@ -1425,13 +1458,13 @@ public final class MainActivity extends AppCompatActivity {
                 summary.totalTaskCount > 0);
         card.addView(total, fullWidthWithTopMargin(dp(5)));
 
-        card.addView(createYearStatusLine("Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂў", summary.completedCount,
+        card.addView(createYearStatusLine(getString(R.string.status_completed_short), summary.completedCount,
                 R.color.calendar_indicator_completed), fullWidthWithTopMargin(dp(8)));
-        card.addView(createYearStatusLine("Р В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ", summary.activeCount,
+        card.addView(createYearStatusLine(getString(R.string.status_active_short), summary.activeCount,
                 R.color.calendar_indicator_active), fullWidthWithTopMargin(dp(4)));
-        card.addView(createYearStatusLine("Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В РЎвЂў", summary.skippedCount,
+        card.addView(createYearStatusLine(getString(R.string.status_skipped_short), summary.skippedCount,
                 R.color.calendar_indicator_skipped), fullWidthWithTopMargin(dp(4)));
-        card.addView(createYearStatusLine("Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂў", summary.overdueCount,
+        card.addView(createYearStatusLine(getString(R.string.status_overdue_short), summary.overdueCount,
                 R.color.calendar_indicator_overdue), fullWidthWithTopMargin(dp(4)));
         return card;
     }
@@ -1467,11 +1500,11 @@ public final class MainActivity extends AppCompatActivity {
         LinearLayout card = createCardContainer();
         card.setPadding(dp(16), dp(16), dp(16), dp(16));
 
-        TextView title = createText("Р В РІР‚в„ў Р РЋР РЉР РЋРІР‚С™Р В РЎвЂўР В РЎВ Р В РЎвЂ“Р В РЎвЂўР В РўвЂР РЋРЎвЂњ Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ", 15, R.color.text_primary, true);
+        TextView title = createText(getString(R.string.main_calendar_year_empty_title), 15, R.color.text_primary, true);
         title.setGravity(android.view.Gravity.CENTER);
         card.addView(title, fullWidth());
 
-        TextView body = createText("Р В РЎСџР В РЎвЂўР В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р’В±Р РЋРЎвЂњР В РІвЂћвЂ“Р РЋРІР‚С™Р В Р’Вµ Р РЋР С“Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р РЋРЎвЂњ Р В РЎвЂР В Р’В»Р В РЎвЂ Р РЋР С“Р В РЎвЂўР В Р’В·Р В РўвЂР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р РЋРЎвЂњР РЋР вЂ№ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР РЋРЎвЂњ",
+        TextView body = createText(getString(R.string.main_calendar_year_empty_body),
                 13,
                 R.color.text_secondary,
                 false);
@@ -1500,7 +1533,7 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private ImageButton createTaskFilterButton() {
-        ImageButton filterButton = createPlainIconButton(R.drawable.ic_filter_list, "Р В Р’В¤Р В РЎвЂР В Р’В»Р РЋР Р‰Р РЋРІР‚С™Р РЋР вЂљ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ");
+        ImageButton filterButton = createPlainIconButton(R.drawable.ic_filter_list, getString(R.string.main_cd_filter_tasks));
         filterButton.setOnClickListener(view -> openTaskFilterSheet());
         return filterButton;
     }
@@ -1511,8 +1544,8 @@ public final class MainActivity extends AppCompatActivity {
         }
         String filterLabel = UserPreferences.getTaskFilterLabel(this);
         taskSectionTitleText.setText(UserPreferences.FILTER_ALL.equals(UserPreferences.getTaskFilter(this))
-                ? "Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ"
-                : "Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р вЂ™Р’В· " + capitalize(filterLabel));
+                ? getString(R.string.main_tasks_title)
+                : getString(R.string.main_tasks_with_filter, getString(R.string.main_tasks_title), capitalize(filterLabel)));
     }
 
     private void addChip(LinearLayout row, Button chip, int leftMargin) {
@@ -1566,7 +1599,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private void showSnackbar(String message, String actionLabel, Runnable action) {
         String resolvedMessage = (message == null || message.trim().isEmpty())
-                ? "Р В РЎвЂєР В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’В°Р РЋРІР‚В Р В РЎвЂР РЋР РЏ Р В Р’В·Р В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В Р’В°"
+                ? getString(R.string.main_operation_completed)
                 : message;
         if (appRootContainer == null) {
             Toast.makeText(this, resolvedMessage, Toast.LENGTH_LONG).show();
@@ -1615,8 +1648,8 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void refreshFromTopBar() {
-        readAndRenderNote();
-        showSnackbar("Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В РЎвЂўР В Р’В±Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦", null, null);
+        requestSnapshotLoad(true);
+        showSnackbar(getString(R.string.main_source_updated), null, null);
     }
 
     @SuppressWarnings("deprecation")
@@ -1657,39 +1690,23 @@ public final class MainActivity extends AppCompatActivity {
             NoteChangeMonitor.cancel(this);
             ReminderScheduler.cancelScheduled(this);
             setStatus(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
-                    ? "Р В РІР‚в„ўР В Р вЂ¦Р В Р’ВµР РЋРІвЂљВ¬Р В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦."
-                    : "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В Р’Вµ Р РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’В»Р В РЎвЂР РЋРІР‚В°Р В Р’Вµ Р В Р вЂ¦Р В Р’ВµР В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р вЂ¦Р В РЎвЂў.");
+                    ? getString(R.string.main_external_source_not_selected)
+                    : getString(R.string.main_internal_storage_unavailable));
             setNextReminder(null);
             if (selectedSection == SECTION_CALENDAR) {
                 renderCalendar(new ArrayList<>());
                 return;
             }
             renderEmptyState(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
-                    ? "Р В РЎСљР В Р’В°Р В Р’В¶Р В РЎВР В РЎвЂР РЋРІР‚С™Р В Р’Вµ Р вЂ™Р’В«Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњР вЂ™Р’В»."
-                    : "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р РЋРІР‚в„–.");
+                    ? getString(R.string.main_empty_choose_note)
+                    : getString(R.string.main_empty_internal_markdown_read_failed));
             return;
         }
 
         if (refreshButton != null) {
             refreshButton.setEnabled(true);
         }
-
-        try {
-            NoteStore.TaskSnapshot snapshot = NoteStore.readTaskSnapshot(this);
-            if (NoteChangeMonitor.isSuspiciousPartialRead(this, snapshot)) {
-                restoreAndRenderCachedTasks("Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ“Р В Р’В»Р РЋР РЏР В РўвЂР В РЎвЂР РЋРІР‚С™ Р РЋРІР‚РЋР В Р’В°Р РЋР С“Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂў Р РЋР С“Р В РЎвЂР В Р вЂ¦Р РЋРІР‚В¦Р РЋР вЂљР В РЎвЂўР В Р вЂ¦Р В РЎвЂР В Р’В·Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РЎВ.");
-                return;
-            }
-
-            renderParseResult(snapshot);
-            NoteChangeMonitor.ensureScheduled(this);
-        } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ  Р В РЎвЂР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР РЋРІР‚С›Р В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р В Р’Вµ", exception);
-            NoteChangeMonitor.restoreFromCache(this, exception.getMessage());
-            NoteChangeMonitor.ensureScheduled(this);
-            setStatus("Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂў Р В Р вЂ¦Р В Р’ВµР В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р’ВµР В Р вЂ¦: " + exception.getMessage()
-                    + "\nР В РЎС›Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР В Р’Вµ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–.");
-        }
+        requestSnapshotLoad(true);
     }
 
     private void renderParseResult(NoteStore.TaskSnapshot snapshot) {
@@ -1698,7 +1715,7 @@ public final class MainActivity extends AppCompatActivity {
         TaskCache.saveActiveTasks(this, activeTasks);
         ReminderSchedule schedule = ReminderScheduler.schedule(this, activeTasks);
         renderedFingerprint = NoteChangeMonitor.fingerprintOf(parseResult);
-        NoteChangeMonitor.recordSuccessfulSync(this, renderedFingerprint);
+        NoteChangeMonitor.recordSuccessfulSync(this, renderedFingerprint, snapshot);
 
         if (selectedSection == SECTION_CALENDAR) {
             renderCalendar(parseResult.getTasks());
@@ -1713,24 +1730,133 @@ public final class MainActivity extends AppCompatActivity {
         if (noteUri == null) {
             return;
         }
+        requestSnapshotLoad(false);
+    }
 
-        try {
-            NoteStore.TaskSnapshot snapshot = NoteStore.readTaskSnapshot(this);
-            if (NoteChangeMonitor.isSuspiciousPartialRead(this, snapshot)) {
-                restoreAndRenderCachedTasks("Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ“Р В Р’В»Р РЋР РЏР В РўвЂР В РЎвЂР РЋРІР‚С™ Р РЋРІР‚РЋР В Р’В°Р РЋР С“Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂў Р РЋР С“Р В РЎвЂР В Р вЂ¦Р РЋРІР‚В¦Р РЋР вЂљР В РЎвЂўР В Р вЂ¦Р В РЎвЂР В Р’В·Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РЎВ.");
+    private void requestSnapshotLoad(boolean forceRender) {
+        if (snapshotCallbacksClosed) {
+            return;
+        }
+        synchronized (snapshotLoadLock) {
+            Future<?> running = runningSnapshotTask;
+            if (running != null && !running.isDone()) {
+                pendingSnapshotReload = true;
+                pendingSnapshotForceRender = pendingSnapshotForceRender || forceRender;
+                return;
+            }
+            scheduleSnapshotLoadLocked(forceRender);
+        }
+    }
+
+    private void scheduleSnapshotLoadLocked(boolean forceRender) {
+        final int requestId = snapshotRequestId.incrementAndGet();
+        latestSnapshotRequestId = requestId;
+        final Context appContext = getApplicationContext();
+        runningSnapshotTask = snapshotExecutor.submit(() -> {
+            NoteStore.TaskSnapshot snapshot;
+            try {
+                snapshot = NoteStore.readTaskSnapshot(appContext);
+            } catch (IOException | RuntimeException exception) {
+                noteRefreshHandler.post(() -> handleSnapshotFailure(requestId, exception));
                 return;
             }
 
-            TaskParseResult parseResult = snapshot.getParseResult();
-            String fingerprint = NoteChangeMonitor.fingerprintOf(parseResult);
-            if (!fingerprint.equals(renderedFingerprint)) {
-                renderParseResult(snapshot);
+            noteRefreshHandler.post(() -> handleSnapshotSuccess(requestId, snapshot, forceRender));
+        });
+    }
+
+    private void handleSnapshotFailure(int requestId, Exception exception) {
+        SnapshotCompletion completion = completeSnapshotRequest(requestId);
+        if (!canApplySnapshotResult(requestId)) {
+            if (completion.shouldRerun()) {
+                requestSnapshotLoad(completion.shouldForceRender());
             }
-        } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР В Р’В±Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ  Р В РЎвЂР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР РЋРІР‚С›Р В Р’ВµР В РІвЂћвЂ“Р РЋР С“Р В Р’Вµ", exception);
-            NoteChangeMonitor.restoreFromCache(this, exception.getMessage());
-            setStatus("Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂў Р В Р вЂ¦Р В Р’ВµР В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р’ВµР В Р вЂ¦: " + exception.getMessage()
-                    + "\nР В РЎС›Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР В Р’Вµ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–.");
+            return;
+        }
+        if (completion.shouldRerun()) {
+            requestSnapshotLoad(completion.shouldForceRender());
+            return;
+        }
+
+        ErrorLog.record(this, getString(R.string.main_read_source_ui_error), exception);
+        NoteChangeMonitor.restoreFromCache(this, exception.getMessage());
+        NoteChangeMonitor.ensureScheduled(this);
+        setStatus(getString(R.string.main_file_temp_unavailable_cached, exception.getMessage()));
+    }
+
+    private void handleSnapshotSuccess(
+            int requestId,
+            NoteStore.TaskSnapshot snapshot,
+            boolean forceRender
+    ) {
+        SnapshotCompletion completion = completeSnapshotRequest(requestId);
+        if (!canApplySnapshotResult(requestId)) {
+            if (completion.shouldRerun()) {
+                requestSnapshotLoad(completion.shouldForceRender());
+            }
+            return;
+        }
+        if (completion.shouldRerun()) {
+            requestSnapshotLoad(completion.shouldForceRender());
+            return;
+        }
+        if (NoteChangeMonitor.isSuspiciousPartialRead(this, snapshot)) {
+            restoreAndRenderCachedTasks(getString(R.string.main_partial_sync_reason));
+            return;
+        }
+
+        String fingerprint = NoteChangeMonitor.fingerprintOf(snapshot.getParseResult());
+        if (!forceRender && fingerprint.equals(renderedFingerprint)) {
+            return;
+        }
+
+        renderParseResult(snapshot);
+        NoteChangeMonitor.ensureScheduled(this);
+    }
+
+    private SnapshotCompletion completeSnapshotRequest(int requestId) {
+        synchronized (snapshotLoadLock) {
+            if (requestId != latestSnapshotRequestId) {
+                return SnapshotCompletion.none();
+            }
+            runningSnapshotTask = null;
+            boolean rerun = pendingSnapshotReload;
+            boolean rerunForceRender = pendingSnapshotForceRender;
+            pendingSnapshotReload = false;
+            pendingSnapshotForceRender = false;
+            return new SnapshotCompletion(rerun, rerunForceRender);
+        }
+    }
+
+    private boolean canApplySnapshotResult(int requestId) {
+        if (snapshotCallbacksClosed || requestId != latestSnapshotRequestId) {
+            return false;
+        }
+        if (isFinishing()) {
+            return false;
+        }
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1 || !isDestroyed();
+    }
+
+    private static final class SnapshotCompletion {
+        private final boolean rerun;
+        private final boolean forceRender;
+
+        private SnapshotCompletion(boolean rerun, boolean forceRender) {
+            this.rerun = rerun;
+            this.forceRender = forceRender;
+        }
+
+        private static SnapshotCompletion none() {
+            return new SnapshotCompletion(false, false);
+        }
+
+        private boolean shouldRerun() {
+            return rerun;
+        }
+
+        private boolean shouldForceRender() {
+            return forceRender;
         }
     }
 
@@ -1743,7 +1869,7 @@ public final class MainActivity extends AppCompatActivity {
             try {
                 schedule = ReminderScheduler.schedule(this, cachedTasks);
             } catch (RuntimeException exception) {
-                ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В±Р В Р’В»Р В РЎвЂР В Р’В¶Р В Р’В°Р В РІвЂћвЂ“Р РЋРІвЂљВ¬Р В Р’ВµР В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂР В Р’В· Р В РЎвЂќР РЋР РЉР РЋРІвЂљВ¬Р В Р’В°", exception);
+                ErrorLog.record(this, getString(R.string.main_cache_next_reminder_error), exception);
             }
             if (selectedSection == SECTION_CALENDAR) {
                 renderCalendar(cachedTasks);
@@ -1751,13 +1877,18 @@ public final class MainActivity extends AppCompatActivity {
                 renderTasks(cachedTasks);
             }
             setNextReminder(schedule == null ? null : schedule.getNextReminder());
-            setStatus(reason
-                    + "\nР В Р’ВР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р РЋРЎвЂњР В Р’ВµР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В Р’В»Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В РЎвЂќР РЋР РЉР РЋРІвЂљВ¬ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ: " + cachedTasks.size()
-                    + "\nР В Р в‚¬Р В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ " + (restored ? "Р В Р вЂ Р В РЎвЂўР РЋР С“Р РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–." : "Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„– Р В Р’В±Р В Р’ВµР В Р’В· Р В РЎвЂР В Р’В·Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“."));
+            setStatus(getString(
+                    R.string.main_cache_status,
+                    reason,
+                    cachedTasks.size(),
+                    getString(restored
+                            ? R.string.main_cache_notifications_restored
+                            : R.string.main_cache_notifications_unchanged)
+            ));
             return;
         }
 
-        setStatus(reason + "\nР В РІР‚С”Р В РЎвЂўР В РЎвЂќР В Р’В°Р В Р’В»Р РЋР Р‰Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ Р В РЎвЂќР РЋР РЉР РЋРІвЂљВ¬ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р В РЎвЂ”Р РЋРЎвЂњР РЋР С“Р РЋРІР‚С™.");
+        setStatus(getString(R.string.main_cache_empty, reason));
     }
 
     private void startForegroundNotePolling() {
@@ -1782,7 +1913,7 @@ public final class MainActivity extends AppCompatActivity {
         sourceTitleText.setText(compactSourceName(parseResult));
         sourceMetaText.setText(String.format(
                 Locale.getDefault(),
-                "%d Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В». Р вЂ™Р’В· Р В РЎвЂўР В Р’В±Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂў %s",
+                getString(R.string.main_source_meta_updated),
                 snapshot.getDocumentCount(),
                 DateTimeFormatter.ofPattern("HH:mm").format(LocalDateTime.now())
         ));
@@ -1795,16 +1926,16 @@ public final class MainActivity extends AppCompatActivity {
             return;
         }
 
-        StringBuilder errors = new StringBuilder("Р В РЎвЂєР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂќР В РЎвЂ Р РЋР вЂљР В Р’В°Р В Р’В·Р В Р’В±Р В РЎвЂўР РЋР вЂљР В Р’В°: ");
+        StringBuilder errors = new StringBuilder(getString(R.string.main_parse_errors)).append(' ');
         int limit = Math.min(2, parseResult.getErrors().size());
         for (int i = 0; i < limit; i++) {
             if (i > 0) {
                 errors.append("\n");
             }
-            errors.append(parseResult.getErrors().get(i).format());
+            errors.append(parseResult.getErrors().get(i).format(this));
         }
         if (parseResult.getErrors().size() > limit) {
-            errors.append("\nР В РІР‚СћР РЋРІР‚В°Р В Р’Вµ Р В РЎвЂўР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂўР В РЎвЂќ: ").append(parseResult.getErrors().size() - limit);
+            errors.append("\n").append(getString(R.string.main_more_errors, parseResult.getErrors().size() - limit));
         }
         sourceErrorText.setVisibility(View.VISIBLE);
         sourceErrorText.setText(errors.toString());
@@ -1816,14 +1947,13 @@ public final class MainActivity extends AppCompatActivity {
             NoteStore.TaskSnapshot snapshot
     ) {
         String permissionStatus = schedule.isNotificationsAllowed()
-                ? "Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–"
-                : "Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ¦Р В Р’В° Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ";
+                ? getString(R.string.main_permission_status_allowed)
+                : getString(R.string.main_permission_status_denied);
         String exactAlarmStatus = ReminderScheduler.canScheduleExactAlarms(this)
-                ? "Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–"
-                : "Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ¦Р В Р’Вµ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–, Р В РЎвЂР РЋР С“Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В Р’В·Р РЋРЎвЂњР В Р’ВµР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ fallback";
-        String status = String.format(
-                Locale.getDefault(),
-                "Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ: %s\nР В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В РЎвЂўР В Р вЂ  Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В РЎвЂР РЋРІР‚С™Р В Р’В°Р В Р вЂ¦Р В РЎвЂў: %d\nР В РІР‚в„ўР РЋР С“Р В Р’ВµР В РЎвЂ“Р В РЎвЂў Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ: %d\nР В РЎвЂ™Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ: %d\nР В РІР‚вЂќР В Р’В°Р В РЎвЂ”Р В Р’В»Р В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’В°Р В Р вЂ¦Р В РЎвЂў Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“: %d\n%s\n%s\nР В РЎвЂєР В Р’В±Р В Р вЂ¦Р В РЎвЂўР В Р вЂ Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂў: %s",
+                ? getString(R.string.main_exact_alarm_status_allowed)
+                : getString(R.string.main_exact_alarm_status_denied);
+        String status = getString(
+                R.string.main_status_card_template,
                 NoteStore.sourceLabel(this),
                 snapshot.getDocumentCount(),
                 parseResult.getTasks().size(),
@@ -1836,13 +1966,13 @@ public final class MainActivity extends AppCompatActivity {
 
         if (!parseResult.getErrors().isEmpty()) {
             StringBuilder builder = new StringBuilder(status);
-            builder.append("\nР В РЎвЂєР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂќР В РЎвЂ Р РЋР вЂљР В Р’В°Р В Р’В·Р В Р’В±Р В РЎвЂўР РЋР вЂљР В Р’В°:");
+            builder.append('\n').append(getString(R.string.main_parse_errors));
             int limit = Math.min(3, parseResult.getErrors().size());
             for (int i = 0; i < limit; i++) {
-                builder.append("\n").append(parseResult.getErrors().get(i).format());
+                builder.append("\n").append(parseResult.getErrors().get(i).format(this));
             }
             if (parseResult.getErrors().size() > limit) {
-                builder.append("\nР В РІР‚СћР РЋРІР‚В°Р В Р’Вµ Р В РЎвЂўР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂўР В РЎвЂќ: ").append(parseResult.getErrors().size() - limit);
+                builder.append('\n').append(getString(R.string.main_more_errors, parseResult.getErrors().size() - limit));
             }
             status = builder.toString();
         }
@@ -1863,7 +1993,7 @@ public final class MainActivity extends AppCompatActivity {
         displayTasks.sort(this::compareTasksForDisplay);
         updateTaskSectionHeader(displayTasks.size());
         if (displayTasks.isEmpty()) {
-            renderEmptyState("Р В РІР‚в„ў Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°Р РЋРІР‚В¦ Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“ Р РЋР С“ @due(...) Р В РўвЂР В Р’В»Р РЋР РЏ Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚С›Р В РЎвЂР В Р’В»Р РЋР Р‰Р РЋРІР‚С™Р РЋР вЂљР В Р’В°.");
+            renderEmptyState(getString(R.string.main_empty_due_filtered));
             return;
         }
 
@@ -2016,7 +2146,7 @@ public final class MainActivity extends AppCompatActivity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        row.addView(createCalendarModeButton("Р В РЎСљР В Р’ВµР В РўвЂР В Р’ВµР В Р’В»Р РЋР РЏ", CALENDAR_MODE_WEEK), new LinearLayout.LayoutParams(
+        row.addView(createCalendarModeButton(getString(R.string.main_calendar_mode_week), CALENDAR_MODE_WEEK), new LinearLayout.LayoutParams(
                 0,
                 dp(38),
                 1
@@ -2024,11 +2154,11 @@ public final class MainActivity extends AppCompatActivity {
 
         LinearLayout.LayoutParams monthParams = new LinearLayout.LayoutParams(0, dp(38), 1);
         monthParams.setMargins(dp(7), 0, 0, 0);
-        row.addView(createCalendarModeButton("Р В РЎС™Р В Р’ВµР РЋР С“Р РЋР РЏР РЋРІР‚В ", CALENDAR_MODE_MONTH), monthParams);
+        row.addView(createCalendarModeButton(getString(R.string.main_calendar_mode_month), CALENDAR_MODE_MONTH), monthParams);
 
         LinearLayout.LayoutParams yearParams = new LinearLayout.LayoutParams(0, dp(38), 1);
         yearParams.setMargins(dp(7), 0, 0, 0);
-        row.addView(createCalendarModeButton("Р В РІР‚СљР В РЎвЂўР В РўвЂ", CALENDAR_MODE_YEAR), yearParams);
+        row.addView(createCalendarModeButton(getString(R.string.main_calendar_mode_year), CALENDAR_MODE_YEAR), yearParams);
         return row;
     }
 
@@ -2063,11 +2193,11 @@ public final class MainActivity extends AppCompatActivity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        TextView previous = createMonthNavButton("Р Р†Р вЂљРІвЂћвЂ“", calendarMode == CALENDAR_MODE_YEAR
-                ? "Р В РЎСџР РЋР вЂљР В Р’ВµР В РўвЂР РЋРІР‚в„–Р В РўвЂР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂ“Р В РЎвЂўР В РўвЂ"
+        TextView previous = createMonthNavButton("‹", calendarMode == CALENDAR_MODE_YEAR
+                ? getString(R.string.main_calendar_prev_year)
                 : calendarMode == CALENDAR_MODE_WEEK
-                        ? "Р В РЎСџР РЋР вЂљР В Р’ВµР В РўвЂР РЋРІР‚в„–Р В РўвЂР РЋРЎвЂњР РЋРІР‚В°Р В Р’В°Р РЋР РЏ Р В Р вЂ¦Р В Р’ВµР В РўвЂР В Р’ВµР В Р’В»Р РЋР РЏ"
-                        : "Р В РЎСџР РЋР вЂљР В Р’ВµР В РўвЂР РЋРІР‚в„–Р В РўвЂР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р В РЎВР В Р’ВµР РЋР С“Р РЋР РЏР РЋРІР‚В ");
+                        ? getString(R.string.main_calendar_prev_week)
+                        : getString(R.string.main_calendar_prev_month));
         previous.setOnClickListener(view -> moveCalendarPeriod(-1));
         row.addView(previous, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
@@ -2082,23 +2212,23 @@ public final class MainActivity extends AppCompatActivity {
                 1
         ));
 
-        TextView next = createMonthNavButton("Р Р†Р вЂљРЎвЂќ", calendarMode == CALENDAR_MODE_YEAR
-                ? "Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР РЋРЎвЂњР РЋР вЂ№Р РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р В РЎвЂ“Р В РЎвЂўР В РўвЂ"
+        TextView next = createMonthNavButton("›", calendarMode == CALENDAR_MODE_YEAR
+                ? getString(R.string.main_calendar_next_year)
                 : calendarMode == CALENDAR_MODE_WEEK
-                        ? "Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР РЋРЎвЂњР РЋР вЂ№Р РЋРІР‚В°Р В Р’В°Р РЋР РЏ Р В Р вЂ¦Р В Р’ВµР В РўвЂР В Р’ВµР В Р’В»Р РЋР РЏ"
-                        : "Р В Р Р‹Р В Р’В»Р В Р’ВµР В РўвЂР РЋРЎвЂњР РЋР вЂ№Р РЋРІР‚В°Р В РЎвЂР В РІвЂћвЂ“ Р В РЎВР В Р’ВµР РЋР С“Р РЋР РЏР РЋРІР‚В ");
+                        ? getString(R.string.main_calendar_next_week)
+                        : getString(R.string.main_calendar_next_month));
         next.setOnClickListener(view -> moveCalendarPeriod(1));
         row.addView(next, new LinearLayout.LayoutParams(dp(42), dp(42)));
         card.addView(row, fullWidth());
 
         int taskCount = periodTaskCount(tasksByDate);
         String periodLabel = calendarMode == CALENDAR_MODE_YEAR
-                ? "Р В Р вЂ  Р РЋР РЉР РЋРІР‚С™Р В РЎвЂўР В РЎВ Р В РЎвЂ“Р В РЎвЂўР В РўвЂР РЋРЎвЂњ"
+                ? getString(R.string.main_calendar_period_year)
                 : calendarMode == CALENDAR_MODE_WEEK
-                        ? "Р В Р вЂ¦Р В Р’В° Р РЋР РЉР РЋРІР‚С™Р В РЎвЂўР В РІвЂћвЂ“ Р В Р вЂ¦Р В Р’ВµР В РўвЂР В Р’ВµР В Р’В»Р В Р’Вµ"
-                        : "Р В Р вЂ  Р РЋР РЉР РЋРІР‚С™Р В РЎвЂўР В РЎВ Р В РЎВР В Р’ВµР РЋР С“Р РЋР РЏР РЋРІР‚В Р В Р’Вµ";
+                        ? getString(R.string.main_calendar_period_week)
+                        : getString(R.string.main_calendar_period_month);
         TextView meta = createText(taskCount == 0
-                        ? "Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р В РЎвЂ”Р В РЎвЂў Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР В РЎВ Р РЋРІР‚С›Р В РЎвЂР В Р’В»Р РЋР Р‰Р РЋРІР‚С™Р РЋР вЂљР В Р’В°Р В РЎВ"
+                        ? getString(R.string.main_calendar_no_tasks_filtered)
                         : taskCount + " " + taskCountWord(taskCount) + " " + periodLabel,
                 13,
                 R.color.text_secondary,
@@ -2127,7 +2257,7 @@ public final class MainActivity extends AppCompatActivity {
 
         LinearLayout weekdays = new LinearLayout(this);
         weekdays.setOrientation(LinearLayout.HORIZONTAL);
-        String[] labels = new String[]{"Р В РЎвЂ”Р В Р вЂ¦", "Р В Р вЂ Р РЋРІР‚С™", "Р РЋР С“Р РЋР вЂљ", "Р РЋРІР‚РЋР РЋРІР‚С™", "Р В РЎвЂ”Р РЋРІР‚С™", "Р РЋР С“Р В Р’В±", "Р В Р вЂ Р РЋР С“"};
+        String[] labels = getResources().getStringArray(R.array.main_weekdays_short_lower);
         for (String label : labels) {
             TextView text = createText(label, 12, R.color.text_secondary, true);
             text.setGravity(android.view.Gravity.CENTER);
@@ -2162,7 +2292,7 @@ public final class MainActivity extends AppCompatActivity {
 
         LinearLayout weekdays = new LinearLayout(this);
         weekdays.setOrientation(LinearLayout.HORIZONTAL);
-        String[] labels = new String[]{"Р В РЎвЂ”Р В Р вЂ¦", "Р В Р вЂ Р РЋРІР‚С™", "Р РЋР С“Р РЋР вЂљ", "Р РЋРІР‚РЋР РЋРІР‚С™", "Р В РЎвЂ”Р РЋРІР‚С™", "Р РЋР С“Р В Р’В±", "Р В Р вЂ Р РЋР С“"};
+        String[] labels = getResources().getStringArray(R.array.main_weekdays_short_lower);
         for (String label : labels) {
             TextView text = createText(label, 12, R.color.text_secondary, true);
             text.setGravity(android.view.Gravity.CENTER);
@@ -2288,11 +2418,11 @@ public final class MainActivity extends AppCompatActivity {
             empty.setGravity(android.view.Gravity.CENTER);
             empty.setPadding(0, dp(18), 0, dp(10));
 
-            TextView emptyTitle = createText("Р В РЎСљР В Р’В° Р РЋР РЉР РЋРІР‚С™Р В РЎвЂўР РЋРІР‚С™ Р В РўвЂР В Р’ВµР В Р вЂ¦Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™", 15, R.color.text_primary, true);
+            TextView emptyTitle = createText(getString(R.string.main_day_empty_title), 15, R.color.text_primary, true);
             emptyTitle.setGravity(android.view.Gravity.CENTER);
             empty.addView(emptyTitle, fullWidth());
 
-            TextView emptyBody = createText("Р В РЎСљР В Р’В°Р В Р’В¶Р В РЎВР В РЎвЂР РЋРІР‚С™Р В Р’Вµ +, Р РЋРІР‚РЋР РЋРІР‚С™Р В РЎвЂўР В Р’В±Р РЋРІР‚в„– Р РЋР С“Р В РЎвЂўР В Р’В·Р В РўвЂР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР РЋРЎвЂњ", 13, R.color.text_secondary, false);
+            TextView emptyBody = createText(getString(R.string.main_day_empty_body), 13, R.color.text_secondary, false);
             emptyBody.setGravity(android.view.Gravity.CENTER);
             empty.addView(emptyBody, fullWidthWithTopMargin(dp(5)));
             card.addView(empty, fullWidth());
@@ -2352,7 +2482,9 @@ public final class MainActivity extends AppCompatActivity {
         completeParams.setMargins(0, 0, dp(10), 0);
         row.addView(completeButton, completeParams);
 
-        String time = task.getReminderAt() == null ? "Р В Р’В±Р В Р’ВµР В Р’В· Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂ" : task.getReminderAt().toLocalTime().toString();
+        String time = task.getReminderAt() == null
+                ? getString(R.string.main_no_time)
+                : task.getReminderAt().toLocalTime().toString();
         TextView timeView = createText(time, 13, R.color.text_secondary, true);
         timeView.setGravity(android.view.Gravity.CENTER);
         row.addView(timeView, new LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -2626,22 +2758,11 @@ public final class MainActivity extends AppCompatActivity {
             parts.add(compactName(task.getSourceName()));
         }
         parts.add(formatStatus(taskStatus(task)));
-        return TextUtils.join(" Р вЂ™Р’В· ", parts);
+        return TextUtils.join(" · ", parts);
     }
 
     private String taskCountWord(int count) {
-        int normalized = Math.abs(count) % 100;
-        int lastDigit = normalized % 10;
-        if (normalized >= 11 && normalized <= 14) {
-            return "Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ";
-        }
-        if (lastDigit == 1) {
-            return "Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В Р’В°";
-        }
-        if (lastDigit >= 2 && lastDigit <= 4) {
-            return "Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ";
-        }
-        return "Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ";
+        return getResources().getQuantityString(R.plurals.task_count_word, count);
     }
 
     private static final class CalendarTaskSummary {
@@ -2768,7 +2889,7 @@ public final class MainActivity extends AppCompatActivity {
             UserPreferences.setTaskGroup(this, "");
         }
 
-        addGroupChip(groupFilterRow, "Р В РІР‚в„ўР РЋР С“Р В Р’Вµ Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р РЋРІР‚в„–", "", 0);
+        addGroupChip(groupFilterRow, getString(R.string.main_all_groups), "", 0);
         for (TaskGrouping.Bucket bucket : buckets) {
             addGroupChip(groupFilterRow, bucket.getLabel(), bucket.getKey(), dp(6));
         }
@@ -2821,15 +2942,15 @@ public final class MainActivity extends AppCompatActivity {
     private String formatGroupMeta(ObsidianTask task) {
         String mode = UserPreferences.getGroupingMode(this);
         if (UserPreferences.GROUPING_TAG.equals(mode)) {
-            return "Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“: " + taskGroupLabel(task);
+            return getString(R.string.main_group_meta_tag, taskGroupLabel(task));
         }
         if (UserPreferences.GROUPING_FILE.equals(mode)) {
-            return "Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»: " + taskGroupLabel(task);
+            return getString(R.string.main_group_meta_file, taskGroupLabel(task));
         }
         if (UserPreferences.GROUPING_SMART.equals(mode)) {
-            return "Р В РЎвЂќР В РЎвЂўР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋР С“Р РЋРІР‚С™: " + taskGroupLabel(task);
+            return getString(R.string.main_group_meta_context, taskGroupLabel(task));
         }
-        return "Р В РЎвЂ“Р РЋР вЂљР РЋРЎвЂњР В РЎвЂ”Р В РЎвЂ”Р В Р’В°: " + taskGroupLabel(task);
+        return getString(R.string.main_group_meta_group, taskGroupLabel(task));
     }
 
     private boolean shouldHidePrivateTasks() {
@@ -2843,10 +2964,12 @@ public final class MainActivity extends AppCompatActivity {
 
     private View createSourceHeader(String sourceName) {
         TextView header = new TextView(this);
-        header.setText(sourceName == null || sourceName.isEmpty() ? "Р В РІР‚ВР В Р’ВµР В Р’В· Р В РЎвЂР В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°" : sourceName);
+        header.setText(sourceName == null || sourceName.isEmpty()
+                ? getString(R.string.task_file_name_fallback)
+                : sourceName);
         header.setTextColor(getColor(R.color.text_primary));
         header.setText(sourceName == null || sourceName.isEmpty()
-                ? "Р В РІР‚ВР В Р’ВµР В Р’В· Р В РЎвЂР В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°"
+                ? getString(R.string.task_file_name_fallback)
                 : compactName(sourceName));
         header.setTextSize(16);
         header.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -2983,7 +3106,7 @@ public final class MainActivity extends AppCompatActivity {
 
         item.addView(titleRow, fullWidth());
         item.addView(createMetaLine(R.drawable.ic_clock, task.getReminderAt() == null
-                ? "Р В Р вЂ¦Р В Р’Вµ Р РЋРЎвЂњР В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°Р В Р вЂ¦Р В РЎвЂў"
+                ? getString(R.string.main_not_set)
                 : DATE_TIME_FORMAT.format(task.getReminderAt())), fullWidthWithTopMargin(dp(10)));
 
         if (hasRepeatInfo(task)) {
@@ -3033,7 +3156,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
 
         TextView skipAction = createSwipeActionLabel(
-                task.isSkipped() ? "Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰" : "Р В РЎСџР РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋР С“Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰",
+                task.isSkipped() ? getString(R.string.common_cancel) : getString(R.string.common_skip),
                 R.color.status_skipped_background,
                 R.color.status_skipped_text
         );
@@ -3054,7 +3177,7 @@ public final class MainActivity extends AppCompatActivity {
         background.addView(skipAction, skipParams);
 
         TextView deleteAction = createSwipeActionLabel(
-                "Р В Р в‚¬Р В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰",
+                getString(R.string.main_cd_delete),
                 R.color.status_overdue_background,
                 R.color.status_overdue_text
         );
@@ -3075,8 +3198,8 @@ public final class MainActivity extends AppCompatActivity {
         TextView button = createText(expanded ? "\u2304" : "\u203a", 22, R.color.text_secondary, true);
         button.setGravity(android.view.Gravity.CENTER);
         button.setContentDescription(expanded
-                ? "\u0421\u0432\u0435\u0440\u043d\u0443\u0442\u044c \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438"
-                : "\u041f\u043e\u043a\u0430\u0437\u0430\u0442\u044c \u043f\u043e\u0434\u0437\u0430\u0434\u0430\u0447\u0438");
+                ? getString(R.string.main_subtasks_collapse)
+                : getString(R.string.main_subtasks_expand));
         button.setBackgroundColor(Color.TRANSPARENT);
         button.setOnClickListener(view -> toggleTaskExpanded(task));
         return button;
@@ -3090,7 +3213,7 @@ public final class MainActivity extends AppCompatActivity {
                 completed++;
             }
         }
-        return completed + "/" + total + " Р В РЎвЂ”Р В РЎвЂўР В РўвЂР В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂў";
+        return getString(R.string.main_subtask_progress, completed, total);
     }
 
     private View createSubtaskSummaryRow(ObsidianTask task) {
@@ -3240,7 +3363,7 @@ public final class MainActivity extends AppCompatActivity {
             parts.add(formatRepeat(subtask));
         }
         parts.add(formatStatus(taskStatus(subtask)));
-        return TextUtils.join(" Р вЂ™Р’В· ", parts);
+        return TextUtils.join(" · ", parts);
     }
 
     private TextView createSwipeActionLabel(String text, int backgroundColor, int textColor) {
@@ -3415,7 +3538,7 @@ public final class MainActivity extends AppCompatActivity {
         TextView button = createText(statusIcon(status), 16, statusIconColor(status), true);
         button.setGravity(android.view.Gravity.CENTER);
         button.setContentDescription(isSelectionMode()
-                ? "Р В РІР‚в„ўР РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р РЋРІР‚С™Р РЋР Р‰"
+                ? getString(R.string.main_select)
                 : statusIconDescription(status));
         button.setBackground(createCircleOutlineBackground(
                 getColor(statusIconBackground(status)),
@@ -3443,10 +3566,10 @@ public final class MainActivity extends AppCompatActivity {
 
     private String statusIcon(TaskStatus status) {
         if (status == TaskStatus.COMPLETED) {
-            return "Р Р†РЎС™РІР‚Сљ";
+            return "✓";
         }
         if (status == TaskStatus.SKIPPED) {
-            return "Р В РІР‚СљР Р†Р вЂљРІР‚Сњ";
+            return "×";
         }
         if (status == TaskStatus.OVERDUE) {
             return "!";
@@ -3486,15 +3609,15 @@ public final class MainActivity extends AppCompatActivity {
 
     private String statusIconDescription(TaskStatus status) {
         if (status == TaskStatus.COMPLETED) {
-            return "Р В Р Р‹Р В Р вЂ¦Р РЋР РЏР РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ";
+            return getString(R.string.main_status_desc_uncomplete);
         }
         if (status == TaskStatus.SKIPPED) {
-            return "Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋР С“Р В РЎвЂќ";
+            return getString(R.string.main_status_desc_unskip);
         }
         if (status == TaskStatus.OVERDUE) {
-            return "Р В РІР‚в„ўР РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р РЋРЎвЂњР РЋР вЂ№ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР РЋРЎвЂњ";
+            return getString(R.string.main_status_desc_complete_overdue);
         }
-        return "Р В РІР‚в„ўР РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰";
+        return getString(R.string.main_status_desc_complete);
     }
 
     private TextView createStatusChip(TaskStatus status) {
@@ -3504,19 +3627,19 @@ public final class MainActivity extends AppCompatActivity {
         if (status == TaskStatus.COMPLETED) {
             background = R.color.status_completed_background;
             textColor = R.color.status_completed_text;
-            label = "Р В РІР‚вЂќР В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В Р’В°";
+            label = capitalize(getString(R.string.status_completed));
         } else if (status == TaskStatus.SKIPPED) {
             background = R.color.status_skipped_background;
             textColor = R.color.status_skipped_text;
-            label = "Р В РЎСџР РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В Р’В°";
+            label = capitalize(getString(R.string.status_skipped));
         } else if (status == TaskStatus.OVERDUE) {
             background = R.color.status_overdue_background;
             textColor = R.color.status_overdue_text;
-            label = "Р В РЎСџР РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В Р’В°";
+            label = capitalize(getString(R.string.status_overdue));
         } else {
             background = R.color.status_waiting_background;
             textColor = R.color.status_waiting_text;
-            label = "Р В РЎвЂєР В Р’В¶Р В РЎвЂР В РўвЂР В Р’В°Р В Р’ВµР РЋРІР‚С™";
+            label = capitalize(getString(R.string.status_waiting));
         }
 
         TextView chip = createText(label, 10, textColor, true);
@@ -3593,7 +3716,7 @@ public final class MainActivity extends AppCompatActivity {
         for (String taskKey : result.getUpdatedTaskKeys()) {
             ReminderScheduler.cancelReminder(this, taskKey);
         }
-        finishBulkOperation(result, "Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В РЎвЂў Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В РЎВР В РЎвЂ");
+        finishBulkOperation(result, getString(R.string.main_bulk_done_action));
     }
 
     private void bulkSkipSelected() {
@@ -3607,7 +3730,7 @@ public final class MainActivity extends AppCompatActivity {
         for (String taskKey : result.getUpdatedTaskKeys()) {
             ReminderScheduler.cancelReminder(this, taskKey);
         }
-        finishBulkOperation(result, "Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В РЎвЂў");
+        finishBulkOperation(result, getString(R.string.status_skipped_short));
     }
 
     private void bulkSnoozeSelected() {
@@ -3648,13 +3771,12 @@ public final class MainActivity extends AppCompatActivity {
         selectedTaskKeys.clear();
         refreshTopAppBar();
         readAndRenderNote();
-        String message = updatedCount + " " + taskCountWord(updatedCount)
-                + " Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂў";
+        String message = getString(R.string.main_bulk_snoozed, updatedCount, taskCountWord(updatedCount));
         if (skippedCount > 0) {
-            message += ", Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В РЎвЂў: " + skippedCount;
+            message += ", " + getString(R.string.main_bulk_skipped_count, skippedCount);
         }
         if (recordResult != null && recordResult.hasFailures()) {
-            message += ", Р РЋР С“Р РЋРІР‚РЋР В Р’ВµР РЋРІР‚С™Р РЋРІР‚РЋР В РЎвЂР В РЎвЂќ Р В Р’В·Р В Р’В°Р В РЎвЂ”Р В РЎвЂР РЋР С“Р В Р’В°Р В Р вЂ¦ Р В Р вЂ¦Р В Р’Вµ Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋР Р‰Р РЋР вЂ№";
+            message += ", " + getString(R.string.main_bulk_counter_partial);
         }
         showSnackbar(message, null, null);
     }
@@ -3670,16 +3792,16 @@ public final class MainActivity extends AppCompatActivity {
         for (ObsidianTask task : tasks) {
             sourceNames.add(task.getSourceName());
         }
-        String message = "Р В РІР‚ВР РЋРЎвЂњР В РўвЂР В Р’ВµР РЋРІР‚С™ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂў: " + tasks.size() + " " + taskCountWord(tasks.size()) + ".";
+        String message = getString(R.string.main_bulk_delete_message, tasks.size(), taskCountWord(tasks.size()));
         if (sourceNames.size() > 1) {
-            message += "\nР В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В Р вЂ¦Р В Р’В°Р РЋРІР‚В¦Р В РЎвЂўР В РўвЂР РЋР РЏР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В Р вЂ  Р РЋР вЂљР В Р’В°Р В Р’В·Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°Р РЋРІР‚В¦.";
+            message += "\n" + getString(R.string.main_bulk_delete_cross_file);
         }
 
         new AlertDialog.Builder(this)
-                .setTitle("Р В Р в‚¬Р В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ?")
+                .setTitle(getString(R.string.main_bulk_delete_title))
                 .setMessage(message)
-                .setNegativeButton("Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’В°", null)
-                .setPositiveButton("Р В Р в‚¬Р В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰", (dialog, which) -> bulkDeleteSelected())
+                .setNegativeButton(getString(R.string.common_cancel), null)
+                .setPositiveButton(getString(R.string.main_cd_delete), (dialog, which) -> bulkDeleteSelected())
                 .show();
     }
 
@@ -3694,7 +3816,7 @@ public final class MainActivity extends AppCompatActivity {
         for (String taskKey : result.getUpdatedTaskKeys()) {
             ReminderScheduler.cancelReminder(this, taskKey);
         }
-        finishBulkOperation(result, "Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂў");
+        finishBulkOperation(result, getString(R.string.main_bulk_deleted_action));
     }
 
     private List<String> selectedTaskKeyList() {
@@ -3719,11 +3841,11 @@ public final class MainActivity extends AppCompatActivity {
                 .append(' ')
                 .append(successAction);
         if (result.getSkippedCount() > 0) {
-            message.append(", Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В РЎвЂў: ").append(result.getSkippedCount());
+            message.append(", ").append(getString(R.string.main_bulk_skipped_count, result.getSkippedCount()));
         }
         int failed = result.getFailedCount() + result.getNotFoundCount();
         if (failed > 0) {
-            message.append(", Р В Р вЂ¦Р В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰: ").append(failed);
+            message.append(", ").append(getString(R.string.main_bulk_failed_count, failed));
         }
         return message.toString();
     }
@@ -3744,7 +3866,7 @@ public final class MainActivity extends AppCompatActivity {
             NoteChangeMonitor.syncNow(this, true);
             readAndRenderNote();
         }
-        showSnackbar(result.isUpdated() ? "Р В РІР‚в„ўР РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р РЋР С“Р В Р вЂ¦Р РЋР РЏР РЋРІР‚С™Р В РЎвЂў" : result.getMessage(), null, null);
+        showSnackbar(result.isUpdated() ? getString(R.string.main_unmark_done) : result.getMessage(), null, null);
     }
 
     private void snoozeTask(ObsidianTask task) {
@@ -3761,7 +3883,7 @@ public final class MainActivity extends AppCompatActivity {
         if (ActionPreferences.shouldRecordSnoozeCount(this)) {
             NoteStore.incrementSnoozeCount(this, task.getTaskKey());
         }
-        showSnackbar("Р В Р в‚¬Р В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂў", null, null);
+        showSnackbar(getString(R.string.main_snoozed), null, null);
         readAndRenderNote();
     }
 
@@ -3780,7 +3902,11 @@ public final class MainActivity extends AppCompatActivity {
             readAndRenderNote();
         }
         if (result.isUpdated()) {
-            showSnackbar("Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В Р’В° Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В Р’В°", "Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰", () -> unskipTask(task));
+            showSnackbar(
+                    getString(R.string.task_skipped_message),
+                    getString(R.string.common_cancel),
+                    () -> unskipTask(task)
+            );
         } else {
             showSnackbar(result.getMessage(), null, null);
         }
@@ -3792,7 +3918,7 @@ public final class MainActivity extends AppCompatActivity {
             NoteChangeMonitor.syncNow(this, true);
             readAndRenderNote();
         }
-        showSnackbar(result.isUpdated() ? "Р В РЎСџР РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋР С“Р В РЎвЂќ Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’ВµР В Р вЂ¦" : result.getMessage(), null, null);
+        showSnackbar(result.isUpdated() ? getString(R.string.main_unskip_done) : result.getMessage(), null, null);
     }
 
     private void deleteTask(ObsidianTask task) {
@@ -3800,7 +3926,7 @@ public final class MainActivity extends AppCompatActivity {
         try {
             snapshot = NoteStore.captureTaskBlockSnapshot(this, task.getTaskKey());
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РўвЂР В РЎвЂ“Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂўР В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР В Р’В°Р РЋРІР‚С™ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ", exception);
+            ErrorLog.record(this, getString(R.string.main_delete_undo_prepare_error), exception);
         }
 
         TaskEditResult result = NoteStore.deleteTaskBlock(this, task.getTaskKey());
@@ -3810,9 +3936,13 @@ public final class MainActivity extends AppCompatActivity {
             readAndRenderNote();
             if (snapshot != null) {
                 NoteStore.TaskBlockSnapshot finalSnapshot = snapshot;
-                showSnackbar("Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В Р’В° Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В Р’В°", "Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰", () -> undoDeleteTask(finalSnapshot));
+                showSnackbar(
+                        getString(R.string.task_deleted_message),
+                        getString(R.string.common_cancel),
+                        () -> undoDeleteTask(finalSnapshot)
+                );
             } else {
-                showSnackbar("Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В Р’В° Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В Р’В°", null, null);
+                showSnackbar(getString(R.string.task_deleted_message), null, null);
             }
             return;
         }
@@ -3824,7 +3954,7 @@ public final class MainActivity extends AppCompatActivity {
         if (result.isUpdated()) {
             NoteChangeMonitor.syncNow(this, true);
             readAndRenderNote();
-            showSnackbar("Р В Р в‚¬Р В РўвЂР В Р’В°Р В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂў", null, null);
+            showSnackbar(getString(R.string.main_delete_undone), null, null);
             return;
         }
         showSnackbar(result.getMessage(), null, null);
@@ -3838,18 +3968,18 @@ public final class MainActivity extends AppCompatActivity {
                 uri = match.getUri();
             }
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В Р вЂ¦Р В Р’В°Р В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњ Р В РўвЂР В Р’В»Р РЋР РЏ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР РЋР РЏ", exception);
+            ErrorLog.record(this, getString(R.string.main_open_note_find_error), exception);
         }
 
         if (uri == null) {
             uri = TaskSourceManager.getActiveSourceUri(this);
         }
         if (uri == null) {
-            Toast.makeText(this, "Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.source_not_selected), Toast.LENGTH_LONG).show();
             return;
         }
         if ("file".equalsIgnoreCase(uri.getScheme())) {
-            Toast.makeText(this, "Р В РЎСџР РЋР вЂљР РЋР РЏР В РЎВР В РЎвЂўР В Р’Вµ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР В Р’Вµ Р В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р вЂ¦Р В РЎвЂў Р В РўвЂР В Р’В»Р РЋР РЏ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В РЎвЂўР В Р вЂ , Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р вЂ¦Р РЋРІР‚в„–Р РЋРІР‚В¦ Р РЋРІР‚РЋР В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В· Android picker", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.source_open_direct_picker_only), Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -3860,8 +3990,8 @@ public final class MainActivity extends AppCompatActivity {
         try {
             startActivity(openNoteIntent);
         } catch (RuntimeException exception) {
-            ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р РЋР вЂљР РЋР РЏР В РЎВР РЋРЎвЂњР РЋР вЂ№", exception);
-            Toast.makeText(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р РЋР вЂљР РЋР РЏР В РЎВР РЋРЎвЂњР РЋР вЂ№", Toast.LENGTH_LONG).show();
+            ErrorLog.record(this, getString(R.string.main_open_note_error), exception);
+            Toast.makeText(this, getString(R.string.main_open_note_error), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -3879,24 +4009,27 @@ public final class MainActivity extends AppCompatActivity {
         StringBuilder builder = new StringBuilder();
         builder.append(formatStatus(taskStatus(task)));
         if (!task.getSourceName().isEmpty()) {
-            builder.append(" Р вЂ™Р’В· ").append(task.getSourceName());
+            builder.append(" · ").append(task.getSourceName());
         }
         if (task.getReminderAt() != null) {
-            builder.append(" Р вЂ™Р’В· Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ ").append(DATE_TIME_FORMAT.format(task.getReminderAt()));
+            builder.append(" · ").append(getString(
+                    R.string.task_remind_prefix,
+                    DATE_TIME_FORMAT.format(task.getReminderAt())
+            ));
         } else {
-            builder.append(" Р вЂ™Р’В· Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР РЋР РЏ Р В Р вЂ¦Р В Р’Вµ Р РЋРЎвЂњР В РЎвЂќР В Р’В°Р В Р’В·Р В Р’В°Р В Р вЂ¦Р В РЎвЂў");
+            builder.append(" · ").append(getString(R.string.task_time_not_set));
         }
 
         if (hasRepeatInfo(task)) {
-            builder.append(" Р вЂ™Р’В· ").append(formatRepeat(task));
+            builder.append(" · ").append(formatRepeat(task));
         }
 
         if (task.getPriority() != TaskPriority.NONE) {
-            builder.append(" Р вЂ™Р’В· ").append(formatPriority(task.getPriority()));
+            builder.append(" · ").append(formatPriority(task.getPriority()));
         }
 
         if (!task.getTags().isEmpty()) {
-            builder.append(" Р вЂ™Р’В· ").append(formatTags(task.getTags()));
+            builder.append(" · ").append(formatTags(task.getTags()));
         }
 
         return builder.toString();
@@ -3904,29 +4037,32 @@ public final class MainActivity extends AppCompatActivity {
 
     private String formatStatus(TaskStatus status) {
         if (status == TaskStatus.COMPLETED) {
-            return "Р В Р’В·Р В Р’В°Р В Р вЂ Р В Р’ВµР РЋР вЂљР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В Р’В°";
+            return getString(R.string.status_completed);
         }
         if (status == TaskStatus.SKIPPED) {
-            return "Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋРІР‚В°Р В Р’ВµР В Р вЂ¦Р В Р’В°";
+            return getString(R.string.status_skipped);
         }
         if (status == TaskStatus.OVERDUE) {
-            return "Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР РЋР С“Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В Р’В°";
+            return getString(R.string.status_overdue);
         }
-        return "Р В РЎвЂўР В Р’В¶Р В РЎвЂР В РўвЂР В Р’В°Р В Р’ВµР РЋРІР‚С™";
+        return getString(R.string.status_waiting);
     }
 
     private String formatRepeat(ObsidianTask task) {
         List<String> parts = new ArrayList<>();
         if (task.getRepeatRule() != null) {
-            parts.add("Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ " + task.getRepeatRule().formatForUi());
+            parts.add(getString(R.string.task_repeat_prefix, task.getRepeatRule().formatForUi()));
         }
         if (task.getResolvedRepeatUntilDoneInterval() != null) {
-            parts.add("Р В РўвЂР В РЎвЂў Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ " + formatDuration(task.getResolvedRepeatUntilDoneInterval()));
+            parts.add(getString(
+                    R.string.task_until_done_prefix,
+                    formatDuration(task.getResolvedRepeatUntilDoneInterval())
+            ));
         }
         if (parts.isEmpty() && task.getRepeatInterval() != null) {
-            parts.add("Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљ " + formatDuration(task.getRepeatInterval()));
+            parts.add(getString(R.string.task_repeat_prefix, formatDuration(task.getRepeatInterval())));
         }
-        return TextUtils.join(" Р вЂ™Р’В· ", parts);
+        return TextUtils.join(" · ", parts);
     }
 
     private boolean hasRepeatInfo(ObsidianTask task) {
@@ -3936,22 +4072,22 @@ public final class MainActivity extends AppCompatActivity {
 
     private String formatPriority(TaskPriority priority) {
         if (priority == TaskPriority.URGENT) {
-            return "Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™: Р РЋР С“Р РЋР вЂљР В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂў";
+            return getString(R.string.task_priority_urgent);
         }
         if (priority == TaskPriority.HIGH) {
-            return "Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™: Р В Р вЂ Р РЋРІР‚в„–Р РЋР С“Р В РЎвЂўР В РЎвЂќР В РЎвЂР В РІвЂћвЂ“";
+            return getString(R.string.task_priority_high);
         }
         if (priority == TaskPriority.MEDIUM) {
-            return "Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™: Р РЋР С“Р РЋР вЂљР В Р’ВµР В РўвЂР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“";
+            return getString(R.string.task_priority_medium);
         }
         if (priority == TaskPriority.LOW) {
-            return "Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™: Р В Р вЂ¦Р В РЎвЂР В Р’В·Р В РЎвЂќР В РЎвЂР В РІвЂћвЂ“";
+            return getString(R.string.task_priority_low);
         }
-        return "Р В Р’В±Р В Р’ВµР В Р’В· Р В РЎвЂ”Р РЋР вЂљР В РЎвЂР В РЎвЂўР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р В Р’ВµР РЋРІР‚С™Р В Р’В°";
+        return getString(R.string.task_priority_none);
     }
 
     private String formatTags(List<String> tags) {
-        StringBuilder builder = new StringBuilder("Р РЋРІР‚С™Р В Р’ВµР В РЎвЂ“Р В РЎвЂ:");
+        StringBuilder builder = new StringBuilder(getString(R.string.task_tags_prefix));
         for (String tag : tags) {
             builder.append(" #").append(tag);
         }
@@ -3962,13 +4098,13 @@ public final class MainActivity extends AppCompatActivity {
         long minutes = duration.toMinutes();
         if (minutes % (24 * 60) == 0) {
             long days = minutes / (24 * 60);
-            return days + " Р В РўвЂ.";
+            return getString(R.string.main_duration_days, days);
         }
         if (minutes % 60 == 0) {
             long hours = minutes / 60;
-            return hours + " Р РЋРІР‚РЋ.";
+            return getString(R.string.main_duration_hours, hours);
         }
-        return minutes + " Р В РЎВР В РЎвЂР В Р вЂ¦.";
+        return getString(R.string.main_duration_minutes, minutes);
     }
 
     private void setNextReminder(ScheduledReminder reminder) {
@@ -3978,14 +4114,14 @@ public final class MainActivity extends AppCompatActivity {
 
         if (nextReminderTimeText != null) {
             if (!hasNotificationPermission()) {
-                nextReminderTitleText.setText("Р В Р’В Р В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ Р В Р вЂ¦Р РЋРЎвЂњР В Р’В¶Р В Р вЂ¦Р В РЎвЂў Р В Р вЂ Р РЋРІР‚в„–Р В РўвЂР В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р вЂ  Р РЋР С“Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В Р’ВµР В РЎВР В Р’Вµ");
-                nextReminderTimeText.setText("Р В Р в‚¬Р В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂќР В Р’В»Р РЋР вЂ№Р РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–");
+                nextReminderTitleText.setText(getString(R.string.next_reminder_permission_required));
+                nextReminderTimeText.setText(getString(R.string.next_reminder_notifications_disabled));
                 nextReminderMetaText.setText("");
                 return;
             }
 
             if (reminder == null) {
-                nextReminderTitleText.setText("Р В РЎСљР В Р’ВµР РЋРІР‚С™ Р В Р’В±Р РЋРЎвЂњР В РўвЂР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР РЋРІР‚В¦ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“");
+                nextReminderTitleText.setText(getString(R.string.next_reminder_none));
                 nextReminderTimeText.setText("");
                 nextReminderMetaText.setText("");
                 return;
@@ -3998,18 +4134,17 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         if (!hasNotificationPermission()) {
-            nextReminderText.setText("Р В РІР‚ВР В Р’В»Р В РЎвЂР В Р’В¶Р В Р’В°Р В РІвЂћвЂ“Р РЋРІвЂљВ¬Р В Р’ВµР В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’Вµ: Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ¦Р В Р’Вµ Р РЋР вЂљР В Р’В°Р В Р’В·Р РЋР вЂљР В Р’ВµР РЋРІвЂљВ¬Р В Р’ВµР В Р вЂ¦Р РЋРІР‚в„–.");
+            nextReminderText.setText(getString(R.string.next_reminder_disabled_summary));
             return;
         }
 
         if (reminder == null) {
-            nextReminderText.setText("Р В РІР‚ВР В Р’В»Р В РЎвЂР В Р’В¶Р В Р’В°Р В РІвЂћвЂ“Р РЋРІвЂљВ¬Р В Р’ВµР В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’Вµ: Р В Р вЂ¦Р В Р’ВµР РЋРІР‚С™ Р В Р’В±Р РЋРЎвЂњР В РўвЂР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР РЋРІР‚В¦ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋ Р РЋР С“Р В РЎвЂў Р В Р вЂ Р РЋР вЂљР В Р’ВµР В РЎВР В Р’ВµР В Р вЂ¦Р В Р’ВµР В РЎВ.");
+            nextReminderText.setText(getString(R.string.next_reminder_missing_summary));
             return;
         }
 
-        nextReminderText.setText(String.format(
-                Locale.getDefault(),
-                "Р В РІР‚ВР В Р’В»Р В РЎвЂР В Р’В¶Р В Р’В°Р В РІвЂћвЂ“Р РЋРІвЂљВ¬Р В Р’ВµР В Р’Вµ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р В РЎвЂўР В РЎВР В РЎвЂР В Р вЂ¦Р В Р’В°Р В Р вЂ¦Р В РЎвЂР В Р’Вµ: %s Р вЂ™Р’В· %s",
+        nextReminderText.setText(getString(
+                R.string.next_reminder_summary,
                 DATE_TIME_FORMAT.format(reminder.getTriggerAt()),
                 reminder.getTitle()
         ));
@@ -4018,10 +4153,10 @@ public final class MainActivity extends AppCompatActivity {
     private String formatRelativeReminder(LocalDateTime triggerAt) {
         LocalDateTime now = LocalDateTime.now();
         if (triggerAt.toLocalDate().equals(now.toLocalDate())) {
-            return "Р РЋР С“Р В Р’ВµР В РЎвЂ“Р В РЎвЂўР В РўвЂР В Р вЂ¦Р РЋР РЏ";
+            return getString(R.string.task_relative_today);
         }
         if (triggerAt.toLocalDate().equals(now.toLocalDate().plusDays(1))) {
-            return "Р В Р’В·Р В Р’В°Р В Р вЂ Р РЋРІР‚С™Р РЋР вЂљР В Р’В°";
+            return getString(R.string.task_relative_tomorrow);
         }
         return "";
     }
@@ -4110,8 +4245,8 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         activeFilterButton.setText(UserPreferences.isActiveOnly(this)
-                ? "Р В Р’В¤Р В РЎвЂР В Р’В»Р РЋР Р‰Р РЋРІР‚С™Р РЋР вЂљ: Р РЋРІР‚С™Р В РЎвЂўР В Р’В»Р РЋР Р‰Р В РЎвЂќР В РЎвЂў Р В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР В Р вЂ Р В Р вЂ¦Р РЋРІР‚в„–Р В Р’Вµ"
-                : "Р В Р’В¤Р В РЎвЂР В Р’В»Р РЋР Р‰Р РЋРІР‚С™Р РЋР вЂљ: Р В Р вЂ Р РЋР С“Р В Р’Вµ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ");
+                ? getString(R.string.filter_chip_active_only)
+                : getString(R.string.filter_chip_all_tasks));
     }
 
     private void styleFilterChip(Button chip, boolean selected) {
@@ -4222,7 +4357,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private String compactName(String rawName) {
         if (rawName == null || rawName.trim().isEmpty()) {
-            return "Р В РІР‚ВР В Р’ВµР В Р’В· Р В РЎвЂР В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂ Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’В°";
+            return getString(R.string.task_file_name_fallback);
         }
 
         String value = rawName.trim();
@@ -4252,7 +4387,7 @@ public final class MainActivity extends AppCompatActivity {
         }
         if (!task.getTags().isEmpty()) {
             if (builder.length() > 0) {
-                builder.append(" Р вЂ™Р’В· ");
+                builder.append(" · ");
             }
             builder.append(formatTags(task.getTags()));
         }
@@ -4261,7 +4396,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private void setStatus(String message) {
         if (sourceTitleText != null) {
-            sourceTitleText.setText("Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ");
+            sourceTitleText.setText(getString(R.string.source_title));
             sourceMetaText.setText(message == null ? "" : message);
             sourceStatsText.setText("");
             if (sourceStatsRow != null) {
@@ -4280,4 +4415,3 @@ public final class MainActivity extends AppCompatActivity {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
-

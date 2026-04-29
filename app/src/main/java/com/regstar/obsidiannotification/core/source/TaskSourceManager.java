@@ -1,5 +1,6 @@
 package com.regstar.obsidiannotification.core.source;
 
+import com.regstar.obsidiannotification.R;
 import com.regstar.obsidiannotification.core.reminders.*;
 import com.regstar.obsidiannotification.core.tasks.*;
 import com.regstar.obsidiannotification.prefs.*;
@@ -27,10 +28,6 @@ public final class TaskSourceManager {
     private TaskSourceManager() {
     }
 
-    /**
-     * Resolves the persisted storage mode or picks a safe default for first
-     * launch and legacy installs.
-     */
     public static TaskStorageMode getStorageMode(Context context) {
         SharedPreferences preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         TaskStorageMode storedMode = TaskStorageMode.fromName(preferences.getString(KEY_STORAGE_MODE, null));
@@ -49,28 +46,15 @@ public final class TaskSourceManager {
                 : TaskStorageMode.INTERNAL_MARKDOWN_STORAGE;
     }
 
-    /**
-     * Switches the app into built-in markdown storage and ensures the internal
-     * folder exists before the mode is persisted.
-     */
     public static void useInternalStorage(Context context) throws IOException {
         INTERNAL_SOURCE.ensureInitialized(context);
         persistStorageMode(context, TaskStorageMode.INTERNAL_MARKDOWN_STORAGE);
     }
 
-    /**
-     * Switches the app to externally managed markdown sources.
-     *
-     * <p>This call only changes the active mode. It does not create or migrate
-     * sources on its own.</p>
-     */
     public static void useExternalStorage(Context context) {
         persistStorageMode(context, TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE);
     }
 
-    /**
-     * Returns the currently active source implementation.
-     */
     public static TaskSource currentSource(Context context) {
         return getStorageMode(context) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
                 ? EXTERNAL_SOURCE
@@ -85,30 +69,21 @@ public final class TaskSourceManager {
         try {
             return currentSource(context).getPrimaryUri(context);
         } catch (IOException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ Р°РєС‚РёРІРЅС‹Р№ markdown-РёСЃС‚РѕС‡РЅРёРє", exception);
+            ErrorLog.record(context, context.getString(R.string.source_active_lookup_error), exception);
             return null;
         }
     }
 
-    /**
-     * Ensures the selected mode is ready for normal reads.
-     *
-     * <p>Today this mainly matters for built-in storage, which lazily creates
-     * its default markdown file.</p>
-     */
     public static void ensureReady(Context context) throws IOException {
         if (getStorageMode(context) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE) {
             INTERNAL_SOURCE.ensureInitialized(context);
         }
     }
 
-    /**
-     * Human-readable label for the active storage mode.
-     */
     public static String storageModeLabel(Context context) {
         return getStorageMode(context) == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE
-                ? "Р’СЃС‚СЂРѕРµРЅРЅРѕРµ С…СЂР°РЅРёР»РёС‰Рµ"
-                : "Р’РЅРµС€РЅРёРµ markdown-С„Р°Р№Р»С‹";
+                ? context.getString(R.string.storage_internal_label)
+                : context.getString(R.string.storage_external_label);
     }
 
     public static String activeSourceLabel(Context context) {
@@ -127,17 +102,11 @@ public final class TaskSourceManager {
         return NoteStore.hasStoredExternalSources(context);
     }
 
-    /**
-     * Warning shown when switching storage mode without moving user markdown
-     * between modes.
-     */
-    public static String switchWithoutMigrationWarning(TaskStorageMode targetMode) {
+    public static String switchWithoutMigrationWarning(Context context, TaskStorageMode targetMode) {
         if (targetMode == TaskStorageMode.INTERNAL_MARKDOWN_STORAGE) {
-            return "РџРµСЂРµРєР»СЋС‡РµРЅРёРµ РЅР° РІСЃС‚СЂРѕРµРЅРЅРѕРµ С…СЂР°РЅРёР»РёС‰Рµ РЅРµ РїРµСЂРµРЅРѕСЃРёС‚ Р·Р°РґР°С‡Рё Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё. "
-                    + "Р’РЅРµС€РЅРёРµ markdown-С„Р°Р№Р»С‹ РѕСЃС‚Р°РЅСѓС‚СЃСЏ Р±РµР· РёР·РјРµРЅРµРЅРёР№.";
+            return context.getString(R.string.storage_switch_internal_warning);
         }
-        return "РџРµСЂРµРєР»СЋС‡РµРЅРёРµ РЅР° РІРЅРµС€РЅРёРµ markdown-С„Р°Р№Р»С‹ РЅРµ РїРµСЂРµРЅРѕСЃРёС‚ РІСЃС‚СЂРѕРµРЅРЅС‹Рµ Р·Р°РґР°С‡Рё Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё. "
-                + "Р•СЃР»Рё РїРµСЂРµРЅРѕСЃ РЅСѓР¶РµРЅ, markdown-С„Р°Р№Р»С‹ РїРѕРєР° РЅСѓР¶РЅРѕ СЃРєРѕРїРёСЂРѕРІР°С‚СЊ РІСЂСѓС‡РЅСѓСЋ.";
+        return context.getString(R.string.storage_switch_external_warning);
     }
 
     public static Uri getInternalDefaultFileUri(Context context) throws IOException {
@@ -147,7 +116,6 @@ public final class TaskSourceManager {
     public static String internalFolderSummary(Context context) {
         return INTERNAL_SOURCE.internalRoot(context).getAbsolutePath();
     }
-
     private static void persistStorageMode(Context context, TaskStorageMode mode) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()

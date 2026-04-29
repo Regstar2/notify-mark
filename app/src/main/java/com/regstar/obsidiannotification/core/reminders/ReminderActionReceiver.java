@@ -1,11 +1,16 @@
 package com.regstar.obsidiannotification.core.reminders;
 
+import com.regstar.obsidiannotification.R;
 import com.regstar.obsidiannotification.ui.MainActivity;
 
-import com.regstar.obsidiannotification.core.source.*;
-import com.regstar.obsidiannotification.core.tasks.*;
-import com.regstar.obsidiannotification.prefs.*;
+import com.regstar.obsidiannotification.core.source.NoteChangeMonitor;
+import com.regstar.obsidiannotification.core.source.NoteStore;
+import com.regstar.obsidiannotification.core.source.TaskSourceManager;
+import com.regstar.obsidiannotification.core.tasks.RepeatMode;
+import com.regstar.obsidiannotification.core.tasks.TaskEditResult;
+import com.regstar.obsidiannotification.prefs.ActionPreferences;
 import com.regstar.obsidiannotification.support.ErrorLog;
+import com.regstar.obsidiannotification.support.IoExecutor;
 
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -38,6 +43,29 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent == null || intent.getAction() == null) {
+            return;
+        }
+        final PendingResult pendingResult = goAsync();
+        final Context appContext = context == null ? null : context.getApplicationContext();
+        IoExecutor.io().execute(() -> {
+            try {
+                handleReceive(appContext, intent);
+            } catch (Exception exception) {
+                if (appContext != null) {
+                    ErrorLog.record(
+                            appContext,
+                            appContext.getString(R.string.runtime_notification_action_receiver_error),
+                            exception
+                    );
+                }
+            } finally {
+                pendingResult.finish();
+            }
+        });
+    }
+
+    private void handleReceive(Context context, Intent intent) {
+        if (context == null || intent == null || intent.getAction() == null) {
             return;
         }
 
@@ -100,7 +128,7 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
             return;
         }
 
-        ErrorLog.record(context, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР РЋРЎвЂњ Р В Р вЂ Р РЋРІР‚в„–Р В РЎвЂ”Р В РЎвЂўР В Р’В»Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В Р вЂ¦Р В РЎвЂўР В РІвЂћвЂ“: " + result.getMessage());
+        ErrorLog.record(context, context.getString(R.string.runtime_mark_done_error, result.getMessage()));
     }
 
     private void snooze(Context context, Intent intent) {
@@ -133,7 +161,10 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
         if (ActionPreferences.shouldRecordSnoozeCount(context)) {
             TaskEditResult result = NoteStore.incrementSnoozeCount(context, taskKey);
             if (result.isFailure()) {
-                ErrorLog.record(context, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎвЂ”Р В РЎвЂР РЋР С“Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р РЋР С“Р РЋРІР‚РЋР В Р’ВµР РЋРІР‚С™Р РЋРІР‚РЋР В РЎвЂР В РЎвЂќ Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В РІвЂћвЂ“: " + result.getMessage());
+                ErrorLog.record(
+                        context,
+                        context.getString(R.string.runtime_snooze_count_write_error, result.getMessage())
+                );
             }
         }
         cancelNotification(context, intent);
@@ -150,7 +181,7 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
                     return match.getTask().getSnoozeDuration();
                 }
             } catch (IOException | RuntimeException exception) {
-                ErrorLog.record(context, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР В РЎвЂ”Р РЋР вЂљР В Р’ВµР В РўвЂР В Р’ВµР В Р’В»Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂР В Р вЂ¦Р РЋРІР‚С™Р В Р’ВµР РЋР вЂљР В Р вЂ Р В Р’В°Р В Р’В» Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ", exception);
+                ErrorLog.record(context, context.getString(R.string.runtime_snooze_interval_error), exception);
             }
         }
         return Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(context));
@@ -167,7 +198,7 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
         }
 
         cancelNotification(context, intent);
-        ErrorLog.record(context, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋР С“Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’Вµ: " + result.getMessage());
+        ErrorLog.record(context, context.getString(R.string.runtime_skip_notification_error, result.getMessage()));
     }
 
     private void openNote(Context context, Intent intent) {
@@ -179,7 +210,7 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
                 uri = match.getUri();
             }
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В Р вЂ¦Р В Р’В°Р В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњ Р В РўвЂР В Р’В»Р РЋР РЏ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР РЋР РЏ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_open_note_lookup_error), exception);
         }
 
         if (uri == null) {
@@ -202,7 +233,7 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
         try {
             context.startActivity(openNoteIntent);
         } catch (RuntimeException exception) {
-            ErrorLog.record(context, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РЎВР В Р’ВµР РЋРІР‚С™Р В РЎвЂќР РЋРЎвЂњ Р В Р вЂ¦Р В Р’В°Р В РЎвЂ”Р РЋР вЂљР РЋР РЏР В РЎВР РЋРЎвЂњР РЋР вЂ№", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_open_note_direct_error), exception);
             openApp(context);
         }
     }

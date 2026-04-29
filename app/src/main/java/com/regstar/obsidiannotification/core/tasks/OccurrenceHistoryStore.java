@@ -22,6 +22,7 @@ public final class OccurrenceHistoryStore {
     private static final String KEY_HISTORY = "history";
     private static final String KEY_PENDING = "pending_external";
     private static final Duration DEFAULT_STABILIZATION_WINDOW = Duration.ofSeconds(45);
+    private static final Object HISTORY_LOCK = new Object();
 
     private OccurrenceHistoryStore() {
     }
@@ -30,22 +31,26 @@ public final class OccurrenceHistoryStore {
         if (context == null || record == null || record.getSeriesId().trim().isEmpty()) {
             return;
         }
-        List<TaskOccurrenceRecord> records = loadAll(context);
-        records.add(record);
-        saveAll(context, records);
+        synchronized (HISTORY_LOCK) {
+            List<TaskOccurrenceRecord> records = loadAll(context);
+            records.add(record);
+            saveAll(context, records);
+        }
     }
 
     public static List<TaskOccurrenceRecord> getSeriesHistory(Context context, String seriesId) {
         if (seriesId == null || seriesId.trim().isEmpty()) {
             return Collections.emptyList();
         }
-        List<TaskOccurrenceRecord> result = new ArrayList<>();
-        for (TaskOccurrenceRecord record : loadAll(context)) {
-            if (seriesId.equals(record.getSeriesId())) {
-                result.add(record);
+        synchronized (HISTORY_LOCK) {
+            List<TaskOccurrenceRecord> result = new ArrayList<>();
+            for (TaskOccurrenceRecord record : loadAll(context)) {
+                if (seriesId.equals(record.getSeriesId())) {
+                    result.add(record);
+                }
             }
+            return result;
         }
-        return result;
     }
 
     public static PendingExternalCompletion getPendingExternalCompletion(
@@ -55,12 +60,14 @@ public final class OccurrenceHistoryStore {
         if (seriesId == null || seriesId.trim().isEmpty()) {
             return null;
         }
-        for (PendingExternalCompletion candidate : loadPending(context)) {
-            if (seriesId.equals(candidate.getSeriesId())) {
-                return candidate;
+        synchronized (HISTORY_LOCK) {
+            for (PendingExternalCompletion candidate : loadPending(context)) {
+                if (seriesId.equals(candidate.getSeriesId())) {
+                    return candidate;
+                }
             }
+            return null;
         }
-        return null;
     }
 
     public static void putPendingExternalCompletion(
@@ -70,19 +77,23 @@ public final class OccurrenceHistoryStore {
         if (context == null || candidate == null || candidate.getSeriesId().trim().isEmpty()) {
             return;
         }
-        List<PendingExternalCompletion> candidates = loadPending(context);
-        candidates.removeIf(value -> candidate.getSeriesId().equals(value.getSeriesId()));
-        candidates.add(candidate);
-        savePending(context, candidates);
+        synchronized (HISTORY_LOCK) {
+            List<PendingExternalCompletion> candidates = loadPending(context);
+            candidates.removeIf(value -> candidate.getSeriesId().equals(value.getSeriesId()));
+            candidates.add(candidate);
+            savePending(context, candidates);
+        }
     }
 
     public static void removePendingExternalCompletion(Context context, String seriesId) {
         if (context == null || seriesId == null || seriesId.trim().isEmpty()) {
             return;
         }
-        List<PendingExternalCompletion> candidates = loadPending(context);
-        if (candidates.removeIf(value -> seriesId.equals(value.getSeriesId()))) {
-            savePending(context, candidates);
+        synchronized (HISTORY_LOCK) {
+            List<PendingExternalCompletion> candidates = loadPending(context);
+            if (candidates.removeIf(value -> seriesId.equals(value.getSeriesId()))) {
+                savePending(context, candidates);
+            }
         }
     }
 

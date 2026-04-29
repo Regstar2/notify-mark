@@ -1,0 +1,13 @@
+<resources>
+    <string name="onboarding_subtitle">Выберите, где приложение будет хранить и читать markdown-задачи: внутри приложения или во внешних файлах.</string>
+    <string name="onboarding_internal_title">Встроенное хранилище</string>
+    <string name="onboarding_internal_body">Локальные markdown-файлы внутри приложения. Подходит для быстрого старта без выбора внешней папки.</string>
+    <string name="onboarding_internal_cta">Начать быстро</string>
+    <string name="onboarding_external_title">Внешние markdown-файлы</string>
+    <string name="onboarding_external_body">Выбранные файлы и папки через Android picker. Подходит для Obsidian, Syncthing и обычных markdown-файлов.</string>
+    <string name="onboarding_external_cta">Подключить папку</string>
+    <string name="onboarding_note">Сменить режим хранения можно позже в настройках. Переключение пока не переносит задачи автоматически.</string>
+    <string name="onboarding_internal_prepare_error">Не удалось подготовить встроенное хранилище</string>
+    <string name="onboarding_internal_prepare_error_prefix">Не удалось подготовить встроенное хранилище: %1$s</string>
+    <string name="onboarding_internal_prepare_fallback">проверьте доступ к памяти приложения</string>
+</resources>

@@ -1,5 +1,7 @@
 package com.regstar.obsidiannotification.core.source;
 
+import com.regstar.obsidiannotification.R;
+
 import com.regstar.obsidiannotification.core.reminders.*;
 import com.regstar.obsidiannotification.core.tasks.*;
 import com.regstar.obsidiannotification.prefs.*;
@@ -124,7 +126,7 @@ public final class NoteStore {
     public static Uri requireSavedSourceUri(Context context) throws IOException {
         Uri sourceUri = getSavedSourceUri(context);
         if (sourceUri == null) {
-            throw new IOException("Р·Р°РјРµС‚РєР° РёР»Рё РїР°РїРєР° РЅРµ РІС‹Р±СЂР°РЅР°");
+            throw new IOException(context.getString(R.string.runtime_source_not_selected));
         }
         return sourceUri;
     }
@@ -132,7 +134,7 @@ public final class NoteStore {
     public static Uri requireSavedNoteUri(Context context) throws IOException {
         Uri noteUri = getSavedNoteUri(context);
         if (noteUri == null) {
-            throw new IOException("С„Р°Р№Р» Р·Р°РјРµС‚РєРё РЅРµ РІС‹Р±СЂР°РЅ");
+            throw new IOException(context.getString(R.string.runtime_note_not_selected));
         }
         return noteUri;
     }
@@ -319,7 +321,7 @@ public final class NoteStore {
         StringBuilder builder = new StringBuilder();
         try (InputStream stream = context.getContentResolver().openInputStream(uri)) {
             if (stream == null) {
-                throw new IOException("РїСЂРѕРІР°Р№РґРµСЂ РЅРµ РІРµСЂРЅСѓР» РїРѕС‚РѕРє РґР°РЅРЅС‹С…");
+                throw new IOException(context.getString(R.string.runtime_provider_data_stream_missing));
             }
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(
                     stream,
@@ -342,11 +344,11 @@ public final class NoteStore {
 
         try (OutputStream stream = context.getContentResolver().openOutputStream(uri, "wt")) {
             if (stream == null) {
-                throw new IOException("РїСЂРѕРІР°Р№РґРµСЂ РЅРµ РІРµСЂРЅСѓР» РїРѕС‚РѕРє Р·Р°РїРёСЃРё");
+                throw new IOException(context.getString(R.string.runtime_provider_write_stream_missing));
             }
             stream.write(markdown.getBytes(StandardCharsets.UTF_8));
         } catch (SecurityException exception) {
-            throw new IOException("РЅРµС‚ РґРѕСЃС‚СѓРїР° РЅР° Р·Р°РїРёСЃСЊ. Р’С‹Р±РµСЂРёС‚Рµ Р·Р°РјРµС‚РєСѓ РёР»Рё РїР°РїРєСѓ Р·Р°РЅРѕРІРѕ", exception);
+            throw new IOException(context.getString(R.string.runtime_no_write_access), exception);
         }
     }
 
@@ -357,7 +359,7 @@ public final class NoteStore {
     static List<NoteDocument> readStoredExternalDocuments(Context context) throws IOException {
         List<NoteSource> sources = getSavedSources(context);
         if (sources.isEmpty()) {
-            throw new IOException("Р·Р°РјРµС‚РєР° РёР»Рё РїР°РїРєР° РЅРµ РІС‹Р±СЂР°РЅР°");
+            throw new IOException(context.getString(R.string.runtime_source_not_selected));
         }
 
         List<NoteDocument> documents = new ArrayList<>();
@@ -378,7 +380,7 @@ public final class NoteStore {
         }
 
         if (documents.isEmpty()) {
-            throw new IOException("РЅРµ РЅР°Р№РґРµРЅРѕ markdown-С„Р°Р№Р»РѕРІ РїРѕ С‚РµРєСѓС‰РёРј РёСЃС‚РѕС‡РЅРёРєР°Рј Рё С€Р°Р±Р»РѕРЅР°Рј РїРѕРёСЃРєР°");
+            throw new IOException(context.getString(R.string.runtime_no_markdown_found));
         }
         return documents;
     }
@@ -475,21 +477,21 @@ public final class NoteStore {
 
     public static TaskEditResult restoreTaskBlock(Context context, TaskBlockSnapshot snapshot) {
         if (snapshot == null || snapshot.getUri() == null) {
-            return TaskEditResult.notFound("СЃРЅРёРјРѕРє СѓРґР°Р»РµРЅРЅРѕР№ Р·Р°РґР°С‡Рё РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_deleted_snapshot_missing));
         }
 
         try {
             String latestMarkdown = readMarkdown(context, snapshot.getUri());
             if (sameMarkdownContent(latestMarkdown, snapshot.getOriginalMarkdown())) {
-                return TaskEditResult.updated("СѓРґР°Р»РµРЅРёРµ РѕС‚РјРµРЅРµРЅРѕ");
+                return TaskEditResult.updated(context.getString(R.string.runtime_delete_reverted));
             }
             if (!sameMarkdownContent(latestMarkdown, snapshot.getMarkdownAfterDelete())) {
-                return TaskEditResult.conflict("С„Р°Р№Р» РёР·РјРµРЅРёР»СЃСЏ, РѕС‚РєР°С‚ СѓРґР°Р»РµРЅРёСЏ РЅРµРІРѕР·РјРѕР¶РµРЅ");
+                return TaskEditResult.conflict(context.getString(R.string.runtime_delete_revert_conflict));
             }
             writeMarkdown(context, snapshot.getUri(), snapshot.getOriginalMarkdown());
-            return TaskEditResult.updated("СѓРґР°Р»РµРЅРёРµ РѕС‚РјРµРЅРµРЅРѕ");
+            return TaskEditResult.updated(context.getString(R.string.runtime_delete_reverted));
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєР°С‚РёС‚СЊ СѓРґР°Р»РµРЅРёРµ markdown-Р·Р°РґР°С‡Рё", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_delete_revert_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -541,7 +543,7 @@ public final class NoteStore {
     public static NoteDocument findDefaultWriteDocument(Context context) throws IOException {
         List<NoteDocument> documents = readDocuments(context);
         if (documents.isEmpty()) {
-            throw new IOException("РЅРµ РЅР°Р№РґРµРЅ markdown-С„Р°Р№Р» РґР»СЏ Р·Р°РїРёСЃРё");
+            throw new IOException(context.getString(R.string.runtime_write_markdown_missing));
         }
         return documents.get(0);
     }
@@ -562,7 +564,7 @@ public final class NoteStore {
                     }
                 }
             }
-            throw new IOException("Р·Р°РґР°С‡Р° РЅРµ РЅР°Р№РґРµРЅР° РёР»Рё СѓР¶Рµ РёР·РјРµРЅРёР»Р°СЃСЊ");
+            throw new IOException(context.getString(R.string.runtime_task_not_found_or_changed));
         }
 
         NoteDocument document = findDefaultWriteDocument(context);
@@ -582,18 +584,18 @@ public final class NoteStore {
             boolean force
     ) {
         if (uri == null) {
-            return TaskEditResult.notFound("markdown-С„Р°Р№Р» РЅРµ РЅР°Р№РґРµРЅ");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_markdown_file_not_found));
         }
 
         try {
             String latestMarkdown = readMarkdown(context, uri);
             if (!force && originalMarkdown != null && !latestMarkdown.equals(originalMarkdown)) {
-                return TaskEditResult.conflict("С„Р°Р№Р» РёР·РјРµРЅРёР»СЃСЏ РїРѕСЃР»Рµ РѕС‚РєСЂС‹С‚РёСЏ СЂРµРґР°РєС‚РѕСЂР°");
+                return TaskEditResult.conflict(context.getString(R.string.runtime_editor_file_changed));
             }
             writeMarkdown(context, uri, markdown == null ? "" : markdown);
-            return TaskEditResult.updated("markdown-С„Р°Р№Р» СЃРѕС…СЂР°РЅРµРЅ");
+            return TaskEditResult.updated(context.getString(R.string.runtime_markdown_saved));
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ markdown-С„Р°Р№Р»", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_markdown_save_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -601,7 +603,7 @@ public final class NoteStore {
     public static TaskEditResult appendTaskLine(Context context, String rawLine) {
         String safeLine = sanitizeSingleLine(rawLine);
         if (safeLine.isEmpty()) {
-            return TaskEditResult.conflict("СЃС‚СЂРѕРєР° СѓРІРµРґРѕРјР»РµРЅРёСЏ РїСѓСЃС‚Р°СЏ");
+            return TaskEditResult.conflict(context.getString(R.string.runtime_notification_line_empty));
         }
 
         try {
@@ -611,9 +613,9 @@ public final class NoteStore {
                     ? ""
                     : "\n";
             writeMarkdown(context, document.getUri(), latestMarkdown + separator + safeLine + "\n");
-            return TaskEditResult.updated("СѓРІРµРґРѕРјР»РµРЅРёРµ РґРѕР±Р°РІР»РµРЅРѕ");
+            return TaskEditResult.updated(context.getString(R.string.runtime_notification_added));
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕР±Р°РІРёС‚СЊ markdown-СѓРІРµРґРѕРјР»РµРЅРёРµ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_notification_add_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -621,7 +623,7 @@ public final class NoteStore {
     public static TaskEditResult appendTaskBlock(Context context, String rawBlock) {
         String safeBlock = sanitizeMarkdownBlock(rawBlock);
         if (safeBlock.isEmpty()) {
-            return TaskEditResult.conflict("Р±Р»РѕРє СѓРІРµРґРѕРјР»РµРЅРёСЏ РїСѓСЃС‚РѕР№");
+            return TaskEditResult.conflict(context.getString(R.string.runtime_notification_block_empty));
         }
 
         try {
@@ -631,9 +633,9 @@ public final class NoteStore {
                     ? ""
                     : "\n";
             writeMarkdown(context, document.getUri(), latestMarkdown + separator + safeBlock + "\n");
-            return TaskEditResult.updated("РёР·РјРµРЅРµРЅРёСЏ СЃРѕС…СЂР°РЅРµРЅС‹");
+            return TaskEditResult.updated(context.getString(R.string.runtime_changes_saved));
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РґРѕР±Р°РІРёС‚СЊ markdown-Р±Р»РѕРє СѓРІРµРґРѕРјР»РµРЅРёСЏ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_notification_block_add_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -641,7 +643,7 @@ public final class NoteStore {
     public static TaskEditResult replaceTaskLine(Context context, String taskKey, String rawLine) {
         String safeLine = sanitizeSingleLine(rawLine);
         if (safeLine.isEmpty()) {
-            return TaskEditResult.conflict("СЃС‚СЂРѕРєР° СѓРІРµРґРѕРјР»РµРЅРёСЏ РїСѓСЃС‚Р°СЏ");
+            return TaskEditResult.conflict(context.getString(R.string.runtime_notification_line_empty));
         }
         return editTaskLine(
                 context,
@@ -654,7 +656,7 @@ public final class NoteStore {
     public static TaskEditResult replaceTaskBlock(Context context, String taskKey, String rawBlock) {
         String safeBlock = sanitizeMarkdownBlock(rawBlock);
         if (safeBlock.isEmpty()) {
-            return TaskEditResult.conflict("Р±Р»РѕРє СѓРІРµРґРѕРјР»РµРЅРёСЏ РїСѓСЃС‚РѕР№");
+            return TaskEditResult.conflict(context.getString(R.string.runtime_notification_block_empty));
         }
         return editTaskBlock(context, taskKey, safeBlock);
     }
@@ -677,7 +679,7 @@ public final class NoteStore {
                     String updatedLine = markDoneLine(line);
                     return updatedLine == null ? null : TaskLineMutation.replace(updatedLine);
                 },
-                "РќРµ СѓРґР°Р»РѕСЃСЊ РјР°СЃСЃРѕРІРѕ РѕС‚РјРµС‚РёС‚СЊ markdown-Р·Р°РґР°С‡Рё РІС‹РїРѕР»РЅРµРЅРЅС‹РјРё"
+                context.getString(R.string.runtime_bulk_mark_done_error)
         );
     }
 
@@ -688,7 +690,7 @@ public final class NoteStore {
                 false,
                 false,
                 line -> TaskLineMutation.replace(appendSkippedMarker(line)),
-                "РќРµ СѓРґР°Р»РѕСЃСЊ РјР°СЃСЃРѕРІРѕ РїСЂРѕРїСѓСЃС‚РёС‚СЊ markdown-Р·Р°РґР°С‡Рё"
+                context.getString(R.string.runtime_bulk_skip_error)
         );
     }
 
@@ -699,7 +701,7 @@ public final class NoteStore {
                 true,
                 true,
                 line -> TaskLineMutation.delete(),
-                "РќРµ СѓРґР°Р»РѕСЃСЊ РјР°СЃСЃРѕРІРѕ СѓРґР°Р»РёС‚СЊ markdown-Р·Р°РґР°С‡Рё"
+                context.getString(R.string.runtime_bulk_delete_error)
         );
     }
 
@@ -710,7 +712,7 @@ public final class NoteStore {
                 false,
                 false,
                 line -> TaskLineMutation.replace(incrementSnoozedMarker(line)),
-                "РќРµ СѓРґР°Р»РѕСЃСЊ РјР°СЃСЃРѕРІРѕ Р·Р°РїРёСЃР°С‚СЊ СЃС‡РµС‚С‡РёРє РѕС‚Р»РѕР¶РµРЅРёР№"
+                context.getString(R.string.runtime_bulk_snooze_count_error)
         );
     }
 
@@ -730,7 +732,7 @@ public final class NoteStore {
             TaskLineEditor editor
     ) {
         if (taskKey == null || taskKey.trim().isEmpty()) {
-            return TaskEditResult.notFound("РєР»СЋС‡ Р·Р°РґР°С‡Рё РїСѓСЃС‚РѕР№");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_task_key_empty));
         }
 
         try {
@@ -742,36 +744,36 @@ public final class NoteStore {
                         continue;
                     }
                     if (task.isCompleted()) {
-                        return TaskEditResult.alreadyDone("Р·Р°РґР°С‡Р° СѓР¶Рµ РІС‹РїРѕР»РЅРµРЅР°");
+                        return TaskEditResult.alreadyDone(context.getString(R.string.runtime_task_already_done));
                     }
                     if (task.isSkipped()) {
-                        return TaskEditResult.alreadyDone("СѓРІРµРґРѕРјР»РµРЅРёРµ СѓР¶Рµ РїСЂРѕРїСѓС‰РµРЅРѕ");
+                        return TaskEditResult.alreadyDone(context.getString(R.string.runtime_notification_already_skipped));
                     }
 
                     String[] lines = document.getMarkdown().split("\n", -1);
                     int index = task.getLineNumber() - 1;
                     if (index < 0 || index >= lines.length) {
-                        return TaskEditResult.conflict("СЃС‚СЂРѕРєР° Р·Р°РґР°С‡Рё РёР·РјРµРЅРёР»Р°СЃСЊ");
+                        return TaskEditResult.conflict(context.getString(R.string.runtime_task_line_changed));
                     }
 
                     String updatedLine = editor.edit(lines[index]);
                     if (updatedLine == null || updatedLine.equals(lines[index])) {
-                        return TaskEditResult.conflict("СЃС‚СЂРѕРєР° Р·Р°РґР°С‡Рё Р±РѕР»СЊС€Рµ РЅРµ РїРѕС…РѕР¶Р° РЅР° Р°РєС‚РёРІРЅС‹Р№ С‡РµРєР±РѕРєСЃ");
+                        return TaskEditResult.conflict(context.getString(R.string.runtime_task_not_active_checkbox));
                     }
 
                     String latestMarkdown = readMarkdown(context, document.getUri());
                     if (!latestMarkdown.equals(document.getMarkdown())) {
-                        return TaskEditResult.conflict("С„Р°Р№Р» РёР·РјРµРЅРёР»СЃСЏ РІРѕ РІСЂРµРјСЏ Р·Р°РїРёСЃРё");
+                        return TaskEditResult.conflict(context.getString(R.string.runtime_file_changed_during_write));
                     }
 
                     lines[index] = updatedLine;
                     writeMarkdown(context, document.getUri(), joinLines(lines));
-                    return TaskEditResult.updated("Р·Р°РґР°С‡Р° РѕР±РЅРѕРІР»РµРЅР°");
+                    return TaskEditResult.updated(context.getString(R.string.runtime_task_updated));
                 }
             }
-            return TaskEditResult.notFound("Р·Р°РґР°С‡Р° РЅРµ РЅР°Р№РґРµРЅР° РёР»Рё СѓР¶Рµ РёР·РјРµРЅРёР»Р°СЃСЊ");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_task_not_found_or_changed));
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±РЅРѕРІРёС‚СЊ markdown-Р·Р°РґР°С‡Сѓ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_task_update_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -789,9 +791,14 @@ public final class NoteStore {
             if (match == null || match.getTask() == null || !match.getTask().hasRepeatSchedule()) {
                 return null;
             }
-            return RepeatSeriesManager.advance(context, taskKey, resolutionStatus);
+            return RepeatSeriesManager.advance(
+                    context,
+                    taskKey,
+                    resolutionStatus,
+                    TaskFormatSettings.load(context)
+            );
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕРґРІРёРЅСѓС‚СЊ repeat-СЃРµСЂРёСЋ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_repeat_series_advance_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -919,7 +926,7 @@ public final class NoteStore {
             TaskLineMutationEditor editor
     ) {
         if (taskKey == null || taskKey.trim().isEmpty()) {
-            return TaskEditResult.notFound("РєР»СЋС‡ Р·Р°РґР°С‡Рё РїСѓСЃС‚РѕР№");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_task_key_empty));
         }
 
         try {
@@ -931,23 +938,23 @@ public final class NoteStore {
                         continue;
                     }
                     if (task.isCompleted() && !allowCompleted) {
-                        return TaskEditResult.alreadyDone("Р·Р°РґР°С‡Р° СѓР¶Рµ РІС‹РїРѕР»РЅРµРЅР°");
+                        return TaskEditResult.alreadyDone(context.getString(R.string.runtime_task_already_done));
                     }
 
                     String[] lines = document.getMarkdown().split("\n", -1);
                     int index = task.getLineNumber() - 1;
                     if (index < 0 || index >= lines.length) {
-                        return TaskEditResult.conflict("СЃС‚СЂРѕРєР° Р·Р°РґР°С‡Рё РёР·РјРµРЅРёР»Р°СЃСЊ");
+                        return TaskEditResult.conflict(context.getString(R.string.runtime_task_line_changed));
                     }
 
                     TaskLineMutation mutation = editor.edit(lines[index]);
                     if (mutation == null) {
-                        return TaskEditResult.conflict("СЃС‚СЂРѕРєР° Р·Р°РґР°С‡Рё Р±РѕР»СЊС€Рµ РЅРµ РїРѕРґС…РѕРґРёС‚ РґР»СЏ РёР·РјРµРЅРµРЅРёСЏ");
+                        return TaskEditResult.conflict(context.getString(R.string.runtime_task_line_invalid_for_edit));
                     }
 
                     String latestMarkdown = readMarkdown(context, document.getUri());
                     if (!latestMarkdown.equals(document.getMarkdown())) {
-                        return TaskEditResult.conflict("С„Р°Р№Р» РёР·РјРµРЅРёР»СЃСЏ РІРѕ РІСЂРµРјСЏ Р·Р°РїРёСЃРё");
+                        return TaskEditResult.conflict(context.getString(R.string.runtime_file_changed_during_write));
                     }
 
                     String updatedMarkdown = mutation.isDelete()
@@ -955,13 +962,13 @@ public final class NoteStore {
                             : replaceLine(lines, index, mutation.getLine());
                     writeMarkdown(context, document.getUri(), updatedMarkdown);
                     return TaskEditResult.updated(mutation.isDelete()
-                            ? "СѓРІРµРґРѕРјР»РµРЅРёРµ СѓРґР°Р»РµРЅРѕ"
-                            : "СѓРІРµРґРѕРјР»РµРЅРёРµ РѕР±РЅРѕРІР»РµРЅРѕ");
+                            ? context.getString(R.string.runtime_notification_deleted)
+                            : context.getString(R.string.runtime_notification_updated));
                 }
             }
-            return TaskEditResult.notFound("Р·Р°РґР°С‡Р° РЅРµ РЅР°Р№РґРµРЅР° РёР»Рё СѓР¶Рµ РёР·РјРµРЅРёР»Р°СЃСЊ");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_task_not_found_or_changed));
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РёР·РјРµРЅРёС‚СЊ markdown-СѓРІРµРґРѕРјР»РµРЅРёРµ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_notification_update_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -972,7 +979,7 @@ public final class NoteStore {
             String block
     ) {
         if (taskKey == null || taskKey.trim().isEmpty()) {
-            return TaskEditResult.notFound("РєР»СЋС‡ Р·Р°РґР°С‡Рё РїСѓСЃС‚РѕР№");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_task_key_empty));
         }
 
         try {
@@ -987,12 +994,12 @@ public final class NoteStore {
                     String[] lines = document.getMarkdown().split("\n", -1);
                     int index = task.getLineNumber() - 1;
                     if (index < 0 || index >= lines.length) {
-                        return TaskEditResult.conflict("СЃС‚СЂРѕРєР° Р·Р°РґР°С‡Рё РёР·РјРµРЅРёР»Р°СЃСЊ");
+                        return TaskEditResult.conflict(context.getString(R.string.runtime_task_line_changed));
                     }
 
                     String latestMarkdown = readMarkdown(context, document.getUri());
                     if (!latestMarkdown.equals(document.getMarkdown())) {
-                        return TaskEditResult.conflict("С„Р°Р№Р» РёР·РјРµРЅРёР»СЃСЏ РІРѕ РІСЂРµРјСЏ Р·Р°РїРёСЃРё");
+                        return TaskEditResult.conflict(context.getString(R.string.runtime_file_changed_during_write));
                     }
 
                     int endExclusive = taskBlockEnd(lines, index);
@@ -1001,13 +1008,13 @@ public final class NoteStore {
                             : replaceLineRange(lines, index, endExclusive, block);
                     writeMarkdown(context, document.getUri(), updatedMarkdown);
                     return TaskEditResult.updated(block == null
-                            ? "СѓРІРµРґРѕРјР»РµРЅРёРµ СѓРґР°Р»РµРЅРѕ"
-                            : "РёР·РјРµРЅРµРЅРёСЏ СЃРѕС…СЂР°РЅРµРЅС‹");
+                            ? context.getString(R.string.runtime_notification_deleted)
+                            : context.getString(R.string.runtime_changes_saved));
                 }
             }
-            return TaskEditResult.notFound("Р·Р°РґР°С‡Р° РЅРµ РЅР°Р№РґРµРЅР° РёР»Рё СѓР¶Рµ РёР·РјРµРЅРёР»Р°СЃСЊ");
+            return TaskEditResult.notFound(context.getString(R.string.runtime_task_not_found_or_changed));
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "РќРµ СѓРґР°Р»РѕСЃСЊ РёР·РјРµРЅРёС‚СЊ markdown-Р±Р»РѕРє СѓРІРµРґРѕРјР»РµРЅРёСЏ", exception);
+            ErrorLog.record(context, context.getString(R.string.runtime_notification_block_update_error), exception);
             return TaskEditResult.writeFailed(exception.getMessage());
         }
     }
@@ -1275,7 +1282,7 @@ public final class NoteStore {
                 DocumentsContract.Document.COLUMN_DISPLAY_NAME + " ASC"
         )) {
             if (cursor == null) {
-                throw new IOException("РїСЂРѕРІР°Р№РґРµСЂ РЅРµ РІРµСЂРЅСѓР» СЃРїРёСЃРѕРє С„Р°Р№Р»РѕРІ РїР°РїРєРё");
+                throw new IOException(context.getString(R.string.runtime_provider_folder_list_missing));
             }
 
             while (cursor.moveToNext()) {
@@ -1321,7 +1328,10 @@ public final class NoteStore {
         } catch (SecurityException exception) {
             throw exception;
         } catch (RuntimeException exception) {
-            throw new IOException("РЅРµ СѓРґР°Р»РѕСЃСЊ РїСЂРѕС‡РёС‚Р°С‚СЊ РїР°РїРєСѓ Р·Р°РјРµС‚РѕРє: " + exception.getMessage(), exception);
+            throw new IOException(
+                    context.getString(R.string.runtime_folder_read_error, exception.getMessage()),
+                    exception
+            );
         }
     }
 

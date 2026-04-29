@@ -7,6 +7,7 @@ import com.regstar.obsidiannotification.core.source.*;
 import com.regstar.obsidiannotification.core.tasks.*;
 import com.regstar.obsidiannotification.prefs.*;
 import com.regstar.obsidiannotification.support.ErrorLog;
+import com.regstar.obsidiannotification.support.IoExecutor;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -32,6 +33,28 @@ import java.time.format.DateTimeFormatter;
 public final class ReminderReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
+        if (intent == null) {
+            return;
+        }
+        final PendingResult pendingResult = goAsync();
+        final Context appContext = context == null ? null : context.getApplicationContext();
+        IoExecutor.io().execute(() -> {
+            try {
+                handleReceive(appContext, intent);
+            } catch (Exception exception) {
+                if (appContext != null) {
+                    ErrorLog.record(appContext, appContext.getString(R.string.runtime_show_notification_error), exception);
+                }
+            } finally {
+                pendingResult.finish();
+            }
+        });
+    }
+
+    private void handleReceive(Context context, Intent intent) {
+        if (context == null) {
+            return;
+        }
         ReminderScheduler.ensureNotificationChannel(context);
         if (!ReminderScheduler.canPostNotifications(context)) {
             return;
@@ -78,7 +101,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             }
         }
 
-        String dueLabel = buildDueLabel(triggerAtMillis, activeTaskLookup.getTask());
+        String dueLabel = buildDueLabel(context, triggerAtMillis, activeTaskLookup.getTask());
         long notificationWhenMillis = buildNotificationWhenMillis(
                 triggerAtMillis,
                 activeTaskLookup.getTask(),
@@ -111,7 +134,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                         taskKey,
                         notificationId,
                         displayNotificationId,
-                        safeTitle(title),
+                        safeTitle(context, title),
                         lineNumber,
                         notificationWhenMillis,
                         repeatIntervalMillis,
@@ -126,7 +149,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 taskKey,
                 notificationId,
                 lineNumber,
-                safeTitle(title),
+                safeTitle(context, title),
                 repeatIntervalMillis,
                 repeatMode,
                 activeTaskLookup.getTask()
@@ -177,7 +200,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
         if (taskKey != null && !taskKey.trim().isEmpty()) {
             builder.addAction(
                     R.drawable.ic_check,
-                    "Р Р†РЎС™РІР‚Сљ",
+                    "✓",
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_MARK_DONE,
@@ -207,7 +230,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             );
             builder.addAction(
                     R.drawable.ic_close,
-                    "Р В РЎСџР РЋР вЂљР В РЎвЂўР В РЎвЂ”Р РЋРЎвЂњР РЋР С“Р РЋРІР‚С™Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰",
+                    context.getString(R.string.reminder_action_skip),
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SKIP,
@@ -227,7 +250,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
     private String snoozeActionLabel(Context context, String taskKey) {
         Duration duration = resolveSnoozeDuration(context, taskKey);
-        return "Р В РЎвЂєР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ " + formatDurationToken(duration);
+        return context.getString(R.string.reminder_action_snooze, formatDurationToken(duration));
     }
 
     private Duration resolveSnoozeDuration(Context context, String taskKey) {
@@ -242,7 +265,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                     return match.getTask().getSnoozeDuration();
                 }
             } catch (IOException | RuntimeException exception) {
-                ErrorLog.record(context, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР В РЎвЂ”Р РЋР вЂљР В Р’ВµР В РўвЂР В Р’ВµР В Р’В»Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В РЎвЂ”Р В РЎвЂўР В РўвЂР В РЎвЂ”Р В РЎвЂР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В Р’В»Р В РЎвЂўР В Р’В¶Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В РўвЂР В Р’В»Р РЋР РЏ Р РЋРЎвЂњР В Р вЂ Р В Р’ВµР В РўвЂР В РЎвЂўР В РЎВР В Р’В»Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ", exception);
+                ErrorLog.record(context, context.getString(R.string.reminder_snooze_label_error), exception);
             }
         }
         return Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(context));
@@ -274,24 +297,30 @@ public final class ReminderReceiver extends BroadcastReceiver {
         );
     }
 
-    private String safeTitle(String title) {
+    private String safeTitle(Context context, String title) {
         if (title == null || title.trim().isEmpty()) {
-            return "Р В РІР‚вЂќР В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В Р’В° Р В Р’В±Р В Р’ВµР В Р’В· Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋР С“Р РЋРІР‚С™Р В Р’В°";
+            return context.getString(R.string.reminder_title_fallback);
         }
         return title;
     }
 
-    private String buildDueLabel(long fallbackTriggerAtMillis, ObsidianTask activeTask) {
+    private String buildDueLabel(Context context, long fallbackTriggerAtMillis, ObsidianTask activeTask) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
 
         if (activeTask != null && activeTask.getReminderAt() != null) {
-            return "Р В Р Р‹Р РЋР вЂљР В РЎвЂўР В РЎвЂќ: " + activeTask.getReminderAt().toLocalTime().format(formatter);
+            return context.getString(
+                    R.string.reminder_due_at,
+                    activeTask.getReminderAt().toLocalTime().format(formatter)
+            );
         }
 
-        return "Р В Р Р‹Р РЋР вЂљР В РЎвЂўР В РЎвЂќ: " + java.time.Instant.ofEpochMilli(fallbackTriggerAtMillis)
-                .atZone(ZoneId.systemDefault())
-                .toLocalTime()
-                .format(formatter);
+        return context.getString(
+                R.string.reminder_due_at,
+                java.time.Instant.ofEpochMilli(fallbackTriggerAtMillis)
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalTime()
+                        .format(formatter)
+        );
     }
 
     private long buildNotificationWhenMillis(
@@ -366,7 +395,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             }
             return ActiveTaskLookup.missing();
         } catch (IOException | RuntimeException exception) {
-            ErrorLog.record(context, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂ”Р РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљР В РЎвЂР РЋРІР‚С™Р РЋР Р‰ Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР РЋРЎвЂњ Р В РЎвЂ”Р В Р’ВµР РЋР вЂљР В Р’ВµР В РўвЂ Р В РЎвЂ”Р В РЎвЂўР В Р вЂ Р РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В РЎвЂўР В РЎВ", exception);
+            ErrorLog.record(context, context.getString(R.string.reminder_repeat_lookup_error), exception);
             return ActiveTaskLookup.unknown();
         }
     }

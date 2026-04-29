@@ -2,11 +2,10 @@ package com.regstar.obsidiannotification.ui;
 
 import com.regstar.obsidiannotification.R;
 
-import com.regstar.obsidiannotification.core.reminders.*;
-import com.regstar.obsidiannotification.core.source.*;
-import com.regstar.obsidiannotification.core.tasks.*;
-import com.regstar.obsidiannotification.debug.*;
-import com.regstar.obsidiannotification.prefs.*;
+import com.regstar.obsidiannotification.core.source.NoteChangeMonitor;
+import com.regstar.obsidiannotification.core.source.NoteStore;
+import com.regstar.obsidiannotification.core.tasks.TaskEditResult;
+import com.regstar.obsidiannotification.prefs.ThemePreferences;
 import com.regstar.obsidiannotification.support.ErrorLog;
 
 import android.app.Activity;
@@ -69,7 +68,7 @@ public final class MarkdownFileEditActivity extends Activity {
             originalMarkdown = document.getMarkdown();
         } catch (IOException | RuntimeException exception) {
             loadError = exception.getMessage();
-            ErrorLog.record(this, "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»", exception);
+            ErrorLog.record(this, getString(R.string.markdown_editor_open_error), exception);
         }
     }
 
@@ -96,7 +95,7 @@ public final class MarkdownFileEditActivity extends Activity {
         }
 
         TextView hint = createText(
-                "Р В Р’В Р В Р’ВµР В РўвЂР В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂР РЋР вЂљР РЋРЎвЂњР В Р’ВµР РЋРІР‚С™Р РЋР С“Р РЋР РЏ Р В Р вЂ Р В Р’ВµР РЋР С“Р РЋР Р‰ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В». Р В Р Р‹Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РЎвЂќР В Р’В° Р В Р’В·Р В Р’В°Р В РўвЂР В Р’В°Р РЋРІР‚РЋР В РЎвЂ Р В РЎвЂ”Р В РЎвЂўР В РўвЂР РЋР С“Р В Р вЂ Р В Р’ВµР РЋРІР‚РЋР В Р’ВµР В Р вЂ¦Р В Р’В° Р В РЎвЂ”Р РЋР вЂљР В РЎвЂ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР В РЎвЂ.",
+                getString(R.string.markdown_editor_hint),
                 13,
                 R.color.text_secondary,
                 false
@@ -158,14 +157,16 @@ public final class MarkdownFileEditActivity extends Activity {
         appBar.setOrientation(LinearLayout.HORIZONTAL);
         appBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        ImageButton back = createIconButton(R.drawable.ic_arrow_back, "Р В РЎСљР В Р’В°Р В Р’В·Р В Р’В°Р В РўвЂ");
+        ImageButton back = createIconButton(R.drawable.ic_arrow_back, getString(R.string.common_back));
         back.setOnClickListener(view -> closeOrConfirm());
         appBar.addView(back, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
         LinearLayout titleColumn = new LinearLayout(this);
         titleColumn.setOrientation(LinearLayout.VERTICAL);
-        titleColumn.addView(createText("Markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»", 21, R.color.text_primary, true), fullWidth());
-        String subtitle = document == null ? "Р В Р’ВР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќ Р В Р вЂ¦Р В Р’ВµР В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ”Р В Р’ВµР В Р вЂ¦" : compactName(document.getDisplayName());
+        titleColumn.addView(createText(getString(R.string.markdown_editor_title), 21, R.color.text_primary, true), fullWidth());
+        String subtitle = document == null
+                ? getString(R.string.markdown_editor_source_unavailable)
+                : compactName(document.getDisplayName());
         TextView subtitleView = createText(subtitle, 13, R.color.text_secondary, false);
         subtitleView.setSingleLine(true);
         subtitleView.setEllipsize(TextUtils.TruncateAt.END);
@@ -178,7 +179,7 @@ public final class MarkdownFileEditActivity extends Activity {
         titleParams.setMargins(dp(10), 0, dp(8), 0);
         appBar.addView(titleColumn, titleParams);
 
-        saveButton = createIconButton(R.drawable.ic_check, "Р В Р Р‹Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰");
+        saveButton = createIconButton(R.drawable.ic_check, getString(R.string.common_save));
         saveButton.setEnabled(document != null);
         saveButton.setOnClickListener(view -> saveMarkdown(false));
         appBar.addView(saveButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
@@ -204,14 +205,14 @@ public final class MarkdownFileEditActivity extends Activity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         texts.addView(createText(
-                document == null ? "Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В Р вЂ¦Р В Р’Вµ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™" : compactName(document.getDisplayName()),
+                document == null ? getString(R.string.markdown_editor_file_closed) : compactName(document.getDisplayName()),
                 15,
                 R.color.text_primary,
                 true
         ), fullWidth());
         String meta = document == null
-                ? "Р В РЎСџР РЋР вЂљР В РЎвЂўР В Р вЂ Р В Р’ВµР РЋР вЂљР РЋР Р‰Р РЋРІР‚С™Р В Р’Вµ Р В РўвЂР В РЎвЂўР РЋР С“Р РЋРІР‚С™Р РЋРЎвЂњР В РЎвЂ” Р В РЎвЂќ Р В РЎвЂР РЋР С“Р РЋРІР‚С™Р В РЎвЂўР РЋРІР‚РЋР В Р вЂ¦Р В РЎвЂР В РЎвЂќР РЋРЎвЂњ"
-                : "Р В РЎСџР В РЎвЂўР В Р’В»Р В Р вЂ¦Р РЋРІР‚в„–Р В РІвЂћвЂ“ markdown, Р РЋР С“Р РЋРІР‚С™Р РЋР вЂљР В РЎвЂўР В РЎвЂќР В Р’В° " + document.getTargetLineNumber();
+                ? getString(R.string.markdown_editor_check_source_access)
+                : getString(R.string.markdown_editor_full_markdown_line, document.getTargetLineNumber());
         texts.addView(createText(meta, 13, R.color.text_secondary, false), fullWidth());
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
                 0,
@@ -233,8 +234,9 @@ public final class MarkdownFileEditActivity extends Activity {
     }
 
     private TextView createErrorState() {
+        String details = loadError == null ? getString(R.string.common_unknown_error) : loadError;
         TextView error = createText(
-                "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р РЋР Р‰ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»: " + (loadError == null ? "Р В Р вЂ¦Р В Р’ВµР В РЎвЂР В Р’В·Р В Р вЂ Р В Р’ВµР РЋР С“Р РЋРІР‚С™Р В Р вЂ¦Р В Р’В°Р РЋР РЏ Р В РЎвЂўР РЋРІвЂљВ¬Р В РЎвЂР В Р’В±Р В РЎвЂќР В Р’В°" : loadError),
+                getString(R.string.markdown_editor_open_error_prefix, details),
                 14,
                 R.color.error_text,
                 false
@@ -250,7 +252,7 @@ public final class MarkdownFileEditActivity extends Activity {
 
     private TextView createOverflowButton() {
         TextView button = new TextView(this);
-        button.setText("Р Р†РІР‚в„–Р’В®");
+        button.setText("⋮");
         button.setTextSize(22);
         button.setTextColor(getColor(R.color.text_primary));
         button.setGravity(android.view.Gravity.CENTER);
@@ -268,12 +270,12 @@ public final class MarkdownFileEditActivity extends Activity {
             return;
         }
         PopupMenu menu = new PopupMenu(this, anchor);
-        menu.getMenu().add(0, 1, 0, "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ @due(...)");
-        menu.getMenu().add(0, 2, 1, "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ @repeat(15m)");
-        menu.getMenu().add(0, 3, 2, "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ @repeatUntilDone(15m)");
-        menu.getMenu().add(0, 4, 3, "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ @tag(work)");
-        menu.getMenu().add(0, 5, 4, "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ @priority(medium)");
-        menu.getMenu().add(0, 6, 5, "Р В РІР‚в„ўР РЋР С“Р РЋРІР‚С™Р В Р’В°Р В Р вЂ Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ @group(default)");
+        menu.getMenu().add(0, 1, 0, getString(R.string.markdown_editor_insert_due));
+        menu.getMenu().add(0, 2, 1, getString(R.string.markdown_editor_insert_repeat));
+        menu.getMenu().add(0, 3, 2, getString(R.string.markdown_editor_insert_repeat_until_done));
+        menu.getMenu().add(0, 4, 3, getString(R.string.markdown_editor_insert_tag));
+        menu.getMenu().add(0, 5, 4, getString(R.string.markdown_editor_insert_priority));
+        menu.getMenu().add(0, 6, 5, getString(R.string.markdown_editor_insert_group));
         menu.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == 1) {
@@ -365,7 +367,9 @@ public final class MarkdownFileEditActivity extends Activity {
             setDirty(false);
             NoteChangeMonitor.syncNow(this, true);
             setResult(RESULT_OK);
-            String message = result.getMessage() == null ? "Markdown Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦" : result.getMessage();
+            String message = result.getMessage() == null
+                    ? getString(R.string.markdown_editor_saved)
+                    : result.getMessage();
             statusText.setText(message);
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
             return;
@@ -376,25 +380,29 @@ public final class MarkdownFileEditActivity extends Activity {
             return;
         }
 
-        String message = result.getMessage() == null ? "Р В РЎСљР В Р’Вµ Р РЋРЎвЂњР В РўвЂР В Р’В°Р В Р’В»Р В РЎвЂўР РЋР С“Р РЋР Р‰ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰ markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»" : result.getMessage();
+        String message = result.getMessage() == null
+                ? getString(R.string.markdown_editor_save_failed)
+                : result.getMessage();
         statusText.setText(message);
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
     private void showConflictDialog(String message) {
         new AlertDialog.Builder(this)
-                .setTitle("Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В РЎвЂР В Р’В·Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’В»Р РЋР С“Р РЋР РЏ")
-                .setMessage((message == null ? "Р В Р’В¤Р В Р’В°Р В РІвЂћвЂ“Р В Р’В» Р В РЎвЂР В Р’В·Р В РЎВР В Р’ВµР В Р вЂ¦Р В РЎвЂР В Р’В»Р РЋР С“Р РЋР РЏ Р В РЎвЂ”Р В РЎвЂўР РЋР С“Р В Р’В»Р В Р’Вµ Р В РЎвЂўР РЋРІР‚С™Р В РЎвЂќР РЋР вЂљР РЋРІР‚в„–Р РЋРІР‚С™Р В РЎвЂР РЋР РЏ Р РЋР вЂљР В Р’ВµР В РўвЂР В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В Р’В°." : message)
-                        + "\n\nР В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В·Р В Р’В°Р В РЎвЂ”Р В РЎвЂР РЋР С“Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰ Р В Р’ВµР В РЎвЂ“Р В РЎвЂў Р РЋРІР‚С™Р В Р’ВµР В РЎвЂќР РЋРЎвЂњР РЋРІР‚В°Р В РЎвЂР В РЎВ Р РЋР С“Р В РЎвЂўР В РўвЂР В Р’ВµР РЋР вЂљР В Р’В¶Р В РЎвЂР В РЎВР РЋРІР‚в„–Р В РЎВ Р РЋР вЂљР В Р’ВµР В РўвЂР В Р’В°Р В РЎвЂќР РЋРІР‚С™Р В РЎвЂўР РЋР вЂљР В Р’В°?")
-                .setPositiveButton("Р В РЎСџР В Р’ВµР РЋР вЂљР В Р’ВµР В Р’В·Р В Р’В°Р В РЎвЂ”Р В РЎвЂР РЋР С“Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰", (dialog, which) -> saveMarkdown(true))
-                .setNegativeButton("Р В РЎвЂєР РЋРІР‚С™Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’В°", null)
+                .setTitle(R.string.markdown_editor_conflict_title)
+                .setMessage((message == null ? getString(R.string.markdown_editor_conflict_message) : message)
+                        + "\n\n" + getString(R.string.markdown_editor_conflict_prompt))
+                .setPositiveButton(R.string.common_overwrite, (dialog, which) -> saveMarkdown(true))
+                .setNegativeButton(R.string.common_cancel, null)
                 .show();
     }
 
     private void setDirty(boolean dirty) {
         this.dirty = dirty;
         if (dirtyText != null) {
-            dirtyText.setText(dirty ? "Р В Р вЂ¦Р В Р’Вµ Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂў" : "Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂў");
+            dirtyText.setText(dirty
+                    ? getString(R.string.markdown_editor_dirty)
+                    : getString(R.string.markdown_editor_clean));
             dirtyText.setTextColor(getColor(dirty ? R.color.error_text : R.color.text_secondary));
         }
         if (saveButton != null) {
@@ -408,11 +416,11 @@ public final class MarkdownFileEditActivity extends Activity {
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle("Р В РІР‚в„ўР РЋРІР‚в„–Р В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂ Р В Р’В±Р В Р’ВµР В Р’В· Р РЋР С“Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ?")
-                .setMessage("Р В Р’ВР В Р’В·Р В РЎВР В Р’ВµР В Р вЂ¦Р В Р’ВµР В Р вЂ¦Р В РЎвЂР РЋР РЏ Р В Р вЂ  markdown-Р РЋРІР‚С›Р В Р’В°Р В РІвЂћвЂ“Р В Р’В»Р В Р’Вµ Р В Р’В±Р РЋРЎвЂњР В РўвЂР РЋРЎвЂњР РЋРІР‚С™ Р В РЎвЂ”Р В РЎвЂўР РЋРІР‚С™Р В Р’ВµР РЋР вЂљР РЋР РЏР В Р вЂ¦Р РЋРІР‚в„–.")
-                .setPositiveButton("Р В РІР‚в„ўР РЋРІР‚в„–Р В РІвЂћвЂ“Р РЋРІР‚С™Р В РЎвЂ", (dialog, which) -> finish())
-                .setNegativeButton("Р В РЎвЂєР РЋР С“Р РЋРІР‚С™Р В Р’В°Р РЋРІР‚С™Р РЋР Р‰Р РЋР С“Р РЋР РЏ", null)
-                .setNeutralButton("Р В Р Р‹Р В РЎвЂўР РЋРІР‚В¦Р РЋР вЂљР В Р’В°Р В Р вЂ¦Р В РЎвЂР РЋРІР‚С™Р РЋР Р‰", (dialog, which) -> saveMarkdown(false))
+                .setTitle(R.string.markdown_editor_discard_title)
+                .setMessage(R.string.markdown_editor_discard_message)
+                .setPositiveButton(R.string.common_exit, (dialog, which) -> finish())
+                .setNegativeButton(R.string.common_stay, null)
+                .setNeutralButton(R.string.common_save, (dialog, which) -> saveMarkdown(false))
                 .show();
     }
 
@@ -468,7 +476,7 @@ public final class MarkdownFileEditActivity extends Activity {
 
     private String compactName(String rawName) {
         if (rawName == null || rawName.trim().isEmpty()) {
-            return "Р В Р вЂ¦Р В Р’Вµ Р В Р вЂ Р РЋРІР‚в„–Р В Р’В±Р РЋР вЂљР В Р’В°Р В Р вЂ¦";
+            return getString(R.string.markdown_editor_not_selected);
         }
         String value = rawName.trim();
         int queryIndex = value.indexOf('?');

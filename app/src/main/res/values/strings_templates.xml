@@ -1,0 +1,4 @@
+<resources>
+    <string name="markdown_default_note_template" translatable="false">## Задачи\n\n</string>
+    <string name="markdown_default_note_filename" translatable="false">tasks.md</string>
+</resources>

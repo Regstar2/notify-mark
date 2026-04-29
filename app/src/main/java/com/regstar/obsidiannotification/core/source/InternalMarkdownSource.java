@@ -1,5 +1,6 @@
 package com.regstar.obsidiannotification.core.source;
 
+import com.regstar.obsidiannotification.R;
 import com.regstar.obsidiannotification.core.reminders.*;
 import com.regstar.obsidiannotification.core.tasks.*;
 import com.regstar.obsidiannotification.prefs.*;
@@ -19,7 +20,7 @@ import java.util.Locale;
 final class InternalMarkdownSource implements TaskSource {
     static final String INTERNAL_FOLDER_NAME = "internal_markdown";
     static final String DEFAULT_FILE_NAME = "tasks.md";
-    private static final String DEFAULT_FILE_TEMPLATE = "## Р—Р°РґР°С‡Рё\n\n";
+    private static final String DEFAULT_FILE_TEMPLATE = "## Задачи\n\n";
 
     @Override
     public TaskStorageMode getStorageMode() {
@@ -60,7 +61,7 @@ final class InternalMarkdownSource implements TaskSource {
 
     @Override
     public String getDisplayLabel(Context context) {
-        return "Р’СЃС‚СЂРѕРµРЅРЅРѕРµ С…СЂР°РЅРёР»РёС‰Рµ";
+        return context.getString(R.string.storage_internal_label);
     }
 
     @Override
@@ -76,12 +77,16 @@ final class InternalMarkdownSource implements TaskSource {
     File ensureDefaultFile(Context context) throws IOException {
         File root = internalRoot(context);
         if (!root.exists() && !root.mkdirs()) {
-            throw new IOException("РЅРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РІСЃС‚СЂРѕРµРЅРЅСѓСЋ РїР°РїРєСѓ markdown");
+            throw new IOException(context.getString(R.string.internal_storage_init_error));
         }
 
         File defaultFile = new File(root, DEFAULT_FILE_NAME);
         if (!defaultFile.exists()) {
-            NoteStore.writeMarkdown(context, Uri.fromFile(defaultFile), DEFAULT_FILE_TEMPLATE);
+            NoteStore.writeMarkdown(
+                    context,
+                    Uri.fromFile(defaultFile),
+                    context.getString(R.string.markdown_default_note_template)
+            );
         }
         return defaultFile;
     }
