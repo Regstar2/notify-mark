@@ -3,6 +3,7 @@ package com.regstar.obsidiannotification.ui;
 import com.regstar.obsidiannotification.R;
 
 import com.regstar.obsidiannotification.core.reminders.*;
+import com.regstar.obsidiannotification.core.stats.*;
 import com.regstar.obsidiannotification.core.source.*;
 import com.regstar.obsidiannotification.core.tasks.*;
 import com.regstar.obsidiannotification.debug.*;
@@ -28,6 +29,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
@@ -74,6 +76,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class MainActivity extends AppCompatActivity {
     private static final int SECTION_TASKS = 0;
     private static final int SECTION_CALENDAR = 1;
+    private static final int SECTION_STATS = 2;
     private static final int CALENDAR_MODE_WEEK = 0;
     private static final int CALENDAR_MODE_MONTH = 1;
     private static final int CALENDAR_MODE_YEAR = 2;
@@ -128,9 +131,15 @@ public final class MainActivity extends AppCompatActivity {
     private View filterSheetScrim;
     private View filterSheetPanel;
     private LinearLayout filterSheetOptions;
+    private TextView filterSheetTitleText;
     private List<ObsidianTask> latestTasks = new ArrayList<>();
+    private StatisticsReport latestStatisticsReport;
+    private StatisticsFilters statisticsFilters = StatisticsFilters.defaults();
     private final Set<String> selectedTaskKeys = new LinkedHashSet<>();
     private final Set<String> expandedTaskKeys = new LinkedHashSet<>();
+    private boolean statsGroupsExpanded;
+    private boolean statsFilesExpanded;
+    private boolean statsTagsExpanded;
     private YearMonth displayedCalendarMonth = YearMonth.now();
     private LocalDate selectedCalendarDate = LocalDate.now();
     private int calendarMode = CALENDAR_MODE_MONTH;
@@ -253,7 +262,7 @@ public final class MainActivity extends AppCompatActivity {
             exitSelectionMode();
             return;
         }
-        if (selectedSection == SECTION_CALENDAR) {
+        if (selectedSection != SECTION_TASKS) {
             selectedSection = SECTION_TASKS;
             rebuildAndRenderCurrentSection();
             return;
@@ -281,6 +290,10 @@ public final class MainActivity extends AppCompatActivity {
                 setNextReminder(null);
                 if (selectedSection == SECTION_CALENDAR) {
                     renderCalendar(new ArrayList<>());
+                    return;
+                }
+                if (selectedSection == SECTION_STATS) {
+                    renderStatistics(new ArrayList<>());
                     return;
                 }
                 renderEmptyState(getString(R.string.main_empty_after_source_select));
@@ -545,21 +558,25 @@ public final class MainActivity extends AppCompatActivity {
         filterSheetScrim = null;
         filterSheetPanel = null;
         filterSheetOptions = null;
+        filterSheetTitleText = null;
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(14), dp(16), dp(152));
+        root.setPadding(dp(16), dp(14), dp(16), dp(16));
         root.setBackgroundColor(getColor(R.color.background));
 
         root.addView(createTopAppBar(), fullWidth());
         if (selectedSection == SECTION_CALENDAR) {
             addCalendarScreenContent(root);
+        } else if (selectedSection == SECTION_STATS) {
+            addStatisticsScreenContent(root);
         } else {
             addTaskScreenContent(root);
         }
 
         ScrollView screenScroll = new ScrollView(this);
         screenScroll.setFillViewport(true);
+        screenScroll.setClipToPadding(false);
         screenScroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -596,6 +613,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
 
         setContentView(appRoot);
+        applyContentInsets(appRoot, root, screenScroll, bottomOverlay);
     }
 
     private LinearLayout createTopAppBar() {
@@ -629,9 +647,12 @@ public final class MainActivity extends AppCompatActivity {
         menuButton.setOnClickListener(view -> openDrawer());
         appBar.addView(menuButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-        TextView title = createText(selectedSection == SECTION_CALENDAR
-                        ? getString(R.string.main_calendar_title)
-                        : getString(R.string.main_tasks_title),
+        String sectionTitle = selectedSection == SECTION_CALENDAR
+                ? getString(R.string.main_calendar_title)
+                : selectedSection == SECTION_STATS
+                ? getString(R.string.stats_title)
+                : getString(R.string.main_tasks_title);
+        TextView title = createText(sectionTitle,
                 selectedSection == SECTION_TASKS ? 19 : 21,
                 R.color.text_primary,
                 true);
@@ -765,6 +786,17 @@ public final class MainActivity extends AppCompatActivity {
         ));
     }
 
+    private void addStatisticsScreenContent(LinearLayout root) {
+        taskList = new LinearLayout(this);
+        taskList.setOrientation(LinearLayout.VERTICAL);
+        taskList.setPadding(0, 0, 0, 0);
+        taskList.setClipToPadding(false);
+        root.addView(taskList, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+    }
+
     private void rebuildAndRenderCurrentSection() {
         buildUi();
         updateNotificationPermissionUi();
@@ -774,6 +806,8 @@ public final class MainActivity extends AppCompatActivity {
             setNextReminder(null);
             if (selectedSection == SECTION_CALENDAR) {
                 renderCalendar(new ArrayList<>());
+            } else if (selectedSection == SECTION_STATS) {
+                renderStatistics(new ArrayList<>());
             } else {
                 renderEmptyState(getString(R.string.main_empty_choose_note));
             }
@@ -897,12 +931,62 @@ public final class MainActivity extends AppCompatActivity {
                 }
         ), calendarParams);
 
+        LinearLayout.LayoutParams statsParams = new LinearLayout.LayoutParams(0, dp(60), 1);
+        bottomBar.addView(createBottomNavItem(
+                getString(R.string.stats_title),
+                R.drawable.ic_stats,
+                selectedSection == SECTION_STATS,
+                () -> {
+                    if (selectedSection != SECTION_STATS) {
+                        selectedTaskKeys.clear();
+                        selectedSection = SECTION_STATS;
+                        rebuildAndRenderCurrentSection();
+                    }
+                }
+        ), statsParams);
+
         overlay.addView(bottomBar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
         return overlay;
+    }
+
+    private void applyContentInsets(
+            FrameLayout appRoot,
+            LinearLayout contentRoot,
+            ScrollView screenScroll,
+            LinearLayout bottomOverlay
+    ) {
+        final int horizontalPadding = dp(16);
+        final int topPadding = dp(6);
+        final int bottomPadding = dp(16);
+
+        Runnable applyInsets = () -> {
+            WindowInsets insets = appRoot.getRootWindowInsets();
+            int bottomInset = insets == null ? 0 : insets.getSystemWindowInsetBottom();
+            int overlayHeight = Math.max(0, bottomOverlay.getHeight() - bottomOverlay.getPaddingBottom());
+
+            contentRoot.setPadding(
+                    horizontalPadding,
+                    topPadding,
+                    horizontalPadding,
+                    bottomPadding + overlayHeight + bottomInset
+            );
+            screenScroll.setClipToPadding(false);
+            bottomOverlay.setPadding(0, 0, 0, bottomInset);
+        };
+
+        appRoot.setOnApplyWindowInsetsListener((view, insets) -> {
+            applyInsets.run();
+            return insets;
+        });
+        bottomOverlay.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> applyInsets.run());
+        appRoot.post(() -> {
+            applyInsets.run();
+            appRoot.requestApplyInsets();
+        });
     }
 
     private LinearLayout createBottomNavItem(
@@ -930,7 +1014,7 @@ public final class MainActivity extends AppCompatActivity {
 
         TextView label = createText(
                 text,
-                13,
+                12,
                 selected ? R.color.chip_selected_text : R.color.text_secondary,
                 selected
         );
@@ -939,7 +1023,7 @@ public final class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        labelParams.setMargins(dp(8), 0, 0, 0);
+        labelParams.setMargins(dp(6), 0, 0, 0);
         item.addView(label, labelParams);
         return item;
     }
@@ -991,6 +1075,20 @@ public final class MainActivity extends AppCompatActivity {
                     if (selectedSection != SECTION_CALENDAR) {
                         selectedTaskKeys.clear();
                         selectedSection = SECTION_CALENDAR;
+                        rebuildAndRenderCurrentSection();
+                    }
+                }
+        ));
+        panel.addView(createDrawerItem(
+                R.drawable.ic_stats,
+                getString(R.string.stats_title),
+                getString(R.string.stats_nav_subtitle),
+                selectedSection == SECTION_STATS,
+                () -> {
+                    closeDrawer();
+                    if (selectedSection != SECTION_STATS) {
+                        selectedTaskKeys.clear();
+                        selectedSection = SECTION_STATS;
                         rebuildAndRenderCurrentSection();
                     }
                 }
@@ -1199,14 +1297,26 @@ public final class MainActivity extends AppCompatActivity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        TextView title = createText(getString(R.string.main_filter_title), 18, R.color.text_primary, true);
-        header.addView(title, new LinearLayout.LayoutParams(
+        filterSheetTitleText = createText(
+                selectedSection == SECTION_STATS
+                        ? getString(R.string.stats_filter_title)
+                        : getString(R.string.main_filter_title),
+                18,
+                R.color.text_primary,
+                true
+        );
+        header.addView(filterSheetTitleText, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1
         ));
 
-        ImageButton closeButton = createPlainIconButton(R.drawable.ic_close, getString(R.string.main_filter_close));
+        ImageButton closeButton = createPlainIconButton(
+                R.drawable.ic_close,
+                selectedSection == SECTION_STATS
+                        ? getString(R.string.stats_filter_close)
+                        : getString(R.string.main_filter_close)
+        );
         closeButton.setOnClickListener(view -> closeTaskFilterSheet());
         header.addView(closeButton, new LinearLayout.LayoutParams(dp(40), dp(40)));
         panel.addView(header, fullWidth());
@@ -1273,6 +1383,10 @@ public final class MainActivity extends AppCompatActivity {
             return;
         }
         filterSheetOptions.removeAllViews();
+        if (selectedSection == SECTION_STATS) {
+            populateStatisticsFilterSheetOptions();
+            return;
+        }
         addTaskFilterSheetItem(UserPreferences.FILTER_ALL, getString(R.string.filter_all));
         addTaskFilterSheetItem(UserPreferences.FILTER_ACTIVE, getString(R.string.filter_active));
         addTaskFilterSheetItem(UserPreferences.FILTER_OVERDUE, getString(R.string.filter_overdue));
@@ -1324,6 +1438,150 @@ public final class MainActivity extends AppCompatActivity {
         );
         rowParams.setMargins(0, dp(2), 0, dp(2));
         filterSheetOptions.addView(row, rowParams);
+    }
+
+    private void populateStatisticsFilterSheetOptions() {
+        StatisticsReport report = statisticsReportForUi();
+        if (report == null) {
+            return;
+        }
+
+        LinearLayout resetRow = new LinearLayout(this);
+        resetRow.setOrientation(LinearLayout.HORIZONTAL);
+        resetRow.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL);
+
+        Button resetButton = createActionButton(getString(R.string.stats_filter_reset), false);
+        resetButton.setOnClickListener(view -> {
+            statisticsFilters = statisticsFilters.clearDimensions();
+            resetStatisticsBreakdownExpansion();
+            closeTaskFilterSheet();
+            renderStatistics(latestTasks);
+        });
+        resetRow.addView(resetButton, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(40)
+        ));
+        filterSheetOptions.addView(resetRow, fullWidthWithBottomMargin(dp(6)));
+
+        addStatisticsFilterSection(
+                getString(R.string.stats_filter_group),
+                statisticsFilters.getGroup(),
+                getString(R.string.stats_filter_all_groups),
+                report.getAvailableGroups(),
+                value -> {
+                    statisticsFilters = statisticsFilters.withGroup(value);
+                    resetStatisticsBreakdownExpansion();
+                    closeTaskFilterSheet();
+                    renderStatistics(latestTasks);
+                }
+        );
+        addStatisticsFilterSection(
+                getString(R.string.stats_filter_tag),
+                statisticsFilters.getTag(),
+                getString(R.string.stats_filter_all_tags),
+                report.getAvailableTags(),
+                value -> {
+                    statisticsFilters = statisticsFilters.withTag(value);
+                    resetStatisticsBreakdownExpansion();
+                    closeTaskFilterSheet();
+                    renderStatistics(latestTasks);
+                }
+        );
+        addStatisticsFilterSection(
+                getString(R.string.stats_filter_source),
+                statisticsFilters.getSourceName(),
+                getString(R.string.stats_filter_all_sources),
+                report.getAvailableSources(),
+                value -> {
+                    statisticsFilters = statisticsFilters.withSourceName(value);
+                    resetStatisticsBreakdownExpansion();
+                    closeTaskFilterSheet();
+                    renderStatistics(latestTasks);
+                }
+        );
+    }
+
+    private void addStatisticsFilterSection(
+            String title,
+            String selectedValue,
+            String allLabel,
+            List<String> values,
+            StatisticsFilterValueHandler handler
+    ) {
+        TextView sectionTitle = createText(title, 13, R.color.text_secondary, true);
+        filterSheetOptions.addView(sectionTitle, fullWidthWithTopMargin(dp(8)));
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        scroll.addView(row, new HorizontalScrollView.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        addStatisticsFilterChip(row, allLabel, selectedValue.isEmpty(), () -> handler.onValueSelected(""));
+        for (String value : values) {
+            if (value == null || value.trim().isEmpty()) {
+                continue;
+            }
+            addStatisticsFilterChip(row, value, value.equals(selectedValue), () -> handler.onValueSelected(value));
+        }
+        filterSheetOptions.addView(scroll, fullWidthWithTopMargin(dp(6)));
+    }
+
+    private void addStatisticsFilterChip(
+            LinearLayout row,
+            String label,
+            boolean selected,
+            Runnable action
+    ) {
+        Button chip = new Button(this);
+        chip.setText(label);
+        chip.setAllCaps(false);
+        chip.setSingleLine(true);
+        chip.setTextSize(12);
+        chip.setMinHeight(0);
+        chip.setMinWidth(0);
+        chip.setMinimumWidth(0);
+        chip.setPadding(dp(14), 0, dp(14), 0);
+        styleFilterChip(chip, selected);
+        chip.setOnClickListener(view -> action.run());
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(36)
+        );
+        if (row.getChildCount() > 0) {
+            params.setMargins(dp(6), 0, 0, 0);
+        }
+        row.addView(chip, params);
+    }
+
+    private void resetStatisticsBreakdownExpansion() {
+        statsGroupsExpanded = false;
+        statsFilesExpanded = false;
+        statsTagsExpanded = false;
+    }
+
+    private StatisticsReport statisticsReportForUi() {
+        if (latestStatisticsReport != null
+                && latestStatisticsReport.getFilters().getPeriod() == statisticsFilters.getPeriod()
+                && Objects.equals(latestStatisticsReport.getFilters().getGroup(), statisticsFilters.getGroup())
+                && Objects.equals(latestStatisticsReport.getFilters().getTag(), statisticsFilters.getTag())
+                && Objects.equals(latestStatisticsReport.getFilters().getSourceName(), statisticsFilters.getSourceName())) {
+            return latestStatisticsReport;
+        }
+        return StatisticsRepository.buildReport(
+                this,
+                latestTasks,
+                statisticsFilters,
+                LocalDateTime.now()
+        );
+    }
+
+    private interface StatisticsFilterValueHandler {
+        void onValueSelected(String value);
     }
 
     private void showAboutDialog() {
@@ -1533,7 +1791,12 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private ImageButton createTaskFilterButton() {
-        ImageButton filterButton = createPlainIconButton(R.drawable.ic_filter_list, getString(R.string.main_cd_filter_tasks));
+        ImageButton filterButton = createPlainIconButton(
+                R.drawable.ic_filter_list,
+                selectedSection == SECTION_STATS
+                        ? getString(R.string.stats_filter_title)
+                        : getString(R.string.main_cd_filter_tasks)
+        );
         filterButton.setOnClickListener(view -> openTaskFilterSheet());
         return filterButton;
     }
@@ -1561,13 +1824,20 @@ public final class MainActivity extends AppCompatActivity {
         TextView chip = createText(text, 12, R.color.chip_text, false);
         chip.setSingleLine(true);
         chip.setGravity(android.view.Gravity.CENTER);
-        chip.setPadding(dp(10), 0, dp(10), 0);
-        chip.setBackground(createRoundedBackground(
-                getColor(R.color.chip_background),
-                getColor(R.color.chip_stroke),
-                8
-        ));
+        chip.setClickable(false);
+        chip.setFocusable(false);
+        chip.setSoundEffectsEnabled(false);
+        chip.setPadding(dp(8), 0, dp(8), 0);
+        chip.setBackground(createStatisticsInnerSurfaceBackground());
         return chip;
+    }
+
+    private GradientDrawable createStatisticsInnerSurfaceBackground() {
+        return createRoundedBackground(
+                getColor(R.color.background),
+                getColor(R.color.card_stroke),
+                8
+        );
     }
 
     private void addInfoChip(LinearLayout row, String text, int leftMargin) {
@@ -1697,6 +1967,10 @@ public final class MainActivity extends AppCompatActivity {
                 renderCalendar(new ArrayList<>());
                 return;
             }
+            if (selectedSection == SECTION_STATS) {
+                renderStatistics(new ArrayList<>());
+                return;
+            }
             renderEmptyState(TaskSourceManager.getStorageMode(this) == TaskStorageMode.EXTERNAL_MARKDOWN_STORAGE
                     ? getString(R.string.main_empty_choose_note)
                     : getString(R.string.main_empty_internal_markdown_read_failed));
@@ -1719,6 +1993,8 @@ public final class MainActivity extends AppCompatActivity {
 
         if (selectedSection == SECTION_CALENDAR) {
             renderCalendar(parseResult.getTasks());
+        } else if (selectedSection == SECTION_STATS) {
+            renderStatistics(parseResult.getTasks());
         } else {
             renderTasks(parseResult.getTasks());
         }
@@ -1873,6 +2149,8 @@ public final class MainActivity extends AppCompatActivity {
             }
             if (selectedSection == SECTION_CALENDAR) {
                 renderCalendar(cachedTasks);
+            } else if (selectedSection == SECTION_STATS) {
+                renderStatistics(cachedTasks);
             } else {
                 renderTasks(cachedTasks);
             }
@@ -2141,6 +2419,766 @@ public final class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void renderStatistics(List<ObsidianTask> tasks) {
+        latestTasks = new ArrayList<>(tasks);
+        if (taskList == null) {
+            return;
+        }
+        taskList.removeAllViews();
+
+        StatisticsReport report = StatisticsRepository.buildReport(
+                this,
+                tasks,
+                statisticsFilters,
+                LocalDateTime.now()
+        );
+        latestStatisticsReport = report;
+
+        taskList.addView(createStatisticsPeriodSelector(), fullWidthWithBottomMargin());
+
+        if (report.isCompletelyEmpty()) {
+            int titleRes = statisticsFilters.hasDimensionFilters()
+                    ? R.string.stats_empty_filtered_title
+                    : R.string.stats_empty_title;
+            int bodyRes = statisticsFilters.hasDimensionFilters()
+                    ? R.string.stats_empty_filtered_body
+                    : R.string.stats_empty_body;
+            taskList.addView(createStatisticsEmptyCard(getString(titleRes), getString(bodyRes)), fullWidthWithBottomMargin());
+            return;
+        }
+
+        taskList.addView(createStatisticsSummaryCard(report), fullWidthWithBottomMargin());
+        taskList.addView(createStatisticsTimelineCard(report), fullWidthWithBottomMargin());
+        taskList.addView(createStatisticsStatusCard(report), fullWidthWithBottomMargin());
+        taskList.addView(createStatisticsBreakdownCard(
+                getString(R.string.stats_section_groups),
+                report.getGroupBreakdown(),
+                R.string.stats_breakdown_empty_groups,
+                statsGroupsExpanded,
+                StatisticsBreakdownDimension.GROUP
+        ), fullWidthWithBottomMargin());
+        taskList.addView(createStatisticsBreakdownCard(
+                getString(R.string.stats_section_files),
+                report.getFileBreakdown(),
+                R.string.stats_breakdown_empty_files,
+                statsFilesExpanded,
+                StatisticsBreakdownDimension.FILE
+        ), fullWidthWithBottomMargin());
+        taskList.addView(createStatisticsBreakdownCard(
+                getString(R.string.stats_section_tags),
+                report.getTagBreakdown(),
+                R.string.stats_breakdown_empty_tags,
+                statsTagsExpanded,
+                StatisticsBreakdownDimension.TAG
+        ), fullWidthWithBottomMargin());
+
+        if (!report.getInsights().isEmpty()) {
+            taskList.addView(createStatisticsInsightsCard(report), fullWidthWithBottomMargin());
+        }
+        taskList.addView(createStatisticsSubtaskCard(report), fullWidthWithBottomMargin());
+    }
+
+    private LinearLayout createStatisticsPeriodSelector() {
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+        TextView title = createText(getString(R.string.stats_period_title), 16, R.color.text_primary, true);
+        card.addView(title, fullWidth());
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        scroll.addView(row, new HorizontalScrollView.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        addStatisticsPeriodChip(row, StatisticsPeriod.TODAY, getString(R.string.stats_period_today));
+        addStatisticsPeriodChip(row, StatisticsPeriod.LAST_7_DAYS, getString(R.string.stats_period_7_days));
+        addStatisticsPeriodChip(row, StatisticsPeriod.LAST_30_DAYS, getString(R.string.stats_period_30_days));
+        addStatisticsPeriodChip(row, StatisticsPeriod.LAST_90_DAYS, getString(R.string.stats_period_90_days));
+        addStatisticsPeriodChip(row, StatisticsPeriod.LAST_YEAR, getString(R.string.stats_period_year));
+        addStatisticsPeriodChip(row, StatisticsPeriod.ALL_TIME, getString(R.string.stats_period_all_time));
+
+        card.addView(scroll, fullWidthWithTopMargin(dp(10)));
+        return card;
+    }
+
+    private void addStatisticsPeriodChip(
+            LinearLayout row,
+            StatisticsPeriod period,
+            String label
+    ) {
+        Button chip = new Button(this);
+        chip.setText(label);
+        chip.setAllCaps(false);
+        chip.setSingleLine(true);
+        chip.setTextSize(12);
+        chip.setMinHeight(0);
+        chip.setMinWidth(0);
+        chip.setMinimumWidth(0);
+        chip.setPadding(dp(14), 0, dp(14), 0);
+        styleFilterChip(chip, statisticsFilters.getPeriod() == period);
+        chip.setOnClickListener(view -> {
+            if (statisticsFilters.getPeriod() == period) {
+                return;
+            }
+            statisticsFilters = statisticsFilters.withPeriod(period);
+            resetStatisticsBreakdownExpansion();
+            renderStatistics(latestTasks);
+        });
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(36)
+        );
+        if (row.getChildCount() > 0) {
+            params.setMargins(dp(6), 0, 0, 0);
+        }
+        row.addView(chip, params);
+    }
+
+    private LinearLayout createStatisticsSummaryCard(StatisticsReport report) {
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+        card.addView(createText(getString(R.string.stats_section_summary), 16, R.color.text_primary, true), fullWidth());
+
+        LinearLayout firstRow = new LinearLayout(this);
+        firstRow.setOrientation(LinearLayout.HORIZONTAL);
+        firstRow.addView(createStatisticsMetricCard(
+                String.valueOf(report.getSummary().getHistoricalCompletedCount()),
+                getString(R.string.stats_card_completed_period),
+                getString(R.string.stats_card_history_hint),
+                R.color.calendar_indicator_completed
+        ), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout.LayoutParams overdueParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        overdueParams.setMargins(dp(8), 0, 0, 0);
+        firstRow.addView(createStatisticsMetricCard(
+                String.valueOf(report.getSummary().getOverdueNowCount()),
+                getString(R.string.stats_card_overdue_now),
+                getString(R.string.stats_card_snapshot_hint),
+                R.color.calendar_indicator_overdue
+        ), overdueParams);
+        card.addView(firstRow, fullWidthWithTopMargin(dp(10)));
+
+        LinearLayout secondRow = new LinearLayout(this);
+        secondRow.setOrientation(LinearLayout.HORIZONTAL);
+        secondRow.addView(createStatisticsMetricCard(
+                String.valueOf(report.getSummary().getHistoricalSkippedCount()),
+                getString(R.string.stats_card_skipped_period),
+                getString(R.string.stats_card_history_hint),
+                R.color.calendar_indicator_skipped
+        ), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout.LayoutParams activeParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        activeParams.setMargins(dp(8), 0, 0, 0);
+        secondRow.addView(createStatisticsMetricCard(
+                String.valueOf(report.getSummary().getActiveNowCount()),
+                getString(R.string.stats_card_active_now),
+                getString(R.string.stats_card_snapshot_hint),
+                R.color.calendar_indicator_active
+        ), activeParams);
+        card.addView(secondRow, fullWidthWithTopMargin(dp(8)));
+
+        LinearLayout thirdRow = new LinearLayout(this);
+        thirdRow.setOrientation(LinearLayout.HORIZONTAL);
+        thirdRow.addView(createStatisticsMetricCard(
+                report.getSummary().hasHistoricalResolutionData()
+                        ? percentageText(report.getSummary().getHistoricalCompletionRate())
+                        : getString(R.string.stats_no_history_value),
+                getString(R.string.stats_card_completion_rate),
+                getString(R.string.stats_card_history_hint),
+                R.color.accent
+        ), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        LinearLayout.LayoutParams avgParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+        avgParams.setMargins(dp(8), 0, 0, 0);
+        thirdRow.addView(createStatisticsMetricCard(
+                report.getSummary().hasAverageCompletionTime()
+                        ? formatStatisticsMinutes(report.getSummary().getAverageCompletionMinutes())
+                        : getString(R.string.stats_no_history_value),
+                getString(R.string.stats_card_avg_completion_time),
+                getString(R.string.stats_card_history_hint),
+                R.color.text_primary
+        ), avgParams);
+        card.addView(thirdRow, fullWidthWithTopMargin(dp(8)));
+        return card;
+    }
+
+    private LinearLayout createStatisticsMetricCard(
+            String value,
+            String label,
+            String hint,
+            int valueColorRes
+    ) {
+        LinearLayout inner = new LinearLayout(this);
+        inner.setOrientation(LinearLayout.VERTICAL);
+        inner.setPadding(dp(10), dp(10), dp(10), dp(10));
+        inner.setBackground(createStatisticsInnerSurfaceBackground());
+
+        TextView valueView = createText(value, 22, valueColorRes, true);
+        inner.addView(valueView, fullWidth());
+
+        TextView labelView = createText(label, 12, R.color.text_primary, true);
+        labelView.setPadding(0, dp(6), 0, 0);
+        inner.addView(labelView, fullWidth());
+
+        TextView hintView = createText(hint, 11, R.color.text_secondary, false);
+        hintView.setPadding(0, dp(4), 0, 0);
+        inner.addView(hintView, fullWidth());
+        return inner;
+    }
+
+    private LinearLayout createStatisticsTimelineCard(StatisticsReport report) {
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.addView(createText(getString(R.string.stats_section_timeline), 16, R.color.text_primary, true), fullWidth());
+
+        if (report.getTimeline().isEmpty()) {
+            card.addView(createStatisticsInlineEmptyBlock(
+                    getString(R.string.stats_timeline_empty_title),
+                    getString(R.string.stats_timeline_empty_body)
+            ), fullWidthWithTopMargin(dp(10)));
+            return card;
+        }
+
+        LinearLayout legend = new LinearLayout(this);
+        legend.setOrientation(LinearLayout.HORIZONTAL);
+        legend.addView(createTimelineLegendChip(getString(R.string.stats_status_completed), R.color.calendar_indicator_completed), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(28)
+        ));
+        LinearLayout.LayoutParams skippedLegendParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(28)
+        );
+        skippedLegendParams.setMargins(dp(6), 0, 0, 0);
+        legend.addView(createTimelineLegendChip(getString(R.string.stats_status_skipped), R.color.calendar_indicator_skipped), skippedLegendParams);
+        LinearLayout.LayoutParams overdueLegendParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(28)
+        );
+        overdueLegendParams.setMargins(dp(6), 0, 0, 0);
+        legend.addView(createTimelineLegendChip(getString(R.string.stats_status_overdue), R.color.calendar_indicator_overdue), overdueLegendParams);
+        card.addView(legend, fullWidthWithTopMargin(dp(10)));
+
+        int maxTotal = 0;
+        for (StatisticsTimelineBucket bucket : report.getTimeline()) {
+            maxTotal = Math.max(maxTotal, bucket.getTotalCount());
+        }
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout chartRow = new LinearLayout(this);
+        chartRow.setOrientation(LinearLayout.HORIZONTAL);
+        for (StatisticsTimelineBucket bucket : report.getTimeline()) {
+            chartRow.addView(createTimelineBucketView(bucket, maxTotal), new LinearLayout.LayoutParams(
+                    dp(42),
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+        }
+        scroll.addView(chartRow, new HorizontalScrollView.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        card.addView(scroll, fullWidthWithTopMargin(dp(12)));
+
+        TextView note = createText(getString(R.string.stats_timeline_note), 11, R.color.text_secondary, false);
+        note.setPadding(0, dp(10), 0, 0);
+        card.addView(note, fullWidth());
+        return card;
+    }
+
+    private LinearLayout createTimelineLegendChip(String label, int colorRes) {
+        LinearLayout chip = new LinearLayout(this);
+        chip.setOrientation(LinearLayout.HORIZONTAL);
+        chip.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        chip.setPadding(dp(8), 0, dp(8), 0);
+        chip.setBackground(createRoundedBackground(
+                getColor(R.color.chip_background),
+                getColor(R.color.chip_stroke),
+                8
+        ));
+
+        View dot = new View(this);
+        dot.setBackground(createCircleBackground(getColor(colorRes)));
+        chip.addView(dot, new LinearLayout.LayoutParams(dp(8), dp(8)));
+
+        TextView text = createText(label, 11, R.color.text_secondary, false);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        textParams.setMargins(dp(6), 0, 0, 0);
+        chip.addView(text, textParams);
+        return chip;
+    }
+
+    private LinearLayout createTimelineBucketView(StatisticsTimelineBucket bucket, int maxTotal) {
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setGravity(android.view.Gravity.CENTER_HORIZONTAL);
+        column.setPadding(dp(3), 0, dp(3), 0);
+
+        TextView count = createText(String.valueOf(bucket.getTotalCount()), 11, R.color.text_secondary, bucket.getTotalCount() > 0);
+        count.setGravity(android.view.Gravity.CENTER);
+        column.addView(count, fullWidth());
+
+        FrameLayout barFrame = new FrameLayout(this);
+        barFrame.setBackground(createRoundedBackground(
+                getColor(R.color.chip_background),
+                getColor(R.color.chip_stroke),
+                8
+        ));
+        int maxHeight = dp(126);
+
+        LinearLayout stack = new LinearLayout(this);
+        stack.setOrientation(LinearLayout.VERTICAL);
+        int total = bucket.getTotalCount();
+        if (total <= 0 || maxTotal <= 0) {
+            View empty = new View(this);
+            empty.setBackground(createRoundedBackground(getColor(R.color.calendar_indicator_inactive), 0, 6));
+            stack.addView(empty, new LinearLayout.LayoutParams(dp(18), dp(6)));
+        } else {
+            int normalizedHeight = Math.max(dp(8), (int) Math.round((maxHeight * 1d * total) / maxTotal));
+            int completedHeight = Math.max(dp(3), (int) Math.round((normalizedHeight * 1d * bucket.getCompletedCount()) / total));
+            int skippedHeight = bucket.getSkippedCount() == 0 ? 0 : Math.max(dp(3), (int) Math.round((normalizedHeight * 1d * bucket.getSkippedCount()) / total));
+            int overdueHeight = bucket.getOverdueCount() == 0 ? 0 : Math.max(dp(3), normalizedHeight - completedHeight - skippedHeight);
+
+            if (bucket.getOverdueCount() > 0) {
+                stack.addView(createTimelineSegment(R.color.calendar_indicator_overdue), new LinearLayout.LayoutParams(dp(18), overdueHeight));
+            }
+            if (bucket.getSkippedCount() > 0) {
+                LinearLayout.LayoutParams skippedParams = new LinearLayout.LayoutParams(dp(18), skippedHeight);
+                skippedParams.setMargins(0, dp(2), 0, 0);
+                stack.addView(createTimelineSegment(R.color.calendar_indicator_skipped), skippedParams);
+            }
+            if (bucket.getCompletedCount() > 0) {
+                LinearLayout.LayoutParams completedParams = new LinearLayout.LayoutParams(dp(18), completedHeight);
+                completedParams.setMargins(0, dp(2), 0, 0);
+                stack.addView(createTimelineSegment(R.color.calendar_indicator_completed), completedParams);
+            }
+        }
+
+        FrameLayout.LayoutParams stackParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL
+        );
+        stackParams.setMargins(0, dp(10), 0, dp(10));
+        barFrame.addView(stack, stackParams);
+        column.addView(barFrame, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                maxHeight
+        ));
+
+        TextView label = createText(bucket.getLabel(), 11, R.color.text_secondary, false);
+        label.setGravity(android.view.Gravity.CENTER);
+        label.setPadding(0, dp(6), 0, 0);
+        column.addView(label, fullWidth());
+
+        column.setOnClickListener(view -> showSnackbar(
+                getString(
+                        R.string.stats_timeline_snackbar,
+                        bucket.getLabel(),
+                        bucket.getCompletedCount(),
+                        bucket.getSkippedCount(),
+                        bucket.getOverdueCount()
+                ),
+                null,
+                null
+        ));
+        return column;
+    }
+
+    private View createTimelineSegment(int colorRes) {
+        View segment = new View(this);
+        segment.setBackground(createRoundedBackground(getColor(colorRes), 0, 6));
+        return segment;
+    }
+
+    private LinearLayout createStatisticsStatusCard(StatisticsReport report) {
+        StatisticsReport.StatusBreakdown breakdown = report.getStatusBreakdown();
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.addView(createText(getString(R.string.stats_section_status), 16, R.color.text_primary, true), fullWidth());
+
+        card.addView(createStatisticsStatusRow(
+                getString(R.string.stats_status_active),
+                breakdown.getActiveCount(),
+                breakdown.getTotalCount(),
+                R.color.calendar_indicator_active
+        ), fullWidthWithTopMargin(dp(12)));
+        card.addView(createStatisticsStatusRow(
+                getString(R.string.stats_status_overdue),
+                breakdown.getOverdueCount(),
+                breakdown.getTotalCount(),
+                R.color.calendar_indicator_overdue
+        ), fullWidthWithTopMargin(dp(8)));
+        card.addView(createStatisticsStatusRow(
+                getString(R.string.stats_status_completed),
+                breakdown.getCompletedCount(),
+                breakdown.getTotalCount(),
+                R.color.calendar_indicator_completed
+        ), fullWidthWithTopMargin(dp(8)));
+        card.addView(createStatisticsStatusRow(
+                getString(R.string.stats_status_skipped),
+                breakdown.getSkippedCount(),
+                breakdown.getTotalCount(),
+                R.color.calendar_indicator_skipped
+        ), fullWidthWithTopMargin(dp(8)));
+        return card;
+    }
+
+    private LinearLayout createStatisticsStatusRow(
+            String label,
+            int count,
+            int total,
+            int colorRes
+    ) {
+        LinearLayout wrapper = new LinearLayout(this);
+        wrapper.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        header.addView(createText(label, 13, R.color.text_primary, true), new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+        header.addView(createText(
+                getString(
+                        R.string.stats_status_row_value,
+                        count,
+                        percentageText(total <= 0 ? 0d : (count * 1d / total))
+                ),
+                12,
+                R.color.text_secondary,
+                false
+        ), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        wrapper.addView(header, fullWidth());
+
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setBackground(createRoundedBackground(
+                getColor(R.color.chip_background),
+                getColor(R.color.chip_stroke),
+                8
+        ));
+        int safeTotal = Math.max(0, total);
+        int safeCount = Math.max(0, Math.min(count, safeTotal));
+        int remainder = Math.max(0, safeTotal - safeCount);
+        if (safeCount > 0) {
+            View fill = new View(this);
+            fill.setBackground(createRoundedBackground(getColor(colorRes), 0, 8));
+            bar.addView(fill, new LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    safeCount
+            ));
+        }
+        if (remainder > 0 || safeTotal == 0) {
+            View empty = new View(this);
+            empty.setBackgroundColor(Color.TRANSPARENT);
+            bar.addView(empty, new LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    remainder > 0 ? remainder : 1
+            ));
+        }
+        LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(10)
+        );
+        barParams.setMargins(0, dp(6), 0, 0);
+        wrapper.addView(bar, barParams);
+        return wrapper;
+    }
+
+    private LinearLayout createStatisticsBreakdownCard(
+            String title,
+            List<StatisticsBreakdownRow> rows,
+            int emptyMessageRes,
+            boolean expanded,
+            StatisticsBreakdownDimension dimension
+    ) {
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.addView(createText(title, 16, R.color.text_primary, true), fullWidth());
+
+        if (rows.isEmpty()) {
+            TextView empty = createText(getString(emptyMessageRes), 13, R.color.text_secondary, false);
+            empty.setPadding(0, dp(10), 0, 0);
+            card.addView(empty, fullWidth());
+            return card;
+        }
+
+        int visibleCount = expanded ? rows.size() : Math.min(6, rows.size());
+        for (int i = 0; i < visibleCount; i++) {
+            card.addView(createStatisticsBreakdownRow(rows.get(i), dimension), fullWidthWithTopMargin(i == 0 ? dp(10) : dp(8)));
+        }
+
+        if (rows.size() > 6) {
+            Button toggle = createActionButton(
+                    expanded ? getString(R.string.stats_show_less) : getString(R.string.stats_show_more),
+                    false
+            );
+            toggle.setOnClickListener(view -> {
+                if (dimension == StatisticsBreakdownDimension.GROUP) {
+                    statsGroupsExpanded = !statsGroupsExpanded;
+                } else if (dimension == StatisticsBreakdownDimension.FILE) {
+                    statsFilesExpanded = !statsFilesExpanded;
+                } else {
+                    statsTagsExpanded = !statsTagsExpanded;
+                }
+                renderStatistics(latestTasks);
+            });
+            card.addView(toggle, fullWidthWithTopMargin(dp(10)));
+        }
+        return card;
+    }
+
+    private LinearLayout createStatisticsBreakdownRow(
+            StatisticsBreakdownRow row,
+            StatisticsBreakdownDimension dimension
+    ) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setPadding(dp(10), dp(10), dp(10), dp(10));
+        item.setBackground(createStatisticsInnerSurfaceBackground());
+        item.setClickable(true);
+        item.setOnClickListener(view -> applyStatisticsDimensionFilter(dimension, row.getKey()));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        header.addView(createText(displayBreakdownLabel(row.getLabel(), dimension), 14, R.color.text_primary, true), new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+        TextView rate = createText(
+                row.hasHistoricalResolutionData()
+                        ? getString(R.string.stats_breakdown_rate, (int) Math.round(row.getHistoricalCompletionRate() * 100d))
+                        : getString(R.string.stats_breakdown_no_rate),
+                11,
+                row.hasHistoricalResolutionData() ? R.color.accent : R.color.text_secondary,
+                row.hasHistoricalResolutionData()
+        );
+        header.addView(rate, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        item.addView(header, fullWidth());
+
+        TextView current = createText(
+                getString(R.string.stats_breakdown_current_total, row.getCurrentTotalCount()),
+                12,
+                R.color.text_secondary,
+                false
+        );
+        current.setPadding(0, dp(6), 0, 0);
+        item.addView(current, fullWidth());
+
+        TextView currentMeta = createText(
+                getString(R.string.stats_breakdown_current_meta, row.getCurrentActiveCount(), row.getCurrentOverdueCount()),
+                12,
+                R.color.text_secondary,
+                false
+        );
+        currentMeta.setPadding(0, dp(4), 0, 0);
+        item.addView(currentMeta, fullWidth());
+
+        TextView historyMeta = createText(
+                getString(R.string.stats_breakdown_history_meta, row.getHistoricalCompletedCount(), row.getHistoricalSkippedCount()),
+                12,
+                R.color.text_secondary,
+                false
+        );
+        historyMeta.setPadding(0, dp(4), 0, 0);
+        item.addView(historyMeta, fullWidth());
+        return item;
+    }
+
+    private void applyStatisticsDimensionFilter(StatisticsBreakdownDimension dimension, String value) {
+        if (dimension == StatisticsBreakdownDimension.GROUP) {
+            statisticsFilters = statisticsFilters.withGroup(
+                    Objects.equals(statisticsFilters.getGroup(), value) ? "" : value
+            );
+        } else if (dimension == StatisticsBreakdownDimension.FILE) {
+            statisticsFilters = statisticsFilters.withSourceName(
+                    Objects.equals(statisticsFilters.getSourceName(), value) ? "" : value
+            );
+        } else {
+            statisticsFilters = statisticsFilters.withTag(
+                    Objects.equals(statisticsFilters.getTag(), value) ? "" : value
+            );
+        }
+        resetStatisticsBreakdownExpansion();
+        renderStatistics(latestTasks);
+    }
+
+    private String displayBreakdownLabel(String label, StatisticsBreakdownDimension dimension) {
+        if (label != null && !label.trim().isEmpty()) {
+            return label;
+        }
+        if (dimension == StatisticsBreakdownDimension.FILE) {
+            return getString(R.string.stats_untitled_source);
+        }
+        if (dimension == StatisticsBreakdownDimension.TAG) {
+            return TaskGrouping.FALLBACK_TAG_LABEL;
+        }
+        return TaskGrouping.FALLBACK_GROUP_LABEL;
+    }
+
+    private LinearLayout createStatisticsInsightsCard(StatisticsReport report) {
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.addView(createText(getString(R.string.stats_section_insights), 16, R.color.text_primary, true), fullWidth());
+        for (StatisticsInsight insight : report.getInsights()) {
+            TextView line = createText(formatStatisticsInsight(insight), 13, R.color.text_primary, false);
+            line.setPadding(0, dp(10), 0, 0);
+            card.addView(line, fullWidth());
+        }
+        return card;
+    }
+
+    private LinearLayout createStatisticsSubtaskCard(StatisticsReport report) {
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+        card.addView(createText(getString(R.string.stats_section_subtasks), 16, R.color.text_primary, true), fullWidth());
+
+        StatisticsReport.SubtaskSummary summary = report.getSubtaskSummary();
+        if (summary.getTotalCount() == 0) {
+            TextView empty = createText(getString(R.string.stats_subtasks_none), 13, R.color.text_secondary, false);
+            empty.setPadding(0, dp(10), 0, 0);
+            card.addView(empty, fullWidth());
+            return card;
+        }
+
+        TextView top = createText(
+                getString(
+                        R.string.stats_subtasks_summary,
+                        summary.getTotalCount(),
+                        summary.getActiveCount(),
+                        summary.getOverdueCount()
+                ),
+                13,
+                R.color.text_primary,
+                true
+        );
+        top.setPadding(0, dp(10), 0, 0);
+        card.addView(top, fullWidth());
+
+        TextView progress = createText(
+                getString(R.string.stats_subtasks_progress, summary.getAverageParentProgressPercent()),
+                12,
+                R.color.text_secondary,
+                false
+        );
+        progress.setPadding(0, dp(6), 0, 0);
+        card.addView(progress, fullWidth());
+
+        LinearLayout chips = new LinearLayout(this);
+        chips.setOrientation(LinearLayout.HORIZONTAL);
+        chips.addView(createInfoChip(getString(R.string.stats_status_completed) + ": " + summary.getCompletedCount()), new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(30)
+        ));
+        LinearLayout.LayoutParams skippedParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(30)
+        );
+        skippedParams.setMargins(dp(6), 0, 0, 0);
+        chips.addView(createInfoChip(getString(R.string.stats_status_skipped) + ": " + summary.getSkippedCount()), skippedParams);
+        card.addView(chips, fullWidthWithTopMargin(dp(10)));
+        return card;
+    }
+
+    private LinearLayout createStatisticsEmptyCard(String title, String body) {
+        LinearLayout card = createCardContainer();
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+
+        populateStatisticsEmptyTexts(card, title, body);
+        return card;
+    }
+
+    private LinearLayout createStatisticsInlineEmptyBlock(String title, String body) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, dp(4), 0, 0);
+        populateStatisticsEmptyTexts(block, title, body);
+        return block;
+    }
+
+    private void populateStatisticsEmptyTexts(LinearLayout parent, String title, String body) {
+        TextView titleView = createText(title, 15, R.color.text_primary, true);
+        titleView.setGravity(android.view.Gravity.CENTER);
+        parent.addView(titleView, fullWidth());
+
+        TextView bodyView = createText(body, 13, R.color.text_secondary, false);
+        bodyView.setGravity(android.view.Gravity.CENTER);
+        bodyView.setPadding(0, dp(6), 0, 0);
+        parent.addView(bodyView, fullWidth());
+    }
+
+    private String percentageText(double value) {
+        return Math.round(value * 100d) + "%";
+    }
+
+    private String formatStatisticsMinutes(long minutes) {
+        if (minutes < 60L) {
+            return getString(R.string.stats_time_minutes_short, minutes);
+        }
+        long hours = minutes / 60L;
+        long rest = minutes % 60L;
+        if (rest == 0L) {
+            return getString(R.string.stats_time_hours_short, hours);
+        }
+        return getString(R.string.stats_time_hours_minutes_short, hours, rest);
+    }
+
+    private String formatStatisticsInsight(StatisticsInsight insight) {
+        if (insight == null) {
+            return getString(R.string.stats_unknown_label);
+        }
+        String safeLabel = insight.getLabel() == null || insight.getLabel().trim().isEmpty()
+                ? getString(R.string.stats_unknown_label)
+                : insight.getLabel().trim();
+        if (insight.getKind() == StatisticsInsight.Kind.TOP_OVERDUE_GROUP) {
+            return getString(R.string.stats_insight_top_overdue_group, safeLabel);
+        }
+        if (insight.getKind() == StatisticsInsight.Kind.TOP_SKIPPED_SOURCE) {
+            return getString(R.string.stats_insight_top_skipped_source, safeLabel);
+        }
+        if (insight.getKind() == StatisticsInsight.Kind.BEST_COMPLETION_TAG) {
+            return getString(R.string.stats_insight_best_completion_tag, safeLabel, insight.getPercentValue());
+        }
+        if (insight.getKind() == StatisticsInsight.Kind.COMPLETION_RATE) {
+            return getString(R.string.stats_insight_completion_rate, insight.getPercentValue());
+        }
+        if (insight.getKind() == StatisticsInsight.Kind.AVERAGE_COMPLETION_TIME) {
+            return getString(
+                    R.string.stats_insight_average_completion_time,
+                    formatStatisticsMinutes(insight.getMinutesValue())
+            );
+        }
+        if (insight.getKind() == StatisticsInsight.Kind.SUBTASK_AVERAGE_PROGRESS) {
+            return getString(R.string.stats_insight_subtask_progress, insight.getPercentValue());
+        }
+        return safeLabel;
+    }
+
+    private enum StatisticsBreakdownDimension {
+        GROUP,
+        FILE,
+        TAG
+    }
+
     private LinearLayout createCalendarModeToggle() {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2193,7 +3231,7 @@ public final class MainActivity extends AppCompatActivity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
 
-        TextView previous = createMonthNavButton("‹", calendarMode == CALENDAR_MODE_YEAR
+        TextView previous = createMonthNavButton("\u2039", calendarMode == CALENDAR_MODE_YEAR
                 ? getString(R.string.main_calendar_prev_year)
                 : calendarMode == CALENDAR_MODE_WEEK
                         ? getString(R.string.main_calendar_prev_week)
@@ -2212,7 +3250,7 @@ public final class MainActivity extends AppCompatActivity {
                 1
         ));
 
-        TextView next = createMonthNavButton("›", calendarMode == CALENDAR_MODE_YEAR
+        TextView next = createMonthNavButton("\u203A", calendarMode == CALENDAR_MODE_YEAR
                 ? getString(R.string.main_calendar_next_year)
                 : calendarMode == CALENDAR_MODE_WEEK
                         ? getString(R.string.main_calendar_next_week)
@@ -2758,7 +3796,7 @@ public final class MainActivity extends AppCompatActivity {
             parts.add(compactName(task.getSourceName()));
         }
         parts.add(formatStatus(taskStatus(task)));
-        return TextUtils.join(" · ", parts);
+        return TextUtils.join(" \u00B7 ", parts);
     }
 
     private String taskCountWord(int count) {
@@ -3256,6 +4294,8 @@ public final class MainActivity extends AppCompatActivity {
     private void rerenderCurrentSection() {
         if (selectedSection == SECTION_CALENDAR) {
             renderCalendar(latestTasks);
+        } else if (selectedSection == SECTION_STATS) {
+            renderStatistics(latestTasks);
         } else {
             renderTasks(latestTasks);
         }
@@ -3363,7 +4403,7 @@ public final class MainActivity extends AppCompatActivity {
             parts.add(formatRepeat(subtask));
         }
         parts.add(formatStatus(taskStatus(subtask)));
-        return TextUtils.join(" · ", parts);
+        return TextUtils.join(" \u00B7 ", parts);
     }
 
     private TextView createSwipeActionLabel(String text, int backgroundColor, int textColor) {
@@ -3566,10 +4606,10 @@ public final class MainActivity extends AppCompatActivity {
 
     private String statusIcon(TaskStatus status) {
         if (status == TaskStatus.COMPLETED) {
-            return "✓";
+            return "\u2713";
         }
         if (status == TaskStatus.SKIPPED) {
-            return "×";
+            return "\u00D7";
         }
         if (status == TaskStatus.OVERDUE) {
             return "!";
@@ -4009,27 +5049,27 @@ public final class MainActivity extends AppCompatActivity {
         StringBuilder builder = new StringBuilder();
         builder.append(formatStatus(taskStatus(task)));
         if (!task.getSourceName().isEmpty()) {
-            builder.append(" · ").append(task.getSourceName());
+            builder.append(" \u00B7 ").append(task.getSourceName());
         }
         if (task.getReminderAt() != null) {
-            builder.append(" · ").append(getString(
+            builder.append(" \u00B7 ").append(getString(
                     R.string.task_remind_prefix,
                     DATE_TIME_FORMAT.format(task.getReminderAt())
             ));
         } else {
-            builder.append(" · ").append(getString(R.string.task_time_not_set));
+            builder.append(" \u00B7 ").append(getString(R.string.task_time_not_set));
         }
 
         if (hasRepeatInfo(task)) {
-            builder.append(" · ").append(formatRepeat(task));
+            builder.append(" \u00B7 ").append(formatRepeat(task));
         }
 
         if (task.getPriority() != TaskPriority.NONE) {
-            builder.append(" · ").append(formatPriority(task.getPriority()));
+            builder.append(" \u00B7 ").append(formatPriority(task.getPriority()));
         }
 
         if (!task.getTags().isEmpty()) {
-            builder.append(" · ").append(formatTags(task.getTags()));
+            builder.append(" \u00B7 ").append(formatTags(task.getTags()));
         }
 
         return builder.toString();
@@ -4062,7 +5102,7 @@ public final class MainActivity extends AppCompatActivity {
         if (parts.isEmpty() && task.getRepeatInterval() != null) {
             parts.add(getString(R.string.task_repeat_prefix, formatDuration(task.getRepeatInterval())));
         }
-        return TextUtils.join(" · ", parts);
+        return TextUtils.join(" \u00B7 ", parts);
     }
 
     private boolean hasRepeatInfo(ObsidianTask task) {
@@ -4387,7 +5427,7 @@ public final class MainActivity extends AppCompatActivity {
         }
         if (!task.getTags().isEmpty()) {
             if (builder.length() > 0) {
-                builder.append(" · ");
+                builder.append(" \u00B7 ");
             }
             builder.append(formatTags(task.getTags()));
         }
@@ -4415,3 +5455,5 @@ public final class MainActivity extends AppCompatActivity {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }
+
+

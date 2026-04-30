@@ -410,7 +410,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             RepeatMode repeatMode,
             ObsidianTask activeTask
     ) {
-        if (activeTask != null && activeTask.getResolvedRepeatUntilDoneInterval() != null) {
+        if (shouldUseActiveTaskNagInterval(activeTask)) {
             ReminderScheduler.scheduleNextRepeat(context, activeTask);
             return;
         }
@@ -434,6 +434,14 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
     static boolean shouldRepostNotification(long repeatIntervalMillis, RepeatMode repeatMode) {
         return hasNagLoop(repeatIntervalMillis, repeatMode);
+    }
+
+    static boolean shouldUseActiveTaskNagInterval(ObsidianTask activeTask) {
+        return activeTask != null
+                && activeTask.getRepeatMode() == RepeatMode.UNTIL_DONE
+                && activeTask.getResolvedRepeatUntilDoneInterval() != null
+                && !activeTask.getResolvedRepeatUntilDoneInterval().isZero()
+                && !activeTask.getResolvedRepeatUntilDoneInterval().isNegative();
     }
 
     private static final class ActiveTaskLookup {

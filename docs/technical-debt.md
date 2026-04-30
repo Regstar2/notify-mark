@@ -41,3 +41,10 @@
 **Problem:** Parser, grouping, source naming, and reminder scheduling have unit tests, but activity-level UI flows rely mostly on manual verification.  
 **Why not fixed now:** Adding UI automation would expand scope well beyond the requested structural refactor.  
 **What to do later:** Add focused instrumentation or screenshot tests for source screens, task editor, and main task interactions.
+
+### Historical statistics are still partial
+
+**Where:** `app/src/main/java/com/regstar/obsidiannotification/core/stats`, `app/src/main/java/com/regstar/obsidiannotification/core/tasks/OccurrenceHistoryStore.java`  
+**Problem:** The statistics screen now combines current task snapshot data with local occurrence history, but only tasks that produce local occurrence records have full historical analytics. One-off tasks still do not emit a complete generic event stream for creation, completion, reschedule, delete, and overdue transitions.  
+**Why not fixed now:** Building a full event log would touch write flows, reminder actions, and deletion semantics across the app and would be riskier than this statistics pass.  
+**What to do later:** Introduce a dedicated task event history layer and migrate `StatisticsRepository` timeline/breakdown metrics to that richer event stream.

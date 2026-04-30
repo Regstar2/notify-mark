@@ -32,6 +32,7 @@ Allowed dependencies:
 - `core.tasks`
 - `core.source`
 - `core.reminders`
+- `core.stats`
 - `prefs`
 - `support`
 
@@ -132,6 +133,38 @@ Allowed dependencies:
 - `support`
 - Android alarm/notification APIs
 
+## `app/src/main/java/com/regstar/obsidiannotification/core/stats`
+
+Responsibility:
+- statistics aggregation
+- separation between snapshot metrics and historical metrics
+- timeline, breakdown, summary, and insight-ready models for the statistics screen
+
+Files include:
+- `StatisticsRepository.java`
+- `StatisticsReport.java`
+- `StatisticsSummary.java`
+- `StatisticsTimelineBucket.java`
+- `StatisticsBreakdownRow.java`
+- `StatisticsFilters.java`
+- `StatisticsPeriod.java`
+- `StatisticsInsight.java`
+
+Add here:
+- analytics aggregation logic that combines current tasks with local history
+- stable data models consumed by statistics UI
+
+Do not add here:
+- markdown parsing
+- reminder scheduling
+- Android activity rendering
+- localized UI strings
+
+Allowed dependencies:
+- `core.tasks`
+- `core.source` only through existing task/history access points
+- Java time/util classes
+
 ## `app/src/main/java/com/regstar/obsidiannotification/prefs`
 
 Responsibility:
@@ -174,5 +207,6 @@ Unit tests mirror the same split under:
 - `app/src/test/java/com/regstar/obsidiannotification/core/tasks`
 - `app/src/test/java/com/regstar/obsidiannotification/core/source`
 - `app/src/test/java/com/regstar/obsidiannotification/core/reminders`
+- `app/src/test/java/com/regstar/obsidiannotification/core/stats`
 
 When adding tests, prefer placing them next to the domain area they verify instead of creating a flat test package again.

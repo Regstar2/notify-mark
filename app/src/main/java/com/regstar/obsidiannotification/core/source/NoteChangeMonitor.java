@@ -51,10 +51,13 @@ public final class NoteChangeMonitor {
     private static final String KEY_LAST_TASK_COUNT = "last_task_count";
     private static final String KEY_LAST_TOTAL_CHARACTERS = "last_total_characters";
     private static final String KEY_LAST_SOURCE_STATE = "last_source_state";
+    private static final String KEY_LAST_LOCAL_WRITE_AT = "last_local_write_at";
+    private static final String KEY_LAST_LOCAL_WRITE_SOURCE_STATE = "last_local_write_source_state";
     private static final long BACKGROUND_CHECK_INTERVAL_MS = 60_000L;
     private static final int REQUEST_SYNC_NOTE = 2001;
     private static final int MAX_EMPTY_READ_CHARACTERS = 0;
     private static final int MAX_PROTECTED_EMPTY_READS = 4;
+    private static final long LOCAL_WRITE_TRUST_WINDOW_MS = 15_000L;
     private static final Object MONITOR_STATE_LOCK = new Object();
 
     private NoteChangeMonitor() {
@@ -256,6 +259,8 @@ public final class NoteChangeMonitor {
                     .remove(KEY_EMPTY_READ_COUNT)
                     .remove(KEY_SUSPICIOUS_READ_COUNT)
                     .remove(KEY_LAST_ERROR)
+                    .remove(KEY_LAST_LOCAL_WRITE_AT)
+                    .remove(KEY_LAST_LOCAL_WRITE_SOURCE_STATE)
                     .apply();
         }
     }
@@ -325,6 +330,19 @@ public final class NoteChangeMonitor {
         ErrorLog.record(context, context.getString(R.string.runtime_sync_error, safeMessage(context, message)));
     }
 
+    public static void recordTrustedLocalWrite(Context context) {
+        if (context == null) {
+            return;
+        }
+        synchronized (MONITOR_STATE_LOCK) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .putLong(KEY_LAST_LOCAL_WRITE_AT, System.currentTimeMillis())
+                    .putString(KEY_LAST_LOCAL_WRITE_SOURCE_STATE, sourceStateIdentity(context))
+                    .apply();
+        }
+    }
+
     public static boolean isSuspiciousPartialRead(
             Context context,
             NoteStore.TaskSnapshot snapshot
@@ -345,11 +363,21 @@ public final class NoteChangeMonitor {
                 );
                 return false;
             }
+            boolean trustedLocalWrite = shouldTrustRecentLocalWrite(
+                    prefs.getLong(KEY_LAST_LOCAL_WRITE_AT, 0L),
+                    System.currentTimeMillis(),
+                    currentSourceState.equals(prefs.getString(KEY_LAST_LOCAL_WRITE_SOURCE_STATE, null))
+            );
 
             boolean emptyReadWithCache = snapshot.getTotalCharacters() <= MAX_EMPTY_READ_CHARACTERS
                     && snapshot.getParseResult().getTasks().isEmpty()
                     && TaskCache.hasCachedTasks(context);
             if (emptyReadWithCache) {
+                if (trustedLocalWrite) {
+                    clearSuspiciousCounters(prefs, currentSourceState);
+                    ErrorLog.record(context, "Accepted empty snapshot after trusted local write");
+                    return false;
+                }
                 int emptyReadCount = prefs.getInt(KEY_EMPTY_READ_COUNT, 0) + 1;
                 prefs.edit()
                         .putInt(KEY_EMPTY_READ_COUNT, emptyReadCount)
@@ -385,12 +413,25 @@ public final class NoteChangeMonitor {
                     hasCache
             );
 
+            if (suspicious && trustedLocalWrite) {
+                clearSuspiciousCounters(prefs, currentSourceState);
+                ErrorLog.record(
+                        context,
+                        "Accepted suspicious snapshot after trusted local write: "
+                                + suspiciousSnapshotReason(
+                                lastDocCount,
+                                lastTaskCount,
+                                lastTotalChars,
+                                currentDocCount,
+                                currentTaskCount,
+                                currentTotalChars
+                        )
+                );
+                return false;
+            }
+
             if (!suspicious) {
-                prefs.edit()
-                        .remove(KEY_EMPTY_READ_COUNT)
-                        .remove(KEY_SUSPICIOUS_READ_COUNT)
-                        .putString(KEY_LAST_SOURCE_STATE, currentSourceState)
-                        .apply();
+                clearSuspiciousCounters(prefs, currentSourceState);
                 return false;
             }
 
@@ -458,6 +499,17 @@ public final class NoteChangeMonitor {
                 && !previousSourceState.equals(currentSourceState);
     }
 
+    static boolean shouldTrustRecentLocalWrite(
+            long localWriteAtMillis,
+            long nowMillis,
+            boolean sameSourceState
+    ) {
+        return sameSourceState
+                && localWriteAtMillis > 0L
+                && nowMillis >= localWriteAtMillis
+                && (nowMillis - localWriteAtMillis) <= LOCAL_WRITE_TRUST_WINDOW_MS;
+    }
+
     static String suspiciousSnapshotReason(
             int lastDocCount,
             int lastTaskCount,
@@ -520,6 +572,17 @@ public final class NoteChangeMonitor {
                 .remove(KEY_LAST_DOCUMENT_COUNT)
                 .remove(KEY_LAST_TASK_COUNT)
                 .remove(KEY_LAST_TOTAL_CHARACTERS)
+                .apply();
+    }
+
+    private static void clearSuspiciousCounters(
+            SharedPreferences prefs,
+            String currentSourceState
+    ) {
+        prefs.edit()
+                .remove(KEY_EMPTY_READ_COUNT)
+                .remove(KEY_SUSPICIOUS_READ_COUNT)
+                .putString(KEY_LAST_SOURCE_STATE, currentSourceState)
                 .apply();
     }
 

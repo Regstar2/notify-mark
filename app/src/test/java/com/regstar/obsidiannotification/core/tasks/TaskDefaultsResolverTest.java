@@ -7,6 +7,7 @@ import com.regstar.obsidiannotification.prefs.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
 
@@ -43,5 +44,25 @@ public final class TaskDefaultsResolverTest {
         assertNotNull(parent.getSubtasks().get(0));
         assertEquals(child.getTaskKey(), parent.getSubtasks().get(0).getTaskKey());
         assertEquals(parent.getTaskKey(), child.getParentTaskKey());
+    }
+
+    @Test
+    public void resolve_doesNotEnableRepeatUntilDoneFromDefaultsAlone() {
+        ObsidianTask task = new ObsidianTask(
+                1,
+                "Task",
+                "- [ ] Task @due(2026-04-28 10:00)",
+                java.time.LocalDateTime.of(2026, 4, 28, 10, 0),
+                null
+        );
+
+        ObsidianTask resolved = TaskDefaultsResolver.resolve(
+                task,
+                Duration.ofMinutes(15),
+                Duration.ofMinutes(10)
+        );
+
+        assertNull(resolved.getExplicitRepeatUntilDoneInterval());
+        assertNull(resolved.getResolvedRepeatUntilDoneInterval());
     }
 }

@@ -53,6 +53,23 @@ public final class OccurrenceHistoryStore {
         }
     }
 
+    /**
+     * Returns the full local occurrence history for analytics and debugging.
+     *
+     * <p>Callers must treat the returned records as an immutable snapshot. The
+     * markdown documents remain the source of truth for current task content;
+     * this history only represents past resolved occurrences that the app has
+     * already recorded locally.</p>
+     */
+    public static List<TaskOccurrenceRecord> getAllHistory(Context context) {
+        if (context == null) {
+            return Collections.emptyList();
+        }
+        synchronized (HISTORY_LOCK) {
+            return new ArrayList<>(loadAll(context));
+        }
+    }
+
     public static PendingExternalCompletion getPendingExternalCompletion(
             Context context,
             String seriesId

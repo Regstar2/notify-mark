@@ -415,9 +415,31 @@ public final class ReminderScheduler {
             ScheduledState existing,
             long nowMillis
     ) {
-        return existing != null
-                && existing.notificationId == reminder.getNotificationId()
-                && existing.triggerAtMillis > nowMillis;
+        if (existing == null) {
+            return false;
+        }
+        return canPreserveExistingTrigger(
+                reminder.getRepeatMode(),
+                existing.notificationId,
+                existing.triggerAtMillis,
+                reminder.getNotificationId(),
+                reminder.getTriggerAtMillis(),
+                nowMillis
+        );
+    }
+
+    static boolean canPreserveExistingTrigger(
+            RepeatMode repeatMode,
+            int existingNotificationId,
+            long existingTriggerAtMillis,
+            int newNotificationId,
+            long newTriggerAtMillis,
+            long nowMillis
+    ) {
+        return repeatMode == RepeatMode.UNTIL_DONE
+                && existingNotificationId == newNotificationId
+                && existingTriggerAtMillis == newTriggerAtMillis
+                && existingTriggerAtMillis > nowMillis;
     }
 
     private static ScheduledReminder copyWithExistingTrigger(

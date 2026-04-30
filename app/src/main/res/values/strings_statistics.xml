@@ -1,0 +1,84 @@
+<resources>
+    <string name="stats_title">Статистика</string>
+    <string name="stats_nav_subtitle">Динамика, просрочки и выполнение</string>
+    <string name="stats_period_title">Период</string>
+    <string name="stats_filter_title">Фильтры статистики</string>
+    <string name="stats_filter_close">Закрыть фильтры статистики</string>
+    <string name="stats_filter_reset">Сбросить</string>
+    <string name="stats_period_today">Сегодня</string>
+    <string name="stats_period_7_days">7 дней</string>
+    <string name="stats_period_30_days">30 дней</string>
+    <string name="stats_period_90_days">90 дней</string>
+    <string name="stats_period_year">Год</string>
+    <string name="stats_period_all_time">Всё время</string>
+
+    <string name="stats_section_summary">Сейчас и за период</string>
+    <string name="stats_section_timeline">Динамика</string>
+    <string name="stats_section_status">Распределение по статусам</string>
+    <string name="stats_section_groups">По группам</string>
+    <string name="stats_section_files">По файлам</string>
+    <string name="stats_section_tags">По тегам</string>
+    <string name="stats_section_insights">Наблюдения</string>
+    <string name="stats_section_subtasks">Подзадачи</string>
+
+    <string name="stats_filter_group">Группа</string>
+    <string name="stats_filter_tag">Тег</string>
+    <string name="stats_filter_source">Файл</string>
+    <string name="stats_filter_all_groups">Все группы</string>
+    <string name="stats_filter_all_tags">Все теги</string>
+    <string name="stats_filter_all_sources">Все файлы</string>
+
+    <string name="stats_card_completed_period">Выполнено за период</string>
+    <string name="stats_card_overdue_now">Просрочено сейчас</string>
+    <string name="stats_card_skipped_period">Пропущено за период</string>
+    <string name="stats_card_active_now">Активно сейчас</string>
+    <string name="stats_card_completion_rate">Доля выполненных</string>
+    <string name="stats_card_avg_completion_time">Среднее время до закрытия</string>
+    <string name="stats_card_snapshot_hint">Текущий срез задач</string>
+    <string name="stats_card_history_hint">Локальная история событий</string>
+
+    <string name="stats_timeline_empty_title">Пока нет исторических событий</string>
+    <string name="stats_timeline_empty_body">График появится после завершения или пропуска задач, которые приложение успеет записать в локальную историю.</string>
+    <string name="stats_timeline_note">Динамика строится по локальной истории событий. Текущий срез задач показан отдельно.</string>
+    <string name="stats_timeline_snackbar">%1$s: выполнено %2$d, пропущено %3$d, просрочено %4$d</string>
+
+    <string name="stats_status_active">Активные</string>
+    <string name="stats_status_overdue">Просроченные</string>
+    <string name="stats_status_completed">Завершённые</string>
+    <string name="stats_status_skipped">Пропущенные</string>
+    <string name="stats_status_row_value">%1$d · %2$s</string>
+
+    <string name="stats_breakdown_current_total">%1$d задач сейчас</string>
+    <string name="stats_breakdown_current_meta">активно %1$d · просрочено %2$d</string>
+    <string name="stats_breakdown_history_meta">выполнено %1$d · пропущено %2$d</string>
+    <string name="stats_breakdown_rate">%1$d%% завершений</string>
+    <string name="stats_breakdown_no_rate">закрытий нет</string>
+    <string name="stats_breakdown_empty_groups">По текущим фильтрам нет данных по группам.</string>
+    <string name="stats_breakdown_empty_files">По текущим фильтрам нет данных по файлам.</string>
+    <string name="stats_breakdown_empty_tags">По текущим фильтрам нет данных по тегам.</string>
+    <string name="stats_show_more">Показать ещё</string>
+    <string name="stats_show_less">Свернуть</string>
+
+    <string name="stats_empty_title">Недостаточно данных для статистики</string>
+    <string name="stats_empty_body">Создайте или выполните несколько задач, чтобы здесь появились показатели.</string>
+    <string name="stats_empty_filtered_title">По текущим фильтрам данных нет</string>
+    <string name="stats_empty_filtered_body">Попробуйте выбрать другую группу, тег, файл или период.</string>
+
+    <string name="stats_subtasks_none">Подзадач в текущем срезе пока нет.</string>
+    <string name="stats_subtasks_summary">%1$d всего · активно %2$d · просрочено %3$d</string>
+    <string name="stats_subtasks_progress">Средний прогресс по родительским задачам: %1$d%%</string>
+
+    <string name="stats_insight_top_overdue_group">Больше всего просрочек сейчас в группе %1$s.</string>
+    <string name="stats_insight_top_skipped_source">Чаще всего задачи пропускаются в источнике %1$s.</string>
+    <string name="stats_insight_best_completion_tag">Лучшая доля выполненных за период у тега %1$s: %2$d%%.</string>
+    <string name="stats_insight_completion_rate">За выбранный период выполнено %1$d%% зафиксированных событий.</string>
+    <string name="stats_insight_average_completion_time">Среднее время до закрытия: %1$s.</string>
+    <string name="stats_insight_subtask_progress">Средний прогресс задач с подзадачами: %1$d%%</string>
+
+    <string name="stats_no_history_value">—</string>
+    <string name="stats_untitled_source">Без файла</string>
+    <string name="stats_unknown_label">без названия</string>
+    <string name="stats_time_minutes_short">%1$d мин</string>
+    <string name="stats_time_hours_short">%1$d ч</string>
+    <string name="stats_time_hours_minutes_short">%1$d ч %2$d мин</string>
+</resources>

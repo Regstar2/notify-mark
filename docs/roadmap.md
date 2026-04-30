@@ -16,9 +16,9 @@
    - expand markdown examples
    - document onboarding and storage-mode flows with screenshots or a short guide
 
-4. Add a statistics screen on top of existing occurrence history data
-   - use the current repeat history foundation
-   - avoid inventing a second task state model
+4. Deepen the statistics feature
+   - add broader historical coverage for one-off task events
+   - introduce drill-down views and richer filters without duplicating task state
 
 5. Prepare README and docs for broader public use
    - installation notes

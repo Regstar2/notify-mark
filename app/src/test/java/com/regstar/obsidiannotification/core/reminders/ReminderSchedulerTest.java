@@ -7,6 +7,8 @@ import com.regstar.obsidiannotification.prefs.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import org.junit.Test;
 
@@ -132,7 +134,7 @@ public final class ReminderSchedulerTest {
     }
 
     @Test
-    public void buildScheduledReminder_keepsNagLoopForOneShotWithResolvedRepeatUntilDone() {
+    public void buildScheduledReminder_doesNotEnableNagLoopFromDefaultsAlone() {
         ObsidianTask rawTask = new ObsidianTask(
                 "tasks.md|1|Nag one-shot|2026-04-20T11:30||NONE",
                 "tasks.md",
@@ -166,8 +168,7 @@ public final class ReminderSchedulerTest {
                 UTC
         );
 
-        assertEquals(LocalDateTime.of(2026, 4, 20, 12, 5), reminder.getTriggerAt());
-        assertEquals(Duration.ofMinutes(5).toMillis(), reminder.getRepeatIntervalMillis());
+        assertNull(reminder);
     }
 
     @Test
@@ -291,6 +292,76 @@ public final class ReminderSchedulerTest {
         assertNotEquals(
                 ReminderScheduler.buildReminderPayloadHash(first),
                 ReminderScheduler.buildReminderPayloadHash(second)
+        );
+    }
+
+    @Test
+    public void canPreserveExistingTrigger_trueForCompatibleUntilDoneReminder() {
+        assertTrue(
+                ReminderScheduler.canPreserveExistingTrigger(
+                        RepeatMode.UNTIL_DONE,
+                        123,
+                        1_000_000L,
+                        123,
+                        1_000_000L,
+                        500_000L
+                )
+        );
+    }
+
+    @Test
+    public void canPreserveExistingTrigger_falseWhenDueTimeChanged() {
+        assertFalse(
+                ReminderScheduler.canPreserveExistingTrigger(
+                        RepeatMode.UNTIL_DONE,
+                        123,
+                        1_000_000L,
+                        123,
+                        1_100_000L,
+                        500_000L
+                )
+        );
+    }
+
+    @Test
+    public void canPreserveExistingTrigger_falseForOneShotMode() {
+        assertFalse(
+                ReminderScheduler.canPreserveExistingTrigger(
+                        RepeatMode.NONE,
+                        123,
+                        1_000_000L,
+                        123,
+                        1_000_000L,
+                        500_000L
+                )
+        );
+    }
+
+    @Test
+    public void canPreserveExistingTrigger_falseWhenExistingAlarmAlreadyExpired() {
+        assertFalse(
+                ReminderScheduler.canPreserveExistingTrigger(
+                        RepeatMode.UNTIL_DONE,
+                        123,
+                        400_000L,
+                        123,
+                        400_000L,
+                        500_000L
+                )
+        );
+    }
+
+    @Test
+    public void canPreserveExistingTrigger_falseWhenNotificationIdentityChanged() {
+        assertFalse(
+                ReminderScheduler.canPreserveExistingTrigger(
+                        RepeatMode.UNTIL_DONE,
+                        123,
+                        1_000_000L,
+                        124,
+                        1_000_000L,
+                        500_000L
+                )
         );
     }
 }

@@ -83,5 +83,24 @@ public final class NoteChangeMonitorPartialReadTest {
                 ).contains("document count drop")
         );
     }
+
+    @Test
+    public void recentTrustedLocalWrite_allowsImmediateAcceptance() {
+        assertTrue(NoteChangeMonitor.shouldTrustRecentLocalWrite(
+                1_000L,
+                5_000L,
+                true
+        ));
+        assertFalse(NoteChangeMonitor.shouldTrustRecentLocalWrite(
+                1_000L,
+                20_000L,
+                true
+        ));
+        assertFalse(NoteChangeMonitor.shouldTrustRecentLocalWrite(
+                1_000L,
+                5_000L,
+                false
+        ));
+    }
 }
 

@@ -339,6 +339,7 @@ public final class NoteStore {
     public static void writeMarkdown(Context context, Uri uri, String markdown) throws IOException {
         if ("file".equalsIgnoreCase(uri.getScheme())) {
             Files.write(Paths.get(uri.getPath()), markdown.getBytes(StandardCharsets.UTF_8));
+            NoteChangeMonitor.recordTrustedLocalWrite(context);
             return;
         }
 
@@ -347,6 +348,7 @@ public final class NoteStore {
                 throw new IOException(context.getString(R.string.runtime_provider_write_stream_missing));
             }
             stream.write(markdown.getBytes(StandardCharsets.UTF_8));
+            NoteChangeMonitor.recordTrustedLocalWrite(context);
         } catch (SecurityException exception) {
             throw new IOException(context.getString(R.string.runtime_no_write_access), exception);
         }

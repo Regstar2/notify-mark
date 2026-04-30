@@ -11,6 +11,7 @@ Primary app entry point.
 Owns:
 - task list screen
 - calendar screen
+- statistics screen
 - drawer navigation
 - filter sheet
 - source summary card
@@ -67,6 +68,23 @@ Depends on:
 - `NoteStore`
 - `TaskMarkdownWriter`
 - task defaults/preferences
+
+## Statistics section
+
+The statistics surface currently lives inside `MainActivity` as a third top-level section next to tasks and calendar.
+
+It uses:
+- `StatisticsRepository`
+- `OccurrenceHistoryStore`
+- current parsed tasks already loaded for the main UI
+
+The section provides:
+- period chips
+- filter sheet for group, tag, and source
+- summary cards
+- historical timeline
+- breakdown blocks by group, file, and tag
+- insights and subtask summary
 
 ## `MarkdownFileEditActivity`
 

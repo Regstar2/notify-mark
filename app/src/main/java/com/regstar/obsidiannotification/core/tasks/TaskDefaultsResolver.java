@@ -72,14 +72,9 @@ public final class TaskDefaultsResolver {
             return null;
         }
 
+        // Default repeat-until-done is used as an editor preset, not as an
+        // implicit runtime opt-in for every task with a due time.
         Duration resolvedRepeatUntilDone = task.getExplicitRepeatUntilDoneInterval();
-        if (resolvedRepeatUntilDone == null
-                && task.getReminderAt() != null
-                && defaultRepeatUntilDone != null
-                && !defaultRepeatUntilDone.isNegative()
-                && !defaultRepeatUntilDone.isZero()) {
-            resolvedRepeatUntilDone = defaultRepeatUntilDone;
-        }
 
         Duration resolvedGrace = task.getExplicitOverdueGracePeriod();
         if (resolvedGrace == null && defaultGrace != null && !defaultGrace.isNegative()) {
