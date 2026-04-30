@@ -1,0 +1,27 @@
+<resources>
+    <string name="about_back">Назад</string>
+    <string name="about_hero_subtitle">Локальные markdown-напоминания для Obsidian</string>
+
+    <string name="about_section_what_title">Что это</string>
+    <string name="about_section_what_body">NotifyMark — Android-приложение для локальных напоминаний из markdown-заметок Obsidian. Оно читает задачи из выбранных файлов и папок, показывает уведомления в нужное время и помогает работать с ними прямо на телефоне.</string>
+
+    <string name="about_section_features_title">Что умеет</string>
+    <string name="about_feature_read_markdown">Читает задачи из markdown-файлов</string>
+    <string name="about_feature_sources">Работает с одним файлом, несколькими файлами и папками</string>
+    <string name="about_feature_notifications">Показывает локальные уведомления Android</string>
+    <string name="about_feature_repeat">Поддерживает повтор и повтор до выполнения</string>
+    <string name="about_feature_editing">Позволяет редактировать задачи и управлять подзадачами</string>
+
+    <string name="about_section_privacy_title">Данные и приватность</string>
+    <string name="about_section_privacy_body">Приложение работает с выбранными пользователем markdown-файлами и использует локальные уведомления Android. Данные задач остаются в заметках пользователя. Отдельный облачный сервис приложения не требуется.</string>
+
+    <string name="about_section_tech_title">Техническая информация</string>
+    <string name="about_info_version">Версия приложения</string>
+    <string name="about_info_storage_mode">Режим источника</string>
+    <string name="about_info_theme">Тема</string>
+    <string name="about_theme_dark">Тёмная</string>
+    <string name="about_theme_light">Светлая</string>
+    <string name="about_theme_system">Системная</string>
+    <string name="about_info_syntax">Формат задач</string>
+    <string name="about_info_syntax_value">@due(...) @repeat(...) @repeatUntilDone(...) @tag(...) @priority(...) @group(...)</string>
+</resources>

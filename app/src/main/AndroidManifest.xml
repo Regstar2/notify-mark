@@ -54,6 +54,9 @@
             android:name=".ui.FeedbackActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.AboutActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.OnboardingActivity"
             android:exported="false" />
 

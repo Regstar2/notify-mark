@@ -1151,7 +1151,7 @@ public final class MainActivity extends AppCompatActivity {
                 false,
                 () -> {
                     closeDrawer();
-                    showAboutDialog();
+                    openAbout();
                 }
         ));
         panel.addView(createDrawerItem(
@@ -1617,16 +1617,8 @@ public final class MainActivity extends AppCompatActivity {
         void onValueSelected(String value);
     }
 
-    private void showAboutDialog() {
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.app_name)
-                .setMessage(getString(
-                        R.string.main_about_message,
-                        TaskSourceManager.storageModeLabel(this),
-                        TaskSourceManager.activeSourceLabel(this)
-                ))
-                .setPositiveButton(R.string.common_ok, null)
-                .show();
+    private void openAbout() {
+        startActivity(new Intent(this, AboutActivity.class));
     }
 
     private LinearLayout createSourceCard() {
