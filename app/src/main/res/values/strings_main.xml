@@ -105,4 +105,6 @@
     <string name="main_duration_days">%1$d д.</string>
     <string name="main_duration_hours">%1$d ч.</string>
     <string name="main_duration_minutes">%1$d мин.</string>
+    <string name="tile_tasks_label">Задачи</string>
+    <string name="tile_new_task_label">Новая задача</string>
 </resources>

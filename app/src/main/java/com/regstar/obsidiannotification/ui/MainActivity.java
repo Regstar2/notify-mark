@@ -204,6 +204,15 @@ public final class MainActivity extends AppCompatActivity {
             NoteChangeMonitor.ensureScheduled(this);
             showOnboardingIfNeeded();
         }
+
+        handleLaunchIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleLaunchIntent(intent);
     }
 
     @Override
@@ -2007,6 +2016,29 @@ public final class MainActivity extends AppCompatActivity {
 
     private void openFeedback() {
         startActivity(new Intent(this, FeedbackActivity.class));
+    }
+
+    private void handleLaunchIntent(Intent intent) {
+        if (intent == null || intent.getAction() == null) {
+            return;
+        }
+        String action = intent.getAction();
+        if (AppLaunchIntents.ACTION_OPEN_TASKS.equals(action)) {
+            if (selectedSection != SECTION_TASKS) {
+                selectedTaskKeys.clear();
+                selectedSection = SECTION_TASKS;
+                rebuildAndRenderCurrentSection();
+            }
+            return;
+        }
+        if (AppLaunchIntents.ACTION_NEW_TASK.equals(action)) {
+            if (selectedSection != SECTION_TASKS) {
+                selectedTaskKeys.clear();
+                selectedSection = SECTION_TASKS;
+                rebuildAndRenderCurrentSection();
+            }
+            openTaskEditor(null);
+        }
     }
 
     @SuppressWarnings("deprecation")
