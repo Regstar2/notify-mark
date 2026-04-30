@@ -1115,12 +1115,32 @@ public final class MainActivity extends AppCompatActivity {
         ));
         panel.addView(createDrawerItem(
                 R.drawable.ic_info,
+                getString(R.string.main_nav_help),
+                getString(R.string.main_nav_help_subtitle),
+                false,
+                () -> {
+                    closeDrawer();
+                    openHelp();
+                }
+        ));
+        panel.addView(createDrawerItem(
+                R.drawable.ic_info,
                 getString(R.string.main_nav_about),
                 "",
                 false,
                 () -> {
                     closeDrawer();
                     showAboutDialog();
+                }
+        ));
+        panel.addView(createDrawerItem(
+                R.drawable.ic_edit,
+                getString(R.string.main_nav_feedback),
+                getString(R.string.main_nav_feedback_subtitle),
+                false,
+                () -> {
+                    closeDrawer();
+                    openFeedback();
                 }
         ));
 
@@ -1940,6 +1960,14 @@ public final class MainActivity extends AppCompatActivity {
 
     private void openSettings() {
         startActivity(new Intent(this, SettingsActivity.class));
+    }
+
+    private void openHelp() {
+        startActivity(new Intent(this, HelpActivity.class));
+    }
+
+    private void openFeedback() {
+        startActivity(new Intent(this, FeedbackActivity.class));
     }
 
     @SuppressWarnings("deprecation")

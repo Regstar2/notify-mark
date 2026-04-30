@@ -1,0 +1,53 @@
+<resources>
+    <string name="main_nav_help">Помощь</string>
+    <string name="main_nav_help_subtitle">Синтаксис, жесты и частые вопросы</string>
+    <string name="main_nav_feedback">Обратная связь</string>
+    <string name="main_nav_feedback_subtitle">Сообщить об ошибке или идее</string>
+
+    <string name="help_title">Помощь</string>
+    <string name="help_back">Назад</string>
+    <string name="help_intro">Краткая справка по работе с задачами, синтаксису markdown и поведению уведомлений.</string>
+    <string name="help_section_tasks_title">Как устроены задачи</string>
+    <string name="help_section_tasks_summary">Источник данных и основные поля</string>
+    <string name="help_section_tasks_body">NotifyMark читает задачи из выбранных markdown-файлов и папок. У задачи могут быть дата и время, повтор, теги, приоритет и группа. Изменения сохраняются обратно в markdown через текущий источник.</string>
+    <string name="help_section_markdown_title">Синтаксис markdown</string>
+    <string name="help_section_markdown_summary">Ключевые токены и примеры</string>
+    <string name="help_markdown_explainer">Основные параметры задачи указываются прямо в строке. Используйте понятные маркеры и проверяйте формат даты/времени.</string>
+    <string name="help_markdown_tokens">@due(...) — дата и время\n@repeat(...) — обычный интервал повтора\n@repeatUntilDone(...) — повтор до выполнения\n@tag(...) — тег\n@priority(...) — приоритет\n@group(...) — группа</string>
+    <string name="help_example_due">- [ ] Купить лекарство @due(2026-04-23 18:00)</string>
+    <string name="help_example_repeat">- [ ] Напомнить ещё раз @due(2026-04-23 18:00) @repeat(15m)</string>
+    <string name="help_example_until_done">- [ ] Задача до выполнения @due(2026-04-23 18:00) @repeatUntilDone(10m)</string>
+    <string name="help_section_statuses_title">Статусы задач</string>
+    <string name="help_section_statuses_summary">Как читать состояние карточек</string>
+    <string name="help_section_statuses_body">Ожидает — активная задача до дедлайна.\nВыполнена — отмечена как сделанная.\nПропущена — вручную пропущена.\nПросрочена — время напоминания прошло, задача ещё активна.</string>
+    <string name="help_section_actions_title">Жесты и быстрые действия</string>
+    <string name="help_section_actions_summary">Основные действия на экране задач</string>
+    <string name="help_section_actions_body">Tap по карточке — открыть редактирование.\nTap по кружку статуса — выполнить/снять выполнение.\nSwipe вправо — пропустить.\nSwipe влево — удалить.\nLong press — режим множественного выбора.</string>
+    <string name="help_section_subtasks_title">Подзадачи</string>
+    <string name="help_section_subtasks_summary">Вложенная структура задач</string>
+    <string name="help_section_subtasks_body">Подзадачи можно размещать под основной задачей. Родительская карточка умеет раскрывать и скрывать вложенный список. Для подзадач доступны те же базовые действия, что и для обычных задач.</string>
+    <string name="help_section_calendar_title">Календарь</string>
+    <string name="help_section_calendar_summary">Просмотр задач по времени</string>
+    <string name="help_section_calendar_body">Календарь показывает задачи по датам и помогает быстро перейти к нужному периоду. Можно переключать режимы просмотра и смотреть список задач на выбранный день.</string>
+    <string name="help_section_faq_title">Частые проблемы</string>
+    <string name="help_section_faq_summary">Что проверить в первую очередь</string>
+    <string name="help_section_faq_body">Задача не появилась: проверьте формат markdown и выбранный источник.\nУведомление не пришло: убедитесь, что выданы разрешения на уведомления и точные alarm.\nФайл не читается: проверьте доступ к папке/файлу и состояние SAF.\nЗадача просрочена: это означает, что дедлайн прошёл, но задача не завершена.</string>
+
+    <string name="feedback_title">Обратная связь</string>
+    <string name="feedback_back">Назад</string>
+    <string name="feedback_intro">Если вы нашли ошибку, хотите предложить улучшение или сообщить о проблеме, здесь можно выбрать удобный способ связи. Сейчас доступен временный email, а GitHub Issues будут подключены позже.</string>
+    <string name="feedback_email_title">Написать на email</string>
+    <string name="feedback_email_subtitle">Временный канал обратной связи</string>
+    <string name="feedback_github_issues_title">Открыть GitHub Issues</string>
+    <string name="feedback_github_issues_subtitle">Будет доступно после открытия репозитория</string>
+    <string name="feedback_bug_title">Сообщить об ошибке</string>
+    <string name="feedback_bug_subtitle">Через GitHub Issues позже</string>
+    <string name="feedback_feature_title">Предложить идею</string>
+    <string name="feedback_feature_subtitle">Через GitHub Issues позже</string>
+    <string name="feedback_channel_unavailable">Скоро будет доступно</string>
+    <string name="feedback_github_not_ready">GitHub Issues будут доступны после открытия репозитория</string>
+    <string name="feedback_open_link_failed">Не удалось открыть ссылку</string>
+    <string name="feedback_no_email_app">Не найдено приложение для отправки email</string>
+    <string name="feedback_email_subject">ObsidianNotification: обратная связь</string>
+    <string name="feedback_email_body_template">Здравствуйте.\n\n## Тип обращения\nОшибка / Идея / Вопрос\n\n## Описание\n\n\n## Шаги для воспроизведения, если это ошибка\n1.\n2.\n3.\n\n## Дополнительная информация\n- Версия приложения:\n- Android:\n- Устройство:</string>
+</resources>

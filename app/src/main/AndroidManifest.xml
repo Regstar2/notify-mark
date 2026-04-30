@@ -48,6 +48,12 @@
             android:name=".ui.SourceManagementActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.HelpActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.FeedbackActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.OnboardingActivity"
             android:exported="false" />
 
