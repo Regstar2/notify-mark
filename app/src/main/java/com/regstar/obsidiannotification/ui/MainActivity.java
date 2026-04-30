@@ -132,6 +132,8 @@ public final class MainActivity extends AppCompatActivity {
     private View filterSheetPanel;
     private LinearLayout filterSheetOptions;
     private TextView filterSheetTitleText;
+    private float pullRefreshStartY = Float.NaN;
+    private boolean pullRefreshTriggered;
     private List<ObsidianTask> latestTasks = new ArrayList<>();
     private StatisticsReport latestStatisticsReport;
     private StatisticsFilters statisticsFilters = StatisticsFilters.defaults();
@@ -540,6 +542,7 @@ public final class MainActivity extends AppCompatActivity {
         sourceErrorText = null;
         sourceStatsRow = null;
         groupFilterRow = null;
+        groupFilterContainerView = null;
         taskSectionTitleText = null;
         taskList = null;
         topAppBar = null;
@@ -581,6 +584,9 @@ public final class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+        if (selectedSection == SECTION_TASKS || selectedSection == SECTION_CALENDAR) {
+            attachPullDownRefreshGesture(screenScroll);
+        }
 
         FrameLayout frame = new FrameLayout(this);
         frame.setBackgroundColor(getColor(R.color.background));
@@ -776,6 +782,28 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void addCalendarScreenContent(LinearLayout root) {
+        LinearLayout groupFilterContainer = new LinearLayout(this);
+        groupFilterContainer.setOrientation(LinearLayout.HORIZONTAL);
+        groupFilterContainer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        groupFilterContainerView = groupFilterContainer;
+
+        HorizontalScrollView groupScroll = new HorizontalScrollView(this);
+        groupScroll.setHorizontalScrollBarEnabled(false);
+
+        groupFilterRow = new LinearLayout(this);
+        groupFilterRow.setOrientation(LinearLayout.HORIZONTAL);
+        groupScroll.addView(groupFilterRow, new HorizontalScrollView.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        groupFilterContainer.addView(groupScroll, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+        root.addView(groupFilterContainer, fullWidthWithBottomMargin());
+        updateGroupFilterRow(new ArrayList<>());
+
         taskList = new LinearLayout(this);
         taskList.setOrientation(LinearLayout.VERTICAL);
         taskList.setPadding(0, 0, 0, 0);
@@ -1054,7 +1082,6 @@ public final class MainActivity extends AppCompatActivity {
         panel.addView(createDrawerItem(
                 R.drawable.ic_task_list,
                 getString(R.string.main_tasks_title),
-                "",
                 selectedSection == SECTION_TASKS,
                 () -> {
                     closeDrawer();
@@ -1068,7 +1095,6 @@ public final class MainActivity extends AppCompatActivity {
         panel.addView(createDrawerItem(
                 R.drawable.ic_calendar,
                 getString(R.string.main_calendar_title),
-                "",
                 selectedSection == SECTION_CALENDAR,
                 () -> {
                     closeDrawer();
@@ -1082,7 +1108,6 @@ public final class MainActivity extends AppCompatActivity {
         panel.addView(createDrawerItem(
                 R.drawable.ic_stats,
                 getString(R.string.stats_title),
-                getString(R.string.stats_nav_subtitle),
                 selectedSection == SECTION_STATS,
                 () -> {
                     closeDrawer();
@@ -1096,7 +1121,6 @@ public final class MainActivity extends AppCompatActivity {
         panel.addView(createDrawerItem(
                 R.drawable.ic_file,
                 getString(R.string.main_nav_sources),
-                getString(R.string.main_nav_sources_subtitle),
                 false,
                 () -> {
                     closeDrawer();
@@ -1106,7 +1130,6 @@ public final class MainActivity extends AppCompatActivity {
         panel.addView(createDrawerItem(
                 R.drawable.ic_settings,
                 getString(R.string.main_nav_settings),
-                getString(R.string.main_nav_settings_subtitle),
                 false,
                 () -> {
                     closeDrawer();
@@ -1114,9 +1137,8 @@ public final class MainActivity extends AppCompatActivity {
                 }
         ));
         panel.addView(createDrawerItem(
-                R.drawable.ic_info,
+                R.drawable.ic_help,
                 getString(R.string.main_nav_help),
-                getString(R.string.main_nav_help_subtitle),
                 false,
                 () -> {
                     closeDrawer();
@@ -1126,7 +1148,6 @@ public final class MainActivity extends AppCompatActivity {
         panel.addView(createDrawerItem(
                 R.drawable.ic_info,
                 getString(R.string.main_nav_about),
-                "",
                 false,
                 () -> {
                     closeDrawer();
@@ -1136,7 +1157,6 @@ public final class MainActivity extends AppCompatActivity {
         panel.addView(createDrawerItem(
                 R.drawable.ic_edit,
                 getString(R.string.main_nav_feedback),
-                getString(R.string.main_nav_feedback_subtitle),
                 false,
                 () -> {
                     closeDrawer();
@@ -1207,7 +1227,6 @@ public final class MainActivity extends AppCompatActivity {
     private LinearLayout createDrawerItem(
             int iconRes,
             String title,
-            String subtitle,
             boolean selected,
             Runnable action
     ) {
@@ -1235,12 +1254,6 @@ public final class MainActivity extends AppCompatActivity {
                 selected ? R.color.chip_selected_text : R.color.text_primary,
                 selected);
         textColumn.addView(titleView, fullWidth());
-        if (subtitle != null && !subtitle.trim().isEmpty()) {
-            TextView subtitleView = createText(subtitle, 12, R.color.text_secondary, false);
-            subtitleView.setSingleLine(true);
-            subtitleView.setEllipsize(TextUtils.TruncateAt.END);
-            textColumn.addView(subtitleView, fullWidthWithTopMargin(dp(2)));
-        }
 
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
                 0,
@@ -1252,7 +1265,7 @@ public final class MainActivity extends AppCompatActivity {
 
         LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                subtitle == null || subtitle.trim().isEmpty() ? dp(50) : ViewGroup.LayoutParams.WRAP_CONTENT
+                dp(50)
         );
         rowParams.setMargins(0, dp(2), 0, dp(4));
         row.setLayoutParams(rowParams);
@@ -1942,6 +1955,40 @@ public final class MainActivity extends AppCompatActivity {
         showSnackbar(getString(R.string.main_source_updated), null, null);
     }
 
+    private void attachPullDownRefreshGesture(ScrollView screenScroll) {
+        screenScroll.setOnTouchListener((view, event) -> {
+            if (event == null) {
+                return false;
+            }
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    pullRefreshStartY = event.getRawY();
+                    pullRefreshTriggered = false;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (pullRefreshTriggered || ((ScrollView) view).getScrollY() > 0) {
+                        break;
+                    }
+                    if (!Float.isNaN(pullRefreshStartY)) {
+                        float deltaY = event.getRawY() - pullRefreshStartY;
+                        if (deltaY >= dp(120)) {
+                            pullRefreshTriggered = true;
+                            refreshFromTopBar();
+                        }
+                    }
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    pullRefreshStartY = Float.NaN;
+                    pullRefreshTriggered = false;
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        });
+    }
+
     @SuppressWarnings("deprecation")
     private void openNotePicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -2426,9 +2473,11 @@ public final class MainActivity extends AppCompatActivity {
         taskList.removeAllViews();
         showTaskSourceNames = hasMultipleSources(tasks);
 
-        List<ObsidianTask> visibleTasks = calendarMode == CALENDAR_MODE_YEAR
+        List<ObsidianTask> groupingCandidates = calendarMode == CALENDAR_MODE_YEAR
                 ? filterCalendarContextTasks(tasks)
                 : filterVisibleTasks(tasks);
+        updateGroupFilterRow(groupingCandidates);
+        List<ObsidianTask> visibleTasks = filterTasksBySelectedGroup(groupingCandidates);
         Map<LocalDate, List<ObsidianTask>> tasksByDate = tasksByDate(visibleTasks);
 
         taskList.addView(createCalendarModeToggle(), fullWidthWithBottomMargin());
