@@ -16,6 +16,14 @@ Owns:
 - filter sheet
 - source summary card
 
+There is no pull-to-refresh on tasks or calendar; reload is via the toolbar control. Task cards with subtasks: swipe down on the parent row to expand, swipe up on the parent row or on any subtask row to collapse the list (subtasks have no expand/collapse of their own).
+
+In multi-select mode, extending the selection by dragging runs after scroll handling with higher vertical thresholds and is disabled for the rest of that gesture once the nested list actually scrolls, so scrolling stays the default. Task rows also stop requesting parent touch disallow on gesture start while selecting, so `NestedScrollView` can intercept the same strokes for scrolling.
+
+While dragging the selection range near the visible top or bottom of the scrolled content, the list auto-scrolls in that direction so you can extend the selection without lifting your finger.
+
+A short horizontal drag or flick that **starts on the reminder/time strip** on a card (clock line on tasks, compact time pill on calendar day rows) switches main sections with softer thresholds than a global edge swipe — flings from that zone use lower velocity and distance requirements; slow drags that move far enough horizontally also count.
+
 Can open:
 - `SettingsActivity`
 - `SourceManagementActivity`

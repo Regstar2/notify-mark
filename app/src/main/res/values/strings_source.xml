@@ -3,7 +3,7 @@
     <string name="storage_external_label">Внешние markdown-файлы</string>
     <string name="storage_internal_description_long">Локальные markdown-файлы внутри приложения. Не требует выбора внешней папки.</string>
     <string name="storage_internal_description_short">Локальные markdown-файлы внутри приложения</string>
-    <string name="storage_external_description_long">Файлы и папки через Android picker. Подходит для Obsidian, Syncthing и обычных markdown-файлов.</string>
+    <string name="storage_external_description_long">Файлы и папки через Android picker. Подходит для Syncthing, других синхронизаторов и обычных markdown-файлов.</string>
     <string name="storage_switch_internal_warning">Переключение на встроенное хранилище не переносит задачи автоматически. Внешние markdown-файлы останутся без изменений.</string>
     <string name="storage_switch_external_warning">Переключение на внешние markdown-файлы не переносит встроенные задачи автоматически. Если перенос нужен, markdown-файлы пока нужно скопировать вручную.</string>
     <string name="source_active_storage">Активное хранилище</string>

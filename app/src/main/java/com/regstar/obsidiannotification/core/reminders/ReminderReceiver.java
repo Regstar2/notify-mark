@@ -199,8 +199,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
         if (taskKey != null && !taskKey.trim().isEmpty()) {
             builder.addAction(
-                    R.drawable.ic_check,
-                    "✓",
+                    R.drawable.ic_done_notification,
+                    "\u2713",
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_MARK_DONE,

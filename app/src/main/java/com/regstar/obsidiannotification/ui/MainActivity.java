@@ -16,6 +16,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -26,22 +27,25 @@ import android.os.Looper;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.MotionEvent;
+import android.view.GestureDetector;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
+import android.widget.ScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-
+import androidx.core.view.GestureDetectorCompat;
+import androidx.core.widget.NestedScrollView;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.io.IOException;
@@ -121,6 +125,8 @@ public final class MainActivity extends AppCompatActivity {
     private Button notificationPermissionButton;
     private Button exactAlarmPermissionButton;
     private LinearLayout taskList;
+    /** Nested scroll host for calendar/statistics/tasks bodies; range-select needs its scroll offset. */
+    private NestedScrollView mainSectionNestedScrollView;
     private FrameLayout drawerLayer;
     private View drawerScrim;
     private View drawerPanel;
@@ -132,8 +138,59 @@ public final class MainActivity extends AppCompatActivity {
     private View filterSheetPanel;
     private LinearLayout filterSheetOptions;
     private TextView filterSheetTitleText;
-    private float pullRefreshStartY = Float.NaN;
-    private boolean pullRefreshTriggered;
+    /** Hit region for swipe prev/next calendar period only (excluding day task list). */
+    private final Rect calendarPeriodSwipeRect = new Rect();
+    private View calendarModeToggleRow;
+    /** Display order of root tasks on the task list (for multi-select range). */
+    private final List<String> displayOrderTaskKeys = new ArrayList<>();
+    private String selectionRangeAnchorKey;
+    private float rangeSelectDownY = Float.NaN;
+    private float rangeSelectDownX = Float.NaN;
+    private boolean rangeSelectDragging;
+    /** True when the current gesture's ACTION_DOWN landed on the scrollable task column. */
+    private boolean rangeSelectDownInTaskListColumn;
+    /** If the list scroll position moved during this gesture, do not arm range-drag (scroll wins). */
+    private boolean rangeSelectSuppressedByScroll;
+    private int rangeSelectScrollYBaseline;
+    private String lastRangeHitTaskKey;
+    private float rangeSelectLastPointerRawY = Float.NaN;
+    private final Runnable rangeEdgeAutoScrollTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!rangeSelectDragging || Float.isNaN(rangeSelectLastPointerRawY)) {
+                return;
+            }
+            NestedScrollView nsv = mainSectionNestedScrollView;
+            if (nsv == null) {
+                return;
+            }
+            Rect vis = new Rect();
+            if (!nsv.getGlobalVisibleRect(vis)) {
+                return;
+            }
+            int band = dp(100);
+            float ry = rangeSelectLastPointerRawY;
+            int dir = 0;
+            if (ry <= vis.top + band) {
+                dir = -1;
+            } else if (ry >= vis.bottom - band) {
+                dir = 1;
+            }
+            if (dir == 0) {
+                return;
+            }
+            nsv.scrollBy(0, dir * dp(20));
+            applyVerticalRangeSelectionAtRawY(ry);
+            rangeEdgeAutoScrollHandler.postDelayed(this, 42);
+        }
+    };
+    /** Next-reminder/time zone: weaker horizontal thresholds for switching main tabs via scroll/fling. */
+    private boolean reminderQuickTabGestureActive;
+    private float reminderQuickTabStartRawX;
+    private float reminderQuickTabStartRawY;
+    /** True after switching tabs once in the current DOWN–UP gesture (prevents duplicate navigation). */
+    private boolean reminderQuickTabConsumed;
+    private GestureDetectorCompat mainHorizontalFlingDetector;
     private List<ObsidianTask> latestTasks = new ArrayList<>();
     private StatisticsReport latestStatisticsReport;
     private StatisticsFilters statisticsFilters = StatisticsFilters.defaults();
@@ -151,6 +208,7 @@ public final class MainActivity extends AppCompatActivity {
     private boolean showTaskSourceNames;
     private boolean renderedShowSourceOnMain;
     private final Handler noteRefreshHandler = new Handler(Looper.getMainLooper());
+    private final Handler rangeEdgeAutoScrollHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService snapshotExecutor = Executors.newSingleThreadExecutor();
     private final Object snapshotLoadLock = new Object();
     private final AtomicInteger snapshotRequestId = new AtomicInteger(0);
@@ -213,6 +271,19 @@ public final class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleLaunchIntent(intent);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (!drawerOpen && !filterSheetOpen && event != null) {
+            mainFlingGesture().onTouchEvent(event);
+        }
+        boolean dispatched = super.dispatchTouchEvent(event);
+        // Range selection runs after descendants so NestedScrollView scrollY reflects this motion event.
+        if (taskList != null && event != null) {
+            handleSelectionRangeMotion(event);
+        }
+        return dispatched;
     }
 
     @Override
@@ -554,6 +625,7 @@ public final class MainActivity extends AppCompatActivity {
         groupFilterContainerView = null;
         taskSectionTitleText = null;
         taskList = null;
+        mainSectionNestedScrollView = null;
         topAppBar = null;
         addFabButton = null;
         nextReminderTimeText = null;
@@ -586,16 +658,14 @@ public final class MainActivity extends AppCompatActivity {
             addTaskScreenContent(root);
         }
 
-        ScrollView screenScroll = new ScrollView(this);
+        NestedScrollView screenScroll = new NestedScrollView(this);
+        mainSectionNestedScrollView = screenScroll;
         screenScroll.setFillViewport(true);
         screenScroll.setClipToPadding(false);
-        screenScroll.addView(root, new ScrollView.LayoutParams(
+        screenScroll.addView(root, new NestedScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
-        if (selectedSection == SECTION_TASKS || selectedSection == SECTION_CALENDAR) {
-            attachPullDownRefreshGesture(screenScroll);
-        }
 
         FrameLayout frame = new FrameLayout(this);
         frame.setBackgroundColor(getColor(R.color.background));
@@ -993,7 +1063,7 @@ public final class MainActivity extends AppCompatActivity {
     private void applyContentInsets(
             FrameLayout appRoot,
             LinearLayout contentRoot,
-            ScrollView screenScroll,
+            View scrollingSurface,
             LinearLayout bottomOverlay
     ) {
         final int horizontalPadding = dp(16);
@@ -1009,9 +1079,11 @@ public final class MainActivity extends AppCompatActivity {
                     horizontalPadding,
                     topPadding,
                     horizontalPadding,
-                    bottomPadding + overlayHeight + bottomInset
+                    bottomPadding + overlayHeight + bottomInset + dp(10)
             );
-            screenScroll.setClipToPadding(false);
+            if (scrollingSurface instanceof ViewGroup) {
+                ((ViewGroup) scrollingSurface).setClipToPadding(false);
+            }
             bottomOverlay.setPadding(0, 0, 0, bottomInset);
         };
 
@@ -1956,38 +2028,390 @@ public final class MainActivity extends AppCompatActivity {
         showSnackbar(getString(R.string.main_source_updated), null, null);
     }
 
-    private void attachPullDownRefreshGesture(ScrollView screenScroll) {
-        screenScroll.setOnTouchListener((view, event) -> {
-            if (event == null) {
+    /** Stops NestedScrollView from stealing vertical gestures on nested rows (e.g. subtasks). */
+    private void propagateAncestorDisallowIntercept(View from, boolean disallow) {
+        if (from == null) {
+            return;
+        }
+        for (ViewParent p = from.getParent(); p != null; p = p.getParent()) {
+            p.requestDisallowInterceptTouchEvent(disallow);
+            if (p instanceof NestedScrollView) {
+                break;
+            }
+        }
+    }
+
+    private GestureDetectorCompat mainFlingGesture() {
+        if (mainHorizontalFlingDetector == null) {
+            mainHorizontalFlingDetector = new GestureDetectorCompat(
+                    this,
+                    new GestureDetector.SimpleOnGestureListener() {
+                        @Override
+                        public boolean onDown(MotionEvent e) {
+                            reminderQuickTabConsumed = false;
+                            reminderQuickTabGestureActive = !drawerOpen && !filterSheetOpen && !isSelectionMode()
+                                    && touchesReminderQuickSwipeZone(e);
+                            reminderQuickTabStartRawX = e.getRawX();
+                            reminderQuickTabStartRawY = e.getRawY();
+                            return true;
+                        }
+
+                        @Override
+                        public boolean onScroll(
+                                MotionEvent e1,
+                                MotionEvent e2,
+                                float distanceX,
+                                float distanceY
+                        ) {
+                            if (reminderQuickTabConsumed || !reminderQuickTabGestureActive) {
+                                return false;
+                            }
+                            if (drawerOpen || filterSheetOpen || isSelectionMode()) {
+                                return false;
+                            }
+                            if (Math.abs(distanceY) > Math.abs(distanceX) * 1.25f) {
+                                reminderQuickTabGestureActive = false;
+                                return false;
+                            }
+                            if (e2 == null) {
+                                return false;
+                            }
+                            float span = e2.getRawX() - reminderQuickTabStartRawX;
+                            if (Math.abs(span) < dp(38)) {
+                                return false;
+                            }
+                            if (applyMainOrCalendarHorizontalSwipe(span < 0f)) {
+                                reminderQuickTabConsumed = true;
+                            }
+                            return false;
+                        }
+
+                        @Override
+                        public boolean onFling(
+                                MotionEvent e1,
+                                MotionEvent e2,
+                                float velocityX,
+                                float velocityY
+                        ) {
+                            return maybeHandleHorizontalFlingNavigation(e1, e2, velocityX, velocityY);
+                        }
+                    });
+        }
+        return mainHorizontalFlingDetector;
+    }
+
+    /** @return true when a calendar or tab transition was invoked */
+    private boolean applyMainOrCalendarHorizontalSwipe(boolean fingerMovedLeft) {
+        if (selectedSection == SECTION_CALENDAR) {
+            if (touchesCalendarSwipeExclusionRaw(reminderQuickTabStartRawX, reminderQuickTabStartRawY)) {
                 return false;
             }
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    pullRefreshStartY = event.getRawY();
-                    pullRefreshTriggered = false;
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    if (pullRefreshTriggered || ((ScrollView) view).getScrollY() > 0) {
-                        break;
-                    }
-                    if (!Float.isNaN(pullRefreshStartY)) {
-                        float deltaY = event.getRawY() - pullRefreshStartY;
-                        if (deltaY >= dp(120)) {
-                            pullRefreshTriggered = true;
-                            refreshFromTopBar();
-                        }
-                    }
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    pullRefreshStartY = Float.NaN;
-                    pullRefreshTriggered = false;
-                    break;
-                default:
-                    break;
+            if (!calendarPeriodSwipeRect.isEmpty()
+                    && calendarPeriodSwipeRect.contains(
+                            (int) reminderQuickTabStartRawX,
+                            (int) reminderQuickTabStartRawY)) {
+                moveCalendarPeriod(fingerMovedLeft ? 1 : -1);
+                return true;
             }
+        }
+        navigateMainSectionsHorizontal(fingerMovedLeft);
+        return true;
+    }
+
+    /** @return unused; GestureDetector ignores return here for our dispatch pattern */
+    private boolean maybeHandleHorizontalFlingNavigation(
+            MotionEvent e1,
+            MotionEvent e2,
+            float velocityX,
+            float velocityY
+    ) {
+        if (e1 == null || e2 == null) {
             return false;
-        });
+        }
+        if (drawerOpen || filterSheetOpen || isSelectionMode() || reminderQuickTabConsumed) {
+            return false;
+        }
+        float dx = e2.getRawX() - e1.getRawX();
+        float dy = e2.getRawY() - e1.getRawY();
+        boolean reminderStart = touchesReminderQuickSwipeZone(e1);
+        float minVel = reminderStart ? 420f : 1100f;
+        float minDx = reminderStart ? dp(28) : dp(76);
+        float velRatio = reminderStart ? 1.08f : 1.28f;
+        if (Math.abs(velocityX) < minVel
+                || Math.abs(velocityX) < Math.abs(velocityY) * velRatio
+                || Math.abs(dx) < minDx) {
+            return false;
+        }
+        if (applyMainOrCalendarHorizontalSwipe(velocityX < 0f)) {
+            reminderQuickTabConsumed = true;
+        }
+        return false;
+    }
+
+    private boolean touchesReminderQuickSwipeZone(MotionEvent event) {
+        return event != null && taskList != null
+                && quickTabSwipeSubtreeContainsRaw(taskList, event.getRawX(), event.getRawY());
+    }
+
+    private static boolean quickTabSwipeSubtreeContainsRaw(View node, float rawX, float rawY) {
+        if (node.getVisibility() != View.VISIBLE) {
+            return false;
+        }
+        Rect r = new Rect();
+        if (!node.getGlobalVisibleRect(r) || !r.contains((int) rawX, (int) rawY)) {
+            return false;
+        }
+        if (Boolean.TRUE.equals(node.getTag(R.id.tag_reminder_quick_tab_swipe))) {
+            return true;
+        }
+        if (!(node instanceof ViewGroup)) {
+            return false;
+        }
+        ViewGroup parent = (ViewGroup) node;
+        for (int i = parent.getChildCount() - 1; i >= 0; i--) {
+            if (quickTabSwipeSubtreeContainsRaw(parent.getChildAt(i), rawX, rawY)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean touchesCalendarSwipeExclusionChrome(MotionEvent event) {
+        return event != null && touchesCalendarSwipeExclusionRaw(event.getRawX(), event.getRawY());
+    }
+
+    /** Raw screen coordinates variant (reuse stored down position without a MotionEvent). */
+    private boolean touchesCalendarSwipeExclusionRaw(float rawX, float rawY) {
+        if (selectedSection != SECTION_CALENDAR) {
+            return false;
+        }
+        int x = (int) rawX;
+        int y = (int) rawY;
+        Rect r = new Rect();
+        if (topAppBar != null && topAppBar.getGlobalVisibleRect(r) && r.contains(x, y)) {
+            return true;
+        }
+        if (groupFilterContainerView != null
+                && groupFilterContainerView.getVisibility() == View.VISIBLE
+                && groupFilterContainerView.getGlobalVisibleRect(r)
+                && r.contains(x, y)) {
+            return true;
+        }
+        return calendarModeToggleRow != null
+                && calendarModeToggleRow.getGlobalVisibleRect(r)
+                && r.contains(x, y);
+    }
+
+    private void navigateMainSectionsHorizontal(boolean next) {
+        int[] tabs = new int[]{SECTION_TASKS, SECTION_CALENDAR, SECTION_STATS};
+        int index = -1;
+        for (int i = 0; i < tabs.length; i++) {
+            if (tabs[i] == selectedSection) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) {
+            return;
+        }
+        int newIndex = next ? (index + 1) % tabs.length : (index + tabs.length - 1) % tabs.length;
+        if (tabs[newIndex] == selectedSection) {
+            return;
+        }
+        selectedTaskKeys.clear();
+        selectionRangeAnchorKey = null;
+        resetRangeSelectionGestureState();
+        selectedSection = tabs[newIndex];
+        rebuildAndRenderCurrentSection();
+    }
+
+    private void resetRangeSelectionGestureState() {
+        cancelRangeEdgeAutoScroll();
+        rangeSelectDownY = Float.NaN;
+        rangeSelectDownX = Float.NaN;
+        rangeSelectDragging = false;
+        rangeSelectDownInTaskListColumn = false;
+        rangeSelectSuppressedByScroll = false;
+        rangeSelectScrollYBaseline = 0;
+        lastRangeHitTaskKey = null;
+        rangeSelectLastPointerRawY = Float.NaN;
+    }
+
+    private void cancelRangeEdgeAutoScroll() {
+        rangeEdgeAutoScrollHandler.removeCallbacks(rangeEdgeAutoScrollTick);
+    }
+
+    /**
+     * When range-dragging near the top/bottom of the scroll viewport, auto-scroll lists so selection can follow.
+     */
+    private void updateRangeEdgeAutoScrollAfterPointer() {
+        cancelRangeEdgeAutoScroll();
+        if (!rangeSelectDragging || Float.isNaN(rangeSelectLastPointerRawY) || mainSectionNestedScrollView == null) {
+            return;
+        }
+        Rect vis = new Rect();
+        if (!mainSectionNestedScrollView.getGlobalVisibleRect(vis)) {
+            return;
+        }
+        int band = dp(100);
+        float ry = rangeSelectLastPointerRawY;
+        if (ry <= vis.top + band || ry >= vis.bottom - band) {
+            rangeEdgeAutoScrollHandler.post(rangeEdgeAutoScrollTick);
+        }
+    }
+
+    private static boolean rawPointOnScreenInsideView(View v, float rawX, float rawY) {
+        if (v == null || v.getVisibility() != View.VISIBLE) {
+            return false;
+        }
+        int[] loc = new int[2];
+        v.getLocationOnScreen(loc);
+        int w = v.getWidth();
+        int h = v.getHeight();
+        if (w <= 0 || h <= 0) {
+            return false;
+        }
+        return rawX >= loc[0] && rawY >= loc[1] && rawX < loc[0] + w && rawY < loc[1] + h;
+    }
+
+    private void handleSelectionRangeMotion(MotionEvent ev) {
+        if (ev == null || selectedSection != SECTION_TASKS || !isSelectionMode() || drawerOpen || filterSheetOpen) {
+            if (ev != null && (ev.getActionMasked() == MotionEvent.ACTION_UP
+                    || ev.getActionMasked() == MotionEvent.ACTION_CANCEL)) {
+                resetRangeSelectionGestureState();
+                propagateAncestorDisallowIntercept(taskList, false);
+            }
+            return;
+        }
+        if (taskList == null || displayOrderTaskKeys.isEmpty() || selectionRangeAnchorKey == null) {
+            return;
+        }
+
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                rangeSelectDownInTaskListColumn = rawPointOnScreenInsideView(
+                        taskList, ev.getRawX(), ev.getRawY());
+                if (!rangeSelectDownInTaskListColumn) {
+                    rangeSelectDownY = Float.NaN;
+                    rangeSelectDownX = Float.NaN;
+                    rangeSelectDragging = false;
+                    rangeSelectSuppressedByScroll = false;
+                    lastRangeHitTaskKey = null;
+                    propagateAncestorDisallowIntercept(taskList, false);
+                    break;
+                }
+                rangeSelectDownY = ev.getRawY();
+                rangeSelectDownX = ev.getRawX();
+                rangeSelectDragging = false;
+                rangeSelectSuppressedByScroll = false;
+                rangeSelectScrollYBaseline = mainSectionNestedScrollView != null
+                        ? mainSectionNestedScrollView.getScrollY()
+                        : 0;
+                lastRangeHitTaskKey = null;
+                propagateAncestorDisallowIntercept(taskList, false);
+                break;
+            case MotionEvent.ACTION_MOVE: {
+                if (!rangeSelectDownInTaskListColumn
+                        || Float.isNaN(rangeSelectDownY)
+                        || Float.isNaN(rangeSelectDownX)) {
+                    break;
+                }
+                int slop = ViewConfiguration.get(this).getScaledTouchSlop();
+                if (!rangeSelectDragging && mainSectionNestedScrollView != null) {
+                    int dScroll = Math.abs(
+                            mainSectionNestedScrollView.getScrollY() - rangeSelectScrollYBaseline);
+                    if (dScroll >= Math.max(dp(10), slop)) {
+                        rangeSelectSuppressedByScroll = true;
+                    }
+                }
+                if (rangeSelectSuppressedByScroll && !rangeSelectDragging) {
+                    break;
+                }
+                float ddy = Math.abs(ev.getRawY() - rangeSelectDownY);
+                float ddx = Math.abs(ev.getRawX() - rangeSelectDownX);
+                // Stricter than before: must look like an intentional range stroke, not a scroll.
+                float minVerticalForRangePx = Math.max(slop * 4.5f, dp(56));
+                if (!rangeSelectDragging
+                        && !rangeSelectSuppressedByScroll
+                        && ddy >= minVerticalForRangePx
+                        && ddy >= ddx * 2.1f) {
+                    rangeSelectDragging = true;
+                    lastRangeHitTaskKey = null;
+                    propagateAncestorDisallowIntercept(taskList, true);
+                }
+                if (rangeSelectDragging) {
+                    rangeSelectLastPointerRawY = ev.getRawY();
+                    applyVerticalRangeSelectionAtRawY(ev.getRawY());
+                    updateRangeEdgeAutoScrollAfterPointer();
+                }
+                break;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                resetRangeSelectionGestureState();
+                propagateAncestorDisallowIntercept(taskList, false);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void applyVerticalRangeSelectionAtRawY(float rawY) {
+        String hit = findDisplayedTaskKeyAtRawY(rawY);
+        if (hit == null || hit.equals(lastRangeHitTaskKey)) {
+            return;
+        }
+        lastRangeHitTaskKey = hit;
+        int ia = displayOrderTaskKeys.indexOf(selectionRangeAnchorKey);
+        int ib = displayOrderTaskKeys.indexOf(hit);
+        if (ia < 0 || ib < 0) {
+            return;
+        }
+        if (ia > ib) {
+            int swap = ia;
+            ia = ib;
+            ib = swap;
+        }
+        selectedTaskKeys.clear();
+        for (int i = ia; i <= ib; i++) {
+            selectedTaskKeys.add(displayOrderTaskKeys.get(i));
+        }
+        refreshTopAppBar();
+        updateFabVisibility();
+        renderTasks(latestTasks);
+    }
+
+    private String findDisplayedTaskKeyAtRawY(float rawY) {
+        LinearLayout list = taskList;
+        if (list == null) {
+            return null;
+        }
+        int count = list.getChildCount();
+        String inBand = null;
+        double nearest = Double.MAX_VALUE;
+        String nearestKey = null;
+        for (int i = 0; i < count; i++) {
+            View child = list.getChildAt(i);
+            Object tag = child.getTag(R.id.tag_task_row_key);
+            if (!(tag instanceof String candidate) || candidate.isEmpty()) {
+                continue;
+            }
+            int[] loc = new int[2];
+            child.getLocationOnScreen(loc);
+            int top = loc[1];
+            int bottom = loc[1] + child.getHeight();
+            if (rawY >= top && rawY <= bottom) {
+                inBand = candidate;
+                break;
+            }
+            float mid = (top + bottom) / 2f;
+            double dist = Math.abs(rawY - mid);
+            if (dist < nearest) {
+                nearest = dist;
+                nearestKey = candidate;
+            }
+        }
+        return inBand != null ? inBand : nearestKey;
     }
 
     @SuppressWarnings("deprecation")
@@ -2359,6 +2783,8 @@ public final class MainActivity extends AppCompatActivity {
 
     private void renderTasks(List<ObsidianTask> tasks) {
         latestTasks = new ArrayList<>(tasks);
+        calendarPeriodSwipeRect.setEmpty();
+        calendarModeToggleRow = null;
         pruneSelectedTaskKeys(tasks);
         taskList.removeAllViews();
         List<ObsidianTask> groupingCandidates = tasksForGroupRow(tasks);
@@ -2369,9 +2795,14 @@ public final class MainActivity extends AppCompatActivity {
         List<ObsidianTask> displayTasks = rootTasksForDisplay(tasks, groupedVisibleTasks);
         displayTasks.sort(this::compareTasksForDisplay);
         updateTaskSectionHeader(displayTasks.size());
+        displayOrderTaskKeys.clear();
         if (displayTasks.isEmpty()) {
             renderEmptyState(getString(R.string.main_empty_due_filtered));
+            updateFabVisibility();
             return;
+        }
+        for (ObsidianTask t : displayTasks) {
+            displayOrderTaskKeys.add(t.getTaskKey());
         }
 
         String currentSource = null;
@@ -2384,6 +2815,7 @@ public final class MainActivity extends AppCompatActivity {
             }
             taskList.addView(createTaskView(task));
         }
+        updateFabVisibility();
     }
 
     private boolean isSelectionMode() {
@@ -2417,6 +2849,7 @@ public final class MainActivity extends AppCompatActivity {
         if (task == null) {
             return;
         }
+        selectionRangeAnchorKey = task.getTaskKey();
         selectedTaskKeys.add(task.getTaskKey());
         updateSelectionUi();
     }
@@ -2439,6 +2872,8 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void exitSelectionMode() {
+        selectionRangeAnchorKey = null;
+        resetRangeSelectionGestureState();
         if (selectedTaskKeys.isEmpty()) {
             refreshTopAppBar();
             updateFabVisibility();
@@ -2495,27 +2930,39 @@ public final class MainActivity extends AppCompatActivity {
             return;
         }
         taskList.removeAllViews();
+        calendarPeriodSwipeRect.setEmpty();
+        calendarModeToggleRow = null;
         showTaskSourceNames = hasMultipleSources(tasks);
 
-        List<ObsidianTask> groupingCandidates = calendarMode == CALENDAR_MODE_YEAR
-                ? filterCalendarContextTasks(tasks)
-                : filterVisibleTasks(tasks);
-        updateGroupFilterRow(groupingCandidates);
-        List<ObsidianTask> visibleTasks = filterTasksBySelectedGroup(groupingCandidates);
+        List<ObsidianTask> groupFilterCandidates = calendarGroupFilterSourceCandidates(tasks);
+        updateGroupFilterRow(groupFilterCandidates);
+        List<ObsidianTask> baseVisibleTasks = calendarBaseVisibleTasksBeforeGroupFilter(tasks);
+        List<ObsidianTask> visibleTasks = filterTasksBySelectedGroup(baseVisibleTasks);
         Map<LocalDate, List<ObsidianTask>> tasksByDate = tasksByDate(visibleTasks);
 
-        taskList.addView(createCalendarModeToggle(), fullWidthWithBottomMargin());
-        taskList.addView(createCalendarPeriodHeader(tasksByDate), fullWidthWithBottomMargin());
+        LinearLayout modeRow = createCalendarModeToggle();
+        calendarModeToggleRow = modeRow;
+        taskList.addView(modeRow, fullWidthWithBottomMargin());
+
+        LinearLayout periodColumn = new LinearLayout(this);
+        periodColumn.setOrientation(LinearLayout.VERTICAL);
+        periodColumn.addView(createCalendarPeriodHeader(tasksByDate), fullWidthWithBottomMargin());
         if (calendarMode == CALENDAR_MODE_YEAR) {
-            taskList.addView(createCalendarYearGrid(visibleTasks), fullWidthWithBottomMargin());
+            periodColumn.addView(createCalendarYearGrid(visibleTasks), fullWidthWithBottomMargin());
             if (periodTaskCount(tasksByDate) == 0) {
-                taskList.addView(createCalendarYearEmptyState(), fullWidthWithBottomMargin());
+                periodColumn.addView(createCalendarYearEmptyState(), fullWidthWithBottomMargin());
             }
         } else if (calendarMode == CALENDAR_MODE_WEEK) {
-            taskList.addView(createCalendarWeekGrid(tasksByDate), fullWidthWithBottomMargin());
-            taskList.addView(createSelectedDayTaskList(tasksByDate), fullWidthWithBottomMargin());
+            periodColumn.addView(createCalendarWeekGrid(tasksByDate), fullWidthWithBottomMargin());
         } else {
-            taskList.addView(createCalendarGrid(tasksByDate), fullWidthWithBottomMargin());
+            periodColumn.addView(createCalendarGrid(tasksByDate), fullWidthWithBottomMargin());
+        }
+        periodColumn.addOnLayoutChangeListener((view, left, top, right, bottom, ol, ot, obr, ob) ->
+                periodColumn.post(() ->
+                        periodColumn.getGlobalVisibleRect(calendarPeriodSwipeRect)));
+        taskList.addView(periodColumn, fullWidthWithBottomMargin());
+
+        if (calendarMode == CALENDAR_MODE_WEEK || calendarMode == CALENDAR_MODE_MONTH) {
             taskList.addView(createSelectedDayTaskList(tasksByDate), fullWidthWithBottomMargin());
         }
     }
@@ -2526,6 +2973,8 @@ public final class MainActivity extends AppCompatActivity {
             return;
         }
         taskList.removeAllViews();
+        calendarPeriodSwipeRect.setEmpty();
+        calendarModeToggleRow = null;
 
         StatisticsReport report = StatisticsRepository.buildReport(
                 this,
@@ -3576,6 +4025,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private View createCalendarTaskView(ObsidianTask task) {
         FrameLayout wrapper = new FrameLayout(this);
+        wrapper.setTag(R.id.tag_task_row_key, task.getTaskKey());
         wrapper.addView(createSwipeActionBackground(task), new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -3609,7 +4059,8 @@ public final class MainActivity extends AppCompatActivity {
                 () -> deleteTask(task),
                 () -> enterSelectionMode(task),
                 task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, true),
-                task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, false)
+                task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, false),
+                false
         ));
 
         LinearLayout row = new LinearLayout(this);
@@ -3626,6 +4077,7 @@ public final class MainActivity extends AppCompatActivity {
                 : task.getReminderAt().toLocalTime().toString();
         TextView timeView = createText(time, 13, R.color.text_secondary, true);
         timeView.setGravity(android.view.Gravity.CENTER);
+        timeView.setTag(R.id.tag_reminder_quick_tab_swipe, Boolean.TRUE);
         row.addView(timeView, new LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView title = createText(task.getTitle(), 15, R.color.text_primary, true);
@@ -3638,8 +4090,8 @@ public final class MainActivity extends AppCompatActivity {
         ));
 
         if (!task.getSubtasks().isEmpty()) {
-            TextView expandButton = createSubtaskExpandButton(task);
-            LinearLayout.LayoutParams expandParams = new LinearLayout.LayoutParams(dp(30), dp(30));
+            ImageView expandButton = createSubtaskExpandChevron(task);
+            LinearLayout.LayoutParams expandParams = new LinearLayout.LayoutParams(dp(26), dp(26));
             expandParams.setMargins(dp(8), 0, 0, 0);
             row.addView(expandButton, expandParams);
         }
@@ -3951,13 +4403,28 @@ public final class MainActivity extends AppCompatActivity {
         );
     }
 
-    private List<ObsidianTask> filterCalendarContextTasks(List<ObsidianTask> tasks) {
-        List<ObsidianTask> visibleTasks = TaskGrouping.filterCalendarContextTasks(
-                tasks,
-                shouldHidePrivateTasks(),
-                UserPreferences.getPrivateMarker(this)
-        );
-        return filterTasksBySelectedGroup(visibleTasks);
+    /**
+     * Tasks used only to populate group chips — never pre-filtered by the selected bucket,
+     * otherwise the chip row collapses to a single group while a filter is active.
+     */
+    private List<ObsidianTask> calendarGroupFilterSourceCandidates(List<ObsidianTask> tasks) {
+        if (calendarMode == CALENDAR_MODE_YEAR) {
+            return TaskGrouping.filterCalendarContextTasks(
+                    tasks,
+                    shouldHidePrivateTasks(),
+                    UserPreferences.getPrivateMarker(this));
+        }
+        return tasksForGroupRow(tasks);
+    }
+
+    private List<ObsidianTask> calendarBaseVisibleTasksBeforeGroupFilter(List<ObsidianTask> tasks) {
+        if (calendarMode == CALENDAR_MODE_YEAR) {
+            return TaskGrouping.filterCalendarContextTasks(
+                    tasks,
+                    shouldHidePrivateTasks(),
+                    UserPreferences.getPrivateMarker(this));
+        }
+        return filterVisibleTasks(tasks);
     }
 
     private int compareTasksForDisplay(ObsidianTask first, ObsidianTask second) {
@@ -4171,6 +4638,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private View createTaskView(ObsidianTask task) {
         FrameLayout wrapper = new FrameLayout(this);
+        wrapper.setTag(R.id.tag_task_row_key, task.getTaskKey());
         boolean selected = selectedTaskKeys.contains(task.getTaskKey());
 
         FrameLayout swipeBackground = createSwipeActionBackground(task);
@@ -4207,7 +4675,8 @@ public final class MainActivity extends AppCompatActivity {
                 () -> deleteTask(task),
                 () -> enterSelectionMode(task),
                 task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, true),
-                task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, false)
+                task.getSubtasks().isEmpty() ? null : () -> setTaskExpanded(task, false),
+                false
         ));
 
         LinearLayout titleRow = new LinearLayout(this);
@@ -4237,16 +4706,20 @@ public final class MainActivity extends AppCompatActivity {
         titleRow.addView(statusChip, statusParams);
 
         if (!task.getSubtasks().isEmpty()) {
-            TextView expandButton = createSubtaskExpandButton(task);
-            LinearLayout.LayoutParams expandParams = new LinearLayout.LayoutParams(dp(30), dp(30));
+            ImageView expandButton = createSubtaskExpandChevron(task);
+            LinearLayout.LayoutParams expandParams = new LinearLayout.LayoutParams(dp(26), dp(26));
             expandParams.setMargins(dp(8), 0, 0, 0);
             titleRow.addView(expandButton, expandParams);
         }
 
         item.addView(titleRow, fullWidth());
-        item.addView(createMetaLine(R.drawable.ic_clock, task.getReminderAt() == null
-                ? getString(R.string.main_not_set)
-                : DATE_TIME_FORMAT.format(task.getReminderAt())), fullWidthWithTopMargin(dp(10)));
+        item.addView(createMetaLine(
+                        R.drawable.ic_clock,
+                        task.getReminderAt() == null
+                                ? getString(R.string.main_not_set)
+                                : DATE_TIME_FORMAT.format(task.getReminderAt()),
+                        true),
+                fullWidthWithTopMargin(dp(10)));
 
         if (hasRepeatInfo(task)) {
             item.addView(createMetaLine(R.drawable.ic_repeat, formatRepeat(task)), fullWidthWithTopMargin(dp(6)));
@@ -4332,14 +4805,21 @@ public final class MainActivity extends AppCompatActivity {
         return background;
     }
 
-    private TextView createSubtaskExpandButton(ObsidianTask task) {
+    /**
+     * Single soft chevron for expanded/collapsed subtasks; fixed hit size, rotation only.
+     */
+    private ImageView createSubtaskExpandChevron(ObsidianTask task) {
         boolean expanded = expandedTaskKeys.contains(task.getTaskKey());
-        TextView button = createText(expanded ? "\u2304" : "\u203a", 22, R.color.text_secondary, true);
-        button.setGravity(android.view.Gravity.CENTER);
+        ImageView button = new ImageView(this);
+        button.setImageResource(R.drawable.ic_subtask_chevron);
+        button.setColorFilter(getColor(R.color.text_secondary));
+        button.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        button.setRotation(expanded ? 0f : -90f);
         button.setContentDescription(expanded
                 ? getString(R.string.main_subtasks_collapse)
                 : getString(R.string.main_subtasks_expand));
         button.setBackgroundColor(Color.TRANSPARENT);
+        button.setPadding(dp(2), dp(2), dp(2), dp(2));
         button.setOnClickListener(view -> toggleTaskExpanded(task));
         return button;
     }
@@ -4419,7 +4899,7 @@ public final class MainActivity extends AppCompatActivity {
         LinearLayout items = new LinearLayout(this);
         items.setOrientation(LinearLayout.VERTICAL);
         for (ObsidianTask subtask : task.getSubtasks()) {
-            items.addView(createSubtaskRow(subtask), fullWidthWithBottomMargin(dp(5)));
+            items.addView(createSubtaskRow(task, subtask), fullWidthWithBottomMargin(dp(5)));
         }
         list.addView(items, new LinearLayout.LayoutParams(
                 0,
@@ -4429,8 +4909,10 @@ public final class MainActivity extends AppCompatActivity {
         return list;
     }
 
-    private View createSubtaskRow(ObsidianTask subtask) {
+    /** @param parentTask root task owning this row; used for swipe-up to collapse nested list */
+    private View createSubtaskRow(ObsidianTask parentTask, ObsidianTask subtask) {
         FrameLayout wrapper = new FrameLayout(this);
+        wrapper.setTag(R.id.tag_task_row_key, subtask.getTaskKey());
         wrapper.addView(createSwipeActionBackground(subtask), new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -4457,7 +4939,10 @@ public final class MainActivity extends AppCompatActivity {
                     }
                 },
                 () -> deleteTask(subtask),
-                () -> enterSelectionMode(subtask)
+                () -> enterSelectionMode(subtask),
+                null,
+                () -> setTaskExpanded(parentTask, false),
+                true
         ));
 
         TextView status = createCompletionButton(subtask);
@@ -4484,9 +4969,15 @@ public final class MainActivity extends AppCompatActivity {
         textParams.setMargins(dp(10), 0, dp(8), 0);
         row.addView(texts, textParams);
 
-        TextView chevron = createText("\u203a", 18, R.color.text_secondary, true);
-        chevron.setGravity(android.view.Gravity.CENTER);
-        row.addView(chevron, new LinearLayout.LayoutParams(dp(18), dp(18)));
+        ImageView chevron = new ImageView(this);
+        chevron.setImageResource(R.drawable.ic_subtask_chevron);
+        chevron.setColorFilter(getColor(R.color.text_secondary));
+        chevron.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        chevron.setRotation(-90f);
+        chevron.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        LinearLayout.LayoutParams chp = new LinearLayout.LayoutParams(dp(22), dp(22));
+        chp.gravity = android.view.Gravity.CENTER_VERTICAL;
+        row.addView(chevron, chp);
 
         wrapper.addView(row, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -4528,7 +5019,8 @@ public final class MainActivity extends AppCompatActivity {
                 leftAction,
                 longPressAction,
                 null,
-                null
+                null,
+                false
         );
     }
 
@@ -4539,12 +5031,18 @@ public final class MainActivity extends AppCompatActivity {
             Runnable leftAction,
             Runnable longPressAction,
             Runnable swipeDownAction,
-            Runnable swipeUpAction
+            Runnable swipeUpAction,
+            boolean deferPullInterceptForThisGesture
     ) {
         int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
+        int horizontalRevealSlop = Math.max(dp(12), Math.round(touchSlop * 0.55f));
         int actionWidth = dp(132);
         int revealThreshold = dp(56);
-        int verticalThreshold = dp(24);
+        // Expand: swipe down; collapse: swipe up — keep collapse easier than expand on release.
+        int verticalExpandThreshold = dp(28);
+        int verticalCollapseThreshold = dp(14);
+        int verticalCommitUpSlop = Math.max(dp(10), Math.round(touchSlop * 0.52f));
+        int verticalCommitDownSlop = Math.max(dp(14), touchSlop);
         int longPressTimeout = ViewConfiguration.getLongPressTimeout();
 
         return new View.OnTouchListener() {
@@ -4576,6 +5074,16 @@ public final class MainActivity extends AppCompatActivity {
                     longPressed = false;
                     foreground.animate().cancel();
                     longPressHandler.postDelayed(longPressRunnable, longPressTimeout);
+                    // Tasks + multi-select must not disable NSV interception on DOWN, otherwise the list cannot scroll.
+                    boolean verticalForParentGestures =
+                            swipeDownAction != null || swipeUpAction != null;
+                    boolean blockPull =
+                            deferPullInterceptForThisGesture
+                                    || (verticalForParentGestures
+                                    && !(selectedSection == SECTION_TASKS && isSelectionMode()));
+                    if (blockPull) {
+                        propagateAncestorDisallowIntercept(foreground, true);
+                    }
                     return true;
                 }
 
@@ -4585,21 +5093,70 @@ public final class MainActivity extends AppCompatActivity {
                     if (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop) {
                         longPressHandler.removeCallbacks(longPressRunnable);
                     }
+                    if (!isSelectionMode() && !dragging) {
+                        if (swipeDownAction != null && swipeUpAction != null) {
+                            if (dy > Math.round(touchSlop * 0.45f) && dy > Math.abs(dx)) {
+                                propagateAncestorDisallowIntercept(foreground, true);
+                            } else if (dy < -Math.round(touchSlop * 0.38f)
+                                    && (-dy) > Math.abs(dx)) {
+                                propagateAncestorDisallowIntercept(foreground, true);
+                            }
+                        } else if (swipeUpAction != null && swipeDownAction == null) {
+                            if (dy < -Math.round(touchSlop * 0.38f)
+                                    && (-dy) > Math.abs(dx)) {
+                                propagateAncestorDisallowIntercept(foreground, true);
+                            }
+                        } else if (swipeDownAction != null && swipeUpAction == null) {
+                            if (dy > Math.round(touchSlop * 0.45f) && dy > Math.abs(dx)) {
+                                propagateAncestorDisallowIntercept(foreground, true);
+                            }
+                        }
+                    }
                     if (isSelectionMode()) {
                         return true;
                     }
                     if (!dragging) {
                         boolean supportsVertical = swipeDownAction != null || swipeUpAction != null;
-                        if (Math.abs(dx) > touchSlop && Math.abs(dx) > Math.abs(dy) * 1.2f) {
+                        if (Math.abs(dx) > horizontalRevealSlop && Math.abs(dx) > Math.abs(dy) * 1.12f) {
                             dragging = true;
                             horizontalDragging = true;
-                            view.getParent().requestDisallowInterceptTouchEvent(true);
+                            propagateAncestorDisallowIntercept(foreground, true);
+                        } else if (swipeDownAction != null && swipeUpAction != null) {
+                            boolean downDom = dy > 0 && dy > Math.abs(dx) * 1.06f;
+                            boolean upDom = dy < 0 && (-dy) > Math.abs(dx) * 1.06f;
+                            boolean commitDown = downDom && dy >= verticalCommitDownSlop;
+                            boolean commitUp = upDom && (-dy) >= verticalCommitUpSlop;
+                            if (commitDown || commitUp) {
+                                dragging = true;
+                                verticalDragging = true;
+                                propagateAncestorDisallowIntercept(foreground, true);
+                            } else {
+                                return true;
+                            }
+                        } else if (swipeUpAction != null && swipeDownAction == null) {
+                            boolean upDom = dy < 0 && (-dy) > Math.abs(dx) * 1.06f;
+                            if (upDom && (-dy) >= verticalCommitUpSlop) {
+                                dragging = true;
+                                verticalDragging = true;
+                                propagateAncestorDisallowIntercept(foreground, true);
+                            } else {
+                                return true;
+                            }
+                        } else if (swipeDownAction != null && swipeUpAction == null) {
+                            boolean downDom = dy > 0 && dy > Math.abs(dx) * 1.06f;
+                            if (downDom && dy >= verticalCommitDownSlop) {
+                                dragging = true;
+                                verticalDragging = true;
+                                propagateAncestorDisallowIntercept(foreground, true);
+                            } else {
+                                return true;
+                            }
                         } else if (supportsVertical
                                 && Math.abs(dy) > touchSlop
                                 && Math.abs(dy) > Math.abs(dx) * 1.05f) {
                             dragging = true;
                             verticalDragging = true;
-                            view.getParent().requestDisallowInterceptTouchEvent(true);
+                            propagateAncestorDisallowIntercept(foreground, true);
                         } else {
                             return true;
                         }
@@ -4614,6 +5171,7 @@ public final class MainActivity extends AppCompatActivity {
 
                 if (event.getAction() == MotionEvent.ACTION_CANCEL) {
                     longPressHandler.removeCallbacks(longPressRunnable);
+                    propagateAncestorDisallowIntercept(foreground, false);
                     animateSwipeTo(foreground, 0, null);
                     return true;
                 }
@@ -4623,6 +5181,7 @@ public final class MainActivity extends AppCompatActivity {
                 }
 
                 longPressHandler.removeCallbacks(longPressRunnable);
+                propagateAncestorDisallowIntercept(foreground, false);
                 if (longPressed) {
                     return true;
                 }
@@ -4640,9 +5199,9 @@ public final class MainActivity extends AppCompatActivity {
 
                 if (verticalDragging) {
                     animateSwipeTo(foreground, 0, null);
-                    if (dy >= verticalThreshold && swipeDownAction != null) {
+                    if (dy >= verticalExpandThreshold && swipeDownAction != null) {
                         swipeDownAction.run();
-                    } else if (dy <= -verticalThreshold && swipeUpAction != null) {
+                    } else if (dy <= -verticalCollapseThreshold && swipeUpAction != null) {
                         swipeUpAction.run();
                     }
                     return true;
@@ -4791,9 +5350,17 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private LinearLayout createMetaLine(int iconRes, String value) {
+        return createMetaLine(iconRes, value, false);
+    }
+
+    /** @param reminderQuickSwipe true for the reminder-time row — short horizontal gestures also change main tabs. */
+    private LinearLayout createMetaLine(int iconRes, String value, boolean reminderQuickSwipe) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        if (reminderQuickSwipe) {
+            row.setTag(R.id.tag_reminder_quick_tab_swipe, Boolean.TRUE);
+        }
         ImageView icon = new ImageView(this);
         icon.setImageResource(iconRes);
         icon.setColorFilter(getColor(R.color.text_secondary));
@@ -4910,7 +5477,10 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         selectedTaskKeys.clear();
+        selectionRangeAnchorKey = null;
+        resetRangeSelectionGestureState();
         refreshTopAppBar();
+        updateFabVisibility();
         readAndRenderNote();
         String message = getString(R.string.main_bulk_snoozed, updatedCount, taskCountWord(updatedCount));
         if (skippedCount > 0) {
@@ -4966,10 +5536,13 @@ public final class MainActivity extends AppCompatActivity {
 
     private void finishBulkOperation(NoteStore.BulkEditResult result, String successAction) {
         selectedTaskKeys.clear();
+        selectionRangeAnchorKey = null;
+        resetRangeSelectionGestureState();
         if (result.hasUpdates()) {
             NoteChangeMonitor.syncNow(this, true);
         }
         refreshTopAppBar();
+        updateFabVisibility();
         readAndRenderNote();
         showSnackbar(formatBulkResult(result, successAction), null, null);
     }
@@ -5304,6 +5877,7 @@ public final class MainActivity extends AppCompatActivity {
 
     private void renderEmptyState(String message) {
         taskList.removeAllViews();
+        displayOrderTaskKeys.clear();
 
         TextView empty = new TextView(this);
         empty.setText(message);

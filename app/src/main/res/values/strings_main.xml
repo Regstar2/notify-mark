@@ -6,11 +6,11 @@
     <string name="main_empty_retry_or_switch_source">Попробуйте открыть приложение снова или переключиться на внешний источник.</string>
     <string name="main_status_source_not_selected">Источник не выбран.</string>
     <string name="main_empty_after_source_select">Задачи появятся здесь после выбора источника.</string>
-    <string name="main_status_notification_granted_pick_markdown">Уведомления разрешены. Выберите markdown-файл с задачами Obsidian.</string>
+    <string name="main_status_notification_granted_pick_markdown">Уведомления разрешены. Выберите markdown-файл с задачами.</string>
     <string name="main_status_notification_denied">Разрешение на уведомления не выдано. Напоминания не будут показаны.</string>
     <string name="main_file_not_selected">Файл не выбран.</string>
     <string name="main_cd_settings">Настройки</string>
-    <string name="main_hero_subtitle">Читает markdown-уведомления из Obsidian и планирует локальные напоминания.</string>
+    <string name="main_hero_subtitle">Читает markdown-задачи из ваших заметок и планирует локальные напоминания.</string>
     <string name="main_about_message">Локальные напоминания из markdown-задач.\nТекущий режим: %1$s\nИсточник: %2$s</string>
     <string name="main_add_notification">Добавить уведомление</string>
     <string name="main_allow_notifications">Разрешить уведомления</string>

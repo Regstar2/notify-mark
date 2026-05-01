@@ -22,7 +22,7 @@
     <string name="help_section_statuses_body">Ожидает — активная задача до дедлайна.\nВыполнена — отмечена как сделанная.\nПропущена — вручную пропущена.\nПросрочена — время напоминания прошло, задача ещё активна.</string>
     <string name="help_section_actions_title">Жесты и быстрые действия</string>
     <string name="help_section_actions_summary">Основные действия на экране задач</string>
-    <string name="help_section_actions_body">Tap по карточке — открыть редактирование.\nTap по кружку статуса — выполнить/снять выполнение.\nSwipe вправо — пропустить.\nSwipe влево — удалить.\nLong press — режим множественного выбора.</string>
+    <string name="help_section_actions_body">Tap по карточке — открыть редактирование.\nTap по кружку статуса — выполнить/снять выполнение.\nSwipe вправо — пропустить.\nSwipe влево — удалить.\nLong press — режим множественного выбора; затем можно вести палец вертикально, чтобы выделить диапазон.\nПотянуть экран вниз с верха списка (не с карточки задачи) — обновить данные из источника.\nСильный горизонтальный жест по пустым областям календаря — переключение основной вкладки; по области заголовка и сетки недели/месяца/года — следующий или предыдущий такой же период.</string>
     <string name="help_section_subtasks_title">Подзадачи</string>
     <string name="help_section_subtasks_summary">Вложенная структура задач</string>
     <string name="help_section_subtasks_body">Подзадачи можно размещать под основной задачей. Родительская карточка умеет раскрывать и скрывать вложенный список. Для подзадач доступны те же базовые действия, что и для обычных задач.</string>
@@ -48,6 +48,6 @@
     <string name="feedback_github_not_ready">GitHub Issues будут доступны после открытия репозитория</string>
     <string name="feedback_open_link_failed">Не удалось открыть ссылку</string>
     <string name="feedback_no_email_app">Не найдено приложение для отправки email</string>
-    <string name="feedback_email_subject">ObsidianNotification: обратная связь</string>
+    <string name="feedback_email_subject">NotifyMark: обратная связь</string>
     <string name="feedback_email_body_template">Здравствуйте.\n\n## Тип обращения\nОшибка / Идея / Вопрос\n\n## Описание\n\n\n## Шаги для воспроизведения, если это ошибка\n1.\n2.\n3.\n\n## Дополнительная информация\n- Версия приложения:\n- Android:\n- Устройство:</string>
 </resources>

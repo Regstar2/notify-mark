@@ -1,9 +1,9 @@
 <resources>
     <string name="about_back">Назад</string>
-    <string name="about_hero_subtitle">Локальные markdown-напоминания для Obsidian</string>
+    <string name="about_hero_subtitle">Локальные напоминания из ваших markdown-заметок</string>
 
     <string name="about_section_what_title">Что это</string>
-    <string name="about_section_what_body">NotifyMark — Android-приложение для локальных напоминаний из markdown-заметок Obsidian. Оно читает задачи из выбранных файлов и папок, показывает уведомления в нужное время и помогает работать с ними прямо на телефоне.</string>
+    <string name="about_section_what_body">NotifyMark — Android-приложение для локальных напоминаний из markdown-заметок. Оно читает задачи из выбранных файлов и папок (в том числе совместимо с некоторыми редакторами заметок), показывает уведомления в нужное время и помогает работать с задачами на телефоне.</string>
 
     <string name="about_section_features_title">Что умеет</string>
     <string name="about_feature_read_markdown">Читает задачи из markdown-файлов</string>

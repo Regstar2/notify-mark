@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Softer rounded checkmark for notification actions (less sharp corners than ic_check) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9.85,17.85c0.41,0 0.8,-0.16 1.09,-0.45l6.94,-7.06c0.29,-0.3 0.45,-0.69 0.43,-1.11c-0.02,-0.42,-0.2,-0.8,-0.51,-1.08l-0.06,-0.05c-0.58,-0.52,-1.48,-0.48,-2.01,0.09L10.52,13.92L8.71,11.93c-0.55,-0.6,-1.45,-0.64,-2.04,-0.1c-0.29,0.27,-0.47,0.64,-0.5,1.04c-0.03,0.4 0.1,0.79 0.36,1.09l3.06,3.44c0.29,0.33 0.69,0.52 1.13,0.54z" />
+</vector>
