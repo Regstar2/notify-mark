@@ -41,3 +41,4 @@ Project name: **NotifyMark**
 - Preserve behavior first; improve structure second.
 - Run at least `gradlew.bat assembleDebug` after substantial refactors.
 - Run available tests when touching parser, source, or reminder code.
+- When the user is iterating on device and a USB-debuggable phone is expected: after **each** agent change set that affects the app, run `gradlew.bat installDebug` yourself (do not only suggest it). If `adb` reports no device or `unauthorized`, note that once in the reply; otherwise install without asking.
