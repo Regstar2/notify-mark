@@ -2,6 +2,7 @@ package com.regstar.obsidiannotification.core.reminders;
 
 import com.regstar.obsidiannotification.R;
 import com.regstar.obsidiannotification.ui.MainActivity;
+import com.regstar.obsidiannotification.ui.ReminderTimePickerActivity;
 
 import com.regstar.obsidiannotification.core.source.*;
 import com.regstar.obsidiannotification.core.tasks.*;
@@ -180,7 +181,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
         String expandedText = safeDueLabel.isEmpty() ? title : safeDueLabel;
 
-        builder.setSmallIcon(R.drawable.ic_notification)
+        builder.setSmallIcon(R.drawable.ic_stat_notify)
                 .setContentTitle(title)
                 .setContentText(safeDueLabel)
                 .setStyle(new Notification.BigTextStyle().bigText(expandedText))
@@ -214,7 +215,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
                     )
             );
             builder.addAction(
-                    R.drawable.ic_repeat,
+                    R.drawable.ic_clock,
                     snoozeActionLabel(context, taskKey),
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
@@ -229,11 +230,40 @@ public final class ReminderReceiver extends BroadcastReceiver {
                     )
             );
             builder.addAction(
-                    R.drawable.ic_close,
+                    R.drawable.ic_calendar,
+                    context.getString(R.string.reminder_action_remind_at),
+                    ReminderTimePickerActivity.createPendingIntent(
+                            context,
+                            taskKey,
+                            notificationId,
+                            displayNotificationId,
+                            lineNumber,
+                            title,
+                            repeatIntervalMillis,
+                            repeatMode
+                    )
+            );
+            builder.addAction(
+                    R.drawable.ic_skip,
                     context.getString(R.string.reminder_action_skip),
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SKIP,
+                            taskKey,
+                            notificationId,
+                            displayNotificationId,
+                            lineNumber,
+                            title,
+                            repeatIntervalMillis,
+                            repeatMode
+                    )
+            );
+            builder.addAction(
+                    R.drawable.ic_open_note_notification,
+                    context.getString(R.string.reminder_action_open),
+                    ReminderActionReceiver.createActionPendingIntent(
+                            context,
+                            ReminderActionReceiver.ACTION_OPEN_NOTE,
                             taskKey,
                             notificationId,
                             displayNotificationId,

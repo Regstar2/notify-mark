@@ -286,6 +286,69 @@ public final class ReminderScheduler {
         }
     }
 
+    /**
+     * Schedules a one-off reminder at an absolute wall-clock time (snooze-style alarm),
+     * bumping to {@code now + 1 minute} if the requested instant is not strictly in the future.
+     */
+    public static void scheduleSnoozeUntil(
+            Context context,
+            String taskKey,
+            int notificationId,
+            int lineNumber,
+            String title,
+            LocalDateTime triggerAt,
+            long repeatIntervalMillis,
+            RepeatMode repeatMode
+    ) {
+        if (taskKey == null || taskKey.trim().isEmpty() || !canPostNotifications(context)) {
+            return;
+        }
+        synchronized (SCHEDULED_STATE_LOCK) {
+            AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager == null) {
+                return;
+            }
+
+            ZoneId zoneId = ZoneId.systemDefault();
+            LocalDateTime now = LocalDateTime.now(zoneId);
+            LocalDateTime safeTrigger = ensureFutureTriggerAt(triggerAt, now, zoneId);
+            long nextTriggerAtMillis = safeTrigger.atZone(zoneId).toInstant().toEpochMilli();
+            ScheduledReminder reminder = new ScheduledReminder(
+                    taskKey,
+                    notificationId,
+                    lineNumber,
+                    title,
+                    safeTrigger,
+                    nextTriggerAtMillis,
+                    repeatIntervalMillis,
+                    repeatMode,
+                    ObsidianTask.DEFAULT_GROUP
+            );
+            setReminderAlarm(context, alarmManager, reminder);
+            putScheduledState(context, reminder);
+        }
+    }
+
+    /**
+     * Returns {@code requested} if it is strictly after {@code now}; otherwise {@code now + 1 minute}
+     * in the same zone (used for snooze / remind-at flows).
+     */
+    public static LocalDateTime ensureFutureTriggerAt(
+            LocalDateTime requested,
+            LocalDateTime now,
+            ZoneId zoneId
+    ) {
+        LocalDateTime safeNow = now == null ? LocalDateTime.now(zoneId == null ? ZoneId.systemDefault() : zoneId) : now;
+        ZoneId z = zoneId == null ? ZoneId.systemDefault() : zoneId;
+        if (requested == null) {
+            return safeNow.plusMinutes(1);
+        }
+        if (!requested.isAfter(safeNow)) {
+            return safeNow.plusMinutes(1);
+        }
+        return requested;
+    }
+
     public static void cancelReminder(Context context, String taskKey) {
         synchronized (SCHEDULED_STATE_LOCK) {
             Map<String, ScheduledState> state = loadScheduledState(context);

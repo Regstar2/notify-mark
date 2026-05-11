@@ -36,7 +36,7 @@ public final class TestNotificationSender {
                 ? new Notification.Builder(context, ReminderScheduler.CHANNEL_ID)
                 : new Notification.Builder(context);
 
-        builder.setSmallIcon(R.drawable.ic_notification)
+        builder.setSmallIcon(R.drawable.ic_stat_notify)
                 .setContentTitle(context.getString(R.string.test_notification_title))
                 .setContentText(context.getString(R.string.test_notification_text))
                 .setStyle(new Notification.BigTextStyle()

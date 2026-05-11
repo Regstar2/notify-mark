@@ -218,10 +218,12 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
         }
         if (uri == null) {
             openApp(context);
+            cancelNotification(context, intent);
             return;
         }
         if ("file".equalsIgnoreCase(uri.getScheme())) {
             openApp(context);
+            cancelNotification(context, intent);
             return;
         }
 
@@ -236,6 +238,7 @@ public final class ReminderActionReceiver extends BroadcastReceiver {
             ErrorLog.record(context, context.getString(R.string.runtime_open_note_direct_error), exception);
             openApp(context);
         }
+        cancelNotification(context, intent);
     }
 
     private void openApp(Context context) {

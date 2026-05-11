@@ -43,13 +43,18 @@ For nag reminders (`@repeatUntilDone(...)`), one active occurrence keeps one sta
 
 ## Notification actions
 
-The current notification action receiver supports:
+The notification action receiver supports:
 - mark done
-- snooze
+- snooze (relative interval from preferences / task `@snooze(...)`)
+- remind at a chosen wall-clock time (opens `ReminderTimePickerActivity` with presets + date/time picker; reschedules via `ReminderScheduler.scheduleSnoozeUntil`)
 - skip
-- open the underlying note or app
+- open the underlying note (or app fallback)
 
-Those actions update markdown through `NoteStore` and then trigger reminder resync logic.
+Those actions update markdown through `NoteStore` where applicable and reschedule alarms through `ReminderScheduler`.
+
+## Notification icons
+
+Task reminders use a dedicated monochrome small icon (`ic_stat_notify`) suitable for status bar and companion surfaces. Action buttons use simple white vector assets (done, clock for snooze, calendar for remind-at, skip, open-note).
 
 ## Permissions and Android constraints
 

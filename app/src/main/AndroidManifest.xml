@@ -79,6 +79,11 @@
         <activity
             android:name=".ui.OnboardingActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.ReminderTimePickerActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/ReminderTimePickerTheme" />
 
         <activity
             android:name=".ui.MainActivity"

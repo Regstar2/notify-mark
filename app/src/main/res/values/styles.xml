@@ -59,4 +59,8 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <style name="ReminderTimePickerTheme" parent="@style/Theme.Material3.Light.Dialog">
+        <item name="android:windowIsFloating">true</item>
+    </style>
 </resources>

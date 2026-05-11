@@ -364,4 +364,28 @@ public final class ReminderSchedulerTest {
                 )
         );
     }
+
+    @Test
+    public void ensureFutureTriggerAt_keepsFutureInstant() {
+        LocalDateTime now = LocalDateTime.of(2026, 5, 10, 12, 0);
+        LocalDateTime requested = LocalDateTime.of(2026, 5, 10, 15, 30);
+        assertEquals(
+                requested,
+                ReminderScheduler.ensureFutureTriggerAt(requested, now, UTC)
+        );
+    }
+
+    @Test
+    public void ensureFutureTriggerAt_bumpsPastOrEqualToOneMinuteAhead() {
+        LocalDateTime now = LocalDateTime.of(2026, 5, 10, 21, 0);
+        LocalDateTime requested = LocalDateTime.of(2026, 5, 10, 19, 0);
+        assertEquals(
+                LocalDateTime.of(2026, 5, 10, 21, 1),
+                ReminderScheduler.ensureFutureTriggerAt(requested, now, UTC)
+        );
+        assertEquals(
+                LocalDateTime.of(2026, 5, 10, 21, 1),
+                ReminderScheduler.ensureFutureTriggerAt(now, now, UTC)
+        );
+    }
 }
