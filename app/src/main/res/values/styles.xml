@@ -60,7 +60,13 @@
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <style name="ReminderTimePickerTheme" parent="@style/Theme.Material3.Light.Dialog">
+    <style name="ReminderTimePickerTheme" parent="@style/Theme.Material3.DayNight.Dialog">
         <item name="android:windowIsFloating">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorSecondary">@color/accent</item>
     </style>
 </resources>

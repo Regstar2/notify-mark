@@ -22,6 +22,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 
+import androidx.core.app.NotificationCompat;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
@@ -94,6 +96,14 @@ public final class ReminderScheduler {
         if (notificationManager != null) {
             notificationManager.createNotificationChannel(channel);
         }
+    }
+
+    /**
+     * Applies the shared monochrome status icon for task reminders.
+     */
+    @SuppressWarnings("deprecation")
+    public static void applyReminderNotificationIcon(NotificationCompat.Builder builder, Context context) {
+        builder.setSmallIcon(R.drawable.ic_stat_notify);
     }
 
     /**

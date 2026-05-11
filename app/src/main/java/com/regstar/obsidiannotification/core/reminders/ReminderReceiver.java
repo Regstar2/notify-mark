@@ -16,7 +16,8 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
+
+import androidx.core.app.NotificationCompat;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -32,6 +33,9 @@ import java.time.format.DateTimeFormatter;
  * card instead of accumulating duplicates.</p>
  */
 public final class ReminderReceiver extends BroadcastReceiver {
+    private static final String ACTION_LABEL_DONE = "\u2713";
+    private static final String ACTION_LABEL_SKIP = "\u2717";
+
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent == null) {
@@ -171,9 +175,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
             String group,
             String dueLabel
     ) {
-        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? new Notification.Builder(context, ReminderScheduler.CHANNEL_ID)
-                : new Notification.Builder(context);
+        NotificationCompat.Builder builder =
+                new NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID);
 
         String safeDueLabel = (dueLabel == null || dueLabel.trim().isEmpty())
                 ? ""
@@ -181,10 +184,10 @@ public final class ReminderReceiver extends BroadcastReceiver {
 
         String expandedText = safeDueLabel.isEmpty() ? title : safeDueLabel;
 
-        builder.setSmallIcon(R.drawable.ic_stat_notify)
-                .setContentTitle(title)
+        ReminderScheduler.applyReminderNotificationIcon(builder, context);
+        builder.setContentTitle(title)
                 .setContentText(safeDueLabel)
-                .setStyle(new Notification.BigTextStyle().bigText(expandedText))
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(expandedText))
                 .setContentIntent(createOpenAppIntent(context))
                 .setAutoCancel(true)
                 .setWhen(notificationWhenMillis)
@@ -192,16 +195,16 @@ public final class ReminderReceiver extends BroadcastReceiver {
                 .setOnlyAlertOnce(false)
                 .setGroup("obsidian_notification_" + ObsidianTask.normalizeGroup(group))
                 .setCategory(Notification.CATEGORY_REMINDER)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setDefaults(Notification.DEFAULT_SOUND
                         | Notification.DEFAULT_VIBRATE
                         | Notification.DEFAULT_LIGHTS)
-                .setPriority(Notification.PRIORITY_MAX);
+                .setPriority(NotificationCompat.PRIORITY_MAX);
 
         if (taskKey != null && !taskKey.trim().isEmpty()) {
             builder.addAction(
                     R.drawable.ic_done_notification,
-                    "\u2713",
+                    ACTION_LABEL_DONE,
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_MARK_DONE,
@@ -216,7 +219,7 @@ public final class ReminderReceiver extends BroadcastReceiver {
             );
             builder.addAction(
                     R.drawable.ic_clock,
-                    snoozeActionLabel(context, taskKey),
+                    snoozeShortLabel(context, taskKey),
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SNOOZE,
@@ -245,25 +248,10 @@ public final class ReminderReceiver extends BroadcastReceiver {
             );
             builder.addAction(
                     R.drawable.ic_skip,
-                    context.getString(R.string.reminder_action_skip),
+                    ACTION_LABEL_SKIP,
                     ReminderActionReceiver.createActionPendingIntent(
                             context,
                             ReminderActionReceiver.ACTION_SKIP,
-                            taskKey,
-                            notificationId,
-                            displayNotificationId,
-                            lineNumber,
-                            title,
-                            repeatIntervalMillis,
-                            repeatMode
-                    )
-            );
-            builder.addAction(
-                    R.drawable.ic_open_note_notification,
-                    context.getString(R.string.reminder_action_open),
-                    ReminderActionReceiver.createActionPendingIntent(
-                            context,
-                            ReminderActionReceiver.ACTION_OPEN_NOTE,
                             taskKey,
                             notificationId,
                             displayNotificationId,
@@ -278,9 +266,8 @@ public final class ReminderReceiver extends BroadcastReceiver {
         return builder.build();
     }
 
-    private String snoozeActionLabel(Context context, String taskKey) {
-        Duration duration = resolveSnoozeDuration(context, taskKey);
-        return context.getString(R.string.reminder_action_snooze, formatDurationToken(duration));
+    private String snoozeShortLabel(Context context, String taskKey) {
+        return formatShortSnoozeToken(resolveSnoozeDuration(context, taskKey));
     }
 
     private Duration resolveSnoozeDuration(Context context, String taskKey) {
@@ -301,18 +288,21 @@ public final class ReminderReceiver extends BroadcastReceiver {
         return Duration.ofMinutes(ActionPreferences.getSnoozeMinutes(context));
     }
 
-    private String formatDurationToken(Duration duration) {
+    /**
+     * Compact snooze label for notification actions (e.g. {@code +30м}, {@code +2ч}).
+     */
+    private static String formatShortSnoozeToken(Duration duration) {
         Duration safeDuration = duration == null || duration.isZero() || duration.isNegative()
                 ? Duration.ofMinutes(1)
                 : duration;
         long minutes = safeDuration.toMinutes();
-        if (minutes % (24L * 60L) == 0L) {
-            return (minutes / (24L * 60L)) + "d";
+        if (minutes >= 1440L && minutes % 1440L == 0L) {
+            return "+" + (minutes / 1440L) + "д";
         }
-        if (minutes % 60L == 0L) {
-            return (minutes / 60L) + "h";
+        if (minutes >= 60L && minutes % 60L == 0L) {
+            return "+" + (minutes / 60L) + "ч";
         }
-        return minutes + "m";
+        return "+" + minutes + "м";
     }
 
     private PendingIntent createOpenAppIntent(Context context) {

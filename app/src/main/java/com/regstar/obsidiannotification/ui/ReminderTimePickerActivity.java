@@ -10,6 +10,8 @@ import com.regstar.obsidiannotification.core.tasks.TaskEditResult;
 import com.regstar.obsidiannotification.prefs.ActionPreferences;
 import com.regstar.obsidiannotification.support.ErrorLog;
 
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
 import android.app.DatePickerDialog;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -17,8 +19,8 @@ import android.app.TimePickerDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.widget.Toast;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.time.LocalDate;
@@ -27,8 +29,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 
 /**
- * Lightweight chooser opened from a notification action to snooze a reminder until a preset
- * or user-selected date and time.
+ * Lightweight chooser opened from a notification action to snooze a reminder until a chosen
+ * wall-clock time, without opening {@link MainActivity}.
  */
 public final class ReminderTimePickerActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_MASK = 0x5F000000;
@@ -40,11 +42,11 @@ public final class ReminderTimePickerActivity extends AppCompatActivity {
             finish();
             return;
         }
-        showPresetChooser();
+        showChooser();
     }
 
     /**
-     * {@link PendingIntent} target for the &quot;Remind at&quot; notification action.
+     * {@link PendingIntent} target for the &quot;Время&quot; notification action.
      */
     public static PendingIntent createPendingIntent(
             Context context,
@@ -76,37 +78,21 @@ public final class ReminderTimePickerActivity extends AppCompatActivity {
         );
     }
 
-    private void showPresetChooser() {
+    private void showChooser() {
         ZoneId zone = ZoneId.systemDefault();
-        LocalDateTime now = LocalDateTime.now(zone);
         String[] labels = new String[]{
-                getString(R.string.remind_at_15m),
-                getString(R.string.remind_at_1h),
-                getString(R.string.remind_at_tonight),
-                getString(R.string.remind_at_tomorrow_morning),
-                getString(R.string.remind_at_custom)
+                getString(R.string.remind_at_time_only),
+                getString(R.string.remind_at_date_time)
         };
-        new AlertDialog.Builder(this)
+        new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.reminder_remind_at_title)
                 .setItems(labels, (dialog, which) -> {
-                    switch (which) {
-                        case 0:
-                            applyAndFinish(now.plusMinutes(15));
-                            break;
-                        case 1:
-                            applyAndFinish(now.plusHours(1));
-                            break;
-                        case 2:
-                            applyAndFinish(tonightAt(LocalTime.of(19, 0), now, zone));
-                            break;
-                        case 3:
-                            applyAndFinish(tomorrowMorningAt(LocalTime.of(9, 0), now, zone));
-                            break;
-                        case 4:
-                            showCustomDateTime(zone);
-                            break;
-                        default:
-                            finish();
+                    if (which == 0) {
+                        showTimeOnlyPicker(zone);
+                    } else if (which == 1) {
+                        showDateThenTime(zone);
+                    } else {
+                        finish();
                     }
                 })
                 .setOnCancelListener(dialog -> finish())
@@ -114,46 +100,35 @@ public final class ReminderTimePickerActivity extends AppCompatActivity {
                 .show();
     }
 
-    private static LocalDateTime tonightAt(LocalTime time, LocalDateTime now, ZoneId zone) {
-        LocalDateTime candidate = LocalDate.now(zone).atTime(time);
-        if (!candidate.isAfter(now)) {
-            candidate = candidate.plusDays(1);
-        }
-        return candidate;
+    private void showTimeOnlyPicker(ZoneId zone) {
+        LocalDateTime now = LocalDateTime.now(zone);
+        TimePickerDialog timeDialog = new TimePickerDialog(
+                this,
+                (view, hourOfDay, minute) -> {
+                    LocalTime pickedTime = LocalTime.of(hourOfDay, minute);
+                    LocalDate date = LocalDate.now(zone);
+                    LocalDateTime candidate = date.atTime(pickedTime);
+                    if (!candidate.isAfter(LocalDateTime.now(zone))) {
+                        candidate = date.plusDays(1).atTime(pickedTime);
+                    }
+                    applyAndFinish(candidate);
+                },
+                now.getHour(),
+                now.getMinute(),
+                true
+        );
+        timeDialog.setOnCancelListener(dialog -> finish());
+        timeDialog.show();
     }
 
-    private static LocalDateTime tomorrowMorningAt(LocalTime time, LocalDateTime now, ZoneId zone) {
-        LocalDateTime candidate = LocalDate.now(zone).plusDays(1).atTime(time);
-        while (!candidate.isAfter(now)) {
-            candidate = candidate.plusDays(1);
-        }
-        return candidate;
-    }
-
-    private void showCustomDateTime(ZoneId zone) {
+    private void showDateThenTime(ZoneId zone) {
         LocalDateTime now = LocalDateTime.now(zone);
         LocalDate initialDate = now.toLocalDate();
         DatePickerDialog dateDialog = new DatePickerDialog(
                 this,
                 (view, year, month, dayOfMonth) -> {
                     LocalDate date = LocalDate.of(year, month + 1, dayOfMonth);
-                    TimePickerDialog timeDialog = new TimePickerDialog(
-                            ReminderTimePickerActivity.this,
-                            (view1, hourOfDay, minute) -> {
-                                LocalDateTime picked = date.atTime(hourOfDay, minute);
-                                LocalDateTime safe = ReminderScheduler.ensureFutureTriggerAt(
-                                        picked,
-                                        LocalDateTime.now(zone),
-                                        zone
-                                );
-                                applyAndFinish(safe);
-                            },
-                            now.getHour(),
-                            now.getMinute(),
-                            true
-                    );
-                    timeDialog.setOnCancelListener(dialog -> finish());
-                    timeDialog.show();
+                    showTimeForDate(zone, date);
                 },
                 initialDate.getYear(),
                 initialDate.getMonthValue() - 1,
@@ -161,6 +136,31 @@ public final class ReminderTimePickerActivity extends AppCompatActivity {
         );
         dateDialog.setOnCancelListener(dialog -> finish());
         dateDialog.show();
+    }
+
+    private void showTimeForDate(ZoneId zone, LocalDate date) {
+        LocalDateTime now = LocalDateTime.now(zone);
+        TimePickerDialog timeDialog = new TimePickerDialog(
+                this,
+                (view1, hourOfDay, minute) -> {
+                    LocalDateTime picked = date.atTime(hourOfDay, minute);
+                    if (!picked.isAfter(LocalDateTime.now(zone))) {
+                        Toast.makeText(
+                                this,
+                                R.string.remind_at_past_error,
+                                Toast.LENGTH_SHORT
+                        ).show();
+                        showTimeForDate(zone, date);
+                        return;
+                    }
+                    applyAndFinish(picked);
+                },
+                now.getHour(),
+                now.getMinute(),
+                true
+        );
+        timeDialog.setOnCancelListener(dialog -> finish());
+        timeDialog.show();
     }
 
     private void applyAndFinish(LocalDateTime triggerAt) {

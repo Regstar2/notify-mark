@@ -3,17 +3,13 @@ package com.regstar.obsidiannotification.core.reminders;
 import com.regstar.obsidiannotification.R;
 import com.regstar.obsidiannotification.ui.MainActivity;
 
-import com.regstar.obsidiannotification.core.source.*;
-import com.regstar.obsidiannotification.core.tasks.*;
-import com.regstar.obsidiannotification.prefs.*;
-import com.regstar.obsidiannotification.support.ErrorLog;
-
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
+
+import androidx.core.app.NotificationCompat;
 
 public final class TestNotificationSender {
     private TestNotificationSender() {
@@ -32,14 +28,13 @@ public final class TestNotificationSender {
             return false;
         }
 
-        Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? new Notification.Builder(context, ReminderScheduler.CHANNEL_ID)
-                : new Notification.Builder(context);
+        NotificationCompat.Builder builder =
+                new NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID);
 
-        builder.setSmallIcon(R.drawable.ic_stat_notify)
-                .setContentTitle(context.getString(R.string.test_notification_title))
+        ReminderScheduler.applyReminderNotificationIcon(builder, context);
+        builder.setContentTitle(context.getString(R.string.test_notification_title))
                 .setContentText(context.getString(R.string.test_notification_text))
-                .setStyle(new Notification.BigTextStyle()
+                .setStyle(new NotificationCompat.BigTextStyle()
                         .bigText(context.getString(R.string.test_notification_text)))
                 .setContentIntent(createOpenAppIntent(context))
                 .setAutoCancel(true)
@@ -47,11 +42,11 @@ public final class TestNotificationSender {
                 .setShowWhen(true)
                 .setOnlyAlertOnce(false)
                 .setCategory(Notification.CATEGORY_REMINDER)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setDefaults(Notification.DEFAULT_SOUND
                         | Notification.DEFAULT_VIBRATE
                         | Notification.DEFAULT_LIGHTS)
-                .setPriority(Notification.PRIORITY_MAX);
+                .setPriority(NotificationCompat.PRIORITY_MAX);
 
         notificationManager.notify((int) System.currentTimeMillis(), builder.build());
         return true;

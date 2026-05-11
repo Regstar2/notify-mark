@@ -83,6 +83,7 @@
             android:name=".ui.ReminderTimePickerActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:noHistory="true"
             android:theme="@style/ReminderTimePickerTheme" />
 
         <activity

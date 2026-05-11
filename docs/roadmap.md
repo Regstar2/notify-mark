@@ -2,7 +2,7 @@
 
 ## Near-term work
 
-0. **v0.9.2 notification actions (shipped in codebase):** dedicated small icon + action icons; “Напомнить…” with presets and custom date/time via `ReminderTimePickerActivity` / `scheduleSnoozeUntil` (see `docs/versions/v0.9.2-notification-actions-upgrade.md`).
+0. **v0.9.2 notification actions (shipped in codebase):** dedicated small icon + action icons; **Время** opens `ReminderTimePickerActivity` (time-only or date+time, DayNight dialog); compact shade labels (`+Nм`, **Время**, ✓/✗ for done/skip); `NotificationCompat` + rasterized bitmap `smallIcon` for Bluetooth watch bridges (Realme, etc.); `scheduleSnoozeUntil` (see `docs/versions/v0.9.2-notification-actions-upgrade.md`).
 1. **v0.9.1 repeat history (shipped in codebase):** calendar merges occurrence history; bulk skip/done aligns with repeat advance. Next: optional history detail UI and richer one-off analytics (see `docs/versions/v0.9.1-repeat-history-fix.md`).
 
 2. Finish structural cleanup after the package refactor

@@ -1,14 +1,9 @@
 <resources>
-    <string name="reminder_action_skip">Пропустить</string>
-    <string name="reminder_action_snooze">Отложить %1$s</string>
-    <string name="reminder_action_remind_at">Напомнить…</string>
-    <string name="reminder_action_open">Открыть</string>
-    <string name="reminder_remind_at_title">Когда напомнить</string>
-    <string name="remind_at_15m">Через 15 минут</string>
-    <string name="remind_at_1h">Через 1 час</string>
-    <string name="remind_at_tonight">Сегодня в 19:00</string>
-    <string name="remind_at_tomorrow_morning">Завтра в 9:00</string>
-    <string name="remind_at_custom">Выбрать дату и время</string>
+    <string name="reminder_action_remind_at">Время</string>
+    <string name="reminder_remind_at_title">Напоминание</string>
+    <string name="remind_at_time_only">Выбрать время</string>
+    <string name="remind_at_date_time">Выбрать дату и время</string>
+    <string name="remind_at_past_error">Выберите время в будущем</string>
     <string name="reminder_title_fallback">Задача без текста</string>
     <string name="reminder_due_at">Срок: %1$s</string>
     <string name="reminder_snooze_label_error">Не удалось определить подпись отложения для уведомления</string>

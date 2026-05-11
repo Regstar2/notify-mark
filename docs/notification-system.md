@@ -46,7 +46,7 @@ For nag reminders (`@repeatUntilDone(...)`), one active occurrence keeps one sta
 The notification action receiver supports:
 - mark done
 - snooze (relative interval from preferences / task `@snooze(...)`)
-- remind at a chosen wall-clock time (opens `ReminderTimePickerActivity` with presets + date/time picker; reschedules via `ReminderScheduler.scheduleSnoozeUntil`)
+- remind at a chosen wall-clock time (opens `ReminderTimePickerActivity`: “Выбрать время” or “Выбрать дату и время”; reschedules via `ReminderScheduler.scheduleSnoozeUntil`)
 - skip
 - open the underlying note (or app fallback)
 
@@ -54,7 +54,7 @@ Those actions update markdown through `NoteStore` where applicable and reschedul
 
 ## Notification icons
 
-Task reminders use a dedicated monochrome small icon (`ic_stat_notify`) suitable for status bar and companion surfaces. Action buttons use simple white vector assets (done, clock for snooze, calendar for remind-at, skip, open-note).
+Task reminders use a dedicated monochrome icon (`ic_stat_notify`): it is **rasterized to a bitmap** when posting the notification, then applied as **both** bitmap `smallIcon` and `largeIcon` so Bluetooth-linked watches (e.g. Realme Watch S series) that only forward `largeIcon` can still show the glyph (at the cost of a possible large-icon chip on the phone). Action buttons use simple white vector assets (done, clock for snooze, calendar for remind-at, skip). Opening the note uses the notification tap / content intent, not a separate shade action.
 
 ## Permissions and Android constraints
 
