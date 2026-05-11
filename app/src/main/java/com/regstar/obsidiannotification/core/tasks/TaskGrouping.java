@@ -178,6 +178,79 @@ public final class TaskGrouping {
         return false;
     }
 
+    /**
+     * Same privacy rule as {@link #isPrivateTask(ObsidianTask, String)} applied to
+     * occurrence snapshot fields.
+     */
+    public static boolean isPrivateHistoryRecord(TaskOccurrenceRecord record, String privateMarker) {
+        if (record == null) {
+            return false;
+        }
+        String marker = normalizePrivateMarker(privateMarker);
+        if (marker.isEmpty()) {
+            return false;
+        }
+        if (marker.equals(normalizePrivateMarker(record.getGroupSnapshot()))) {
+            return true;
+        }
+        for (String tag : record.getTagsSnapshot()) {
+            if (marker.equals(normalizePrivateMarker(tag))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Grouping bucket for a historical occurrence using the same modes as
+     * {@link #bucketFor(ObsidianTask, String, SourceLabelResolver)}.
+     *
+     * @param displaySourceLabel compact display string for the source (file), e.g. from {@code compactName(uri)}
+     */
+    public static Bucket bucketForHistoryRecord(
+            TaskOccurrenceRecord record,
+            String groupingMode,
+            String displaySourceLabel
+    ) {
+        if (record == null) {
+            return new Bucket("", "");
+        }
+        String mode = groupingMode == null ? UserPreferences.GROUPING_SMART : groupingMode;
+        String group = normalizeGroup(record.getGroupSnapshot());
+        List<String> tags = record.getTagsSnapshot();
+        String sourceLabel = displaySourceLabel == null ? "" : displaySourceLabel.trim();
+
+        if (UserPreferences.GROUPING_GROUP.equals(mode)) {
+            if (group.isEmpty()) {
+                return new Bucket(FALLBACK_GROUP_KEY, FALLBACK_GROUP_LABEL);
+            }
+            return new Bucket(group, group);
+        }
+        if (UserPreferences.GROUPING_TAG.equals(mode)) {
+            if (tags.isEmpty()) {
+                return new Bucket(FALLBACK_TAG_KEY, FALLBACK_TAG_LABEL);
+            }
+            String tag = normalizeTag(tags.get(0));
+            if (tag.isEmpty()) {
+                return new Bucket(FALLBACK_TAG_KEY, FALLBACK_TAG_LABEL);
+            }
+            return new Bucket(tag, tag);
+        }
+        if (UserPreferences.GROUPING_FILE.equals(mode)) {
+            return new Bucket(sourceLabel, sourceLabel);
+        }
+        if (!group.isEmpty()) {
+            return new Bucket(group, group);
+        }
+        if (!tags.isEmpty()) {
+            String tag = normalizeTag(tags.get(0));
+            if (!tag.isEmpty()) {
+                return new Bucket(tag, tag);
+            }
+        }
+        return new Bucket(sourceLabel, sourceLabel);
+    }
+
     private static Bucket explicitGroupBucket(ObsidianTask task) {
         String group = normalizeGroup(task.getGroup());
         if (group.isEmpty()) {

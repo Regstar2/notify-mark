@@ -1754,11 +1754,11 @@ public final class MainActivity extends AppCompatActivity {
         return card;
     }
 
-    private LinearLayout createCalendarYearGrid(List<ObsidianTask> visibleTasks) {
+    private LinearLayout createCalendarYearGrid(Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate) {
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.VERTICAL);
 
-        Map<YearMonth, CalendarTaskSummary> monthSummaries = summarizeTasksByMonth(visibleTasks);
+        Map<YearMonth, CalendarTaskSummary> monthSummaries = summarizeTasksByMonth(tasksByDate);
         int year = displayedCalendarMonth.getYear();
         for (int rowIndex = 0; rowIndex < 6; rowIndex++) {
             LinearLayout row = new LinearLayout(this);
@@ -2937,8 +2937,13 @@ public final class MainActivity extends AppCompatActivity {
         List<ObsidianTask> groupFilterCandidates = calendarGroupFilterSourceCandidates(tasks);
         updateGroupFilterRow(groupFilterCandidates);
         List<ObsidianTask> baseVisibleTasks = calendarBaseVisibleTasksBeforeGroupFilter(tasks);
-        List<ObsidianTask> visibleTasks = filterTasksBySelectedGroup(baseVisibleTasks);
-        Map<LocalDate, List<ObsidianTask>> tasksByDate = tasksByDate(visibleTasks);
+        Map<LocalDate, List<TaskVisibleOccurrence>> mergedByDate = TaskCalendarProjection.mergeTasksByDate(
+                baseVisibleTasks,
+                OccurrenceHistoryStore.getAllHistory(this),
+                shouldHidePrivateTasks(),
+                UserPreferences.getPrivateMarker(this)
+        );
+        Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate = filterCalendarMergedByGroup(mergedByDate);
 
         LinearLayout modeRow = createCalendarModeToggle();
         calendarModeToggleRow = modeRow;
@@ -2948,7 +2953,7 @@ public final class MainActivity extends AppCompatActivity {
         periodColumn.setOrientation(LinearLayout.VERTICAL);
         periodColumn.addView(createCalendarPeriodHeader(tasksByDate), fullWidthWithBottomMargin());
         if (calendarMode == CALENDAR_MODE_YEAR) {
-            periodColumn.addView(createCalendarYearGrid(visibleTasks), fullWidthWithBottomMargin());
+            periodColumn.addView(createCalendarYearGrid(tasksByDate), fullWidthWithBottomMargin());
             if (periodTaskCount(tasksByDate) == 0) {
                 periodColumn.addView(createCalendarYearEmptyState(), fullWidthWithBottomMargin());
             }
@@ -3773,7 +3778,7 @@ public final class MainActivity extends AppCompatActivity {
         return button;
     }
 
-    private LinearLayout createCalendarPeriodHeader(Map<LocalDate, List<ObsidianTask>> tasksByDate) {
+    private LinearLayout createCalendarPeriodHeader(Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate) {
         LinearLayout card = createCardContainer();
         card.setPadding(dp(12), dp(10), dp(12), dp(10));
 
@@ -3839,7 +3844,7 @@ public final class MainActivity extends AppCompatActivity {
         return button;
     }
 
-    private LinearLayout createCalendarGrid(Map<LocalDate, List<ObsidianTask>> tasksByDate) {
+    private LinearLayout createCalendarGrid(Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate) {
         LinearLayout card = createCardContainer();
         card.setPadding(dp(8), dp(8), dp(8), dp(8));
 
@@ -3874,7 +3879,7 @@ public final class MainActivity extends AppCompatActivity {
         return card;
     }
 
-    private LinearLayout createCalendarWeekGrid(Map<LocalDate, List<ObsidianTask>> tasksByDate) {
+    private LinearLayout createCalendarWeekGrid(Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate) {
         LinearLayout card = createCardContainer();
         card.setPadding(dp(8), dp(8), dp(8), dp(8));
 
@@ -3907,7 +3912,7 @@ public final class MainActivity extends AppCompatActivity {
         return card;
     }
 
-    private View createDayCell(LocalDate date, Map<LocalDate, List<ObsidianTask>> tasksByDate) {
+    private View createDayCell(LocalDate date, Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate) {
         boolean inDisplayedMonth = calendarMode == CALENDAR_MODE_WEEK
                 || YearMonth.from(date).equals(displayedCalendarMonth);
         boolean selected = date.equals(selectedCalendarDate);
@@ -3925,7 +3930,7 @@ public final class MainActivity extends AppCompatActivity {
         ));
         cell.setOnClickListener(view -> selectCalendarDate(date));
 
-        CalendarTaskSummary summary = summarizeCalendarDay(tasksByDate.get(date));
+        CalendarTaskSummary summary = summarizeCalendarDayOccurrences(tasksByDate.get(date));
         TextView dayNumber = createText(String.valueOf(date.getDayOfMonth()),
                 14,
                 inDisplayedMonth || selected ? R.color.text_primary : R.color.text_secondary,
@@ -3974,17 +3979,17 @@ public final class MainActivity extends AppCompatActivity {
         row.addView(indicator, params);
     }
 
-    private LinearLayout createSelectedDayTaskList(Map<LocalDate, List<ObsidianTask>> tasksByDate) {
+    private LinearLayout createSelectedDayTaskList(Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate) {
         LinearLayout card = createCardContainer();
         card.setPadding(dp(14), dp(12), dp(14), dp(14));
 
         LocalDate date = selectedCalendarDate == null ? LocalDate.now() : selectedCalendarDate;
-        List<ObsidianTask> dayTasks = new ArrayList<>();
-        List<ObsidianTask> rawDayTasks = tasksByDate.get(date);
+        List<TaskVisibleOccurrence> dayTasks = new ArrayList<>();
+        List<TaskVisibleOccurrence> rawDayTasks = tasksByDate.get(date);
         if (rawDayTasks != null) {
             dayTasks.addAll(rawDayTasks);
         }
-        dayTasks.sort(this::compareTasksByTimeOnly);
+        dayTasks.sort(this::compareOccurrencesByTime);
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
@@ -4017,10 +4022,75 @@ public final class MainActivity extends AppCompatActivity {
             return card;
         }
 
-        for (ObsidianTask task : dayTasks) {
-            card.addView(createCalendarTaskView(task), fullWidthWithTopMargin(dp(10)));
+        for (TaskVisibleOccurrence entry : dayTasks) {
+            card.addView(createCalendarOccurrenceView(entry), fullWidthWithTopMargin(dp(10)));
         }
         return card;
+    }
+
+    private View createCalendarOccurrenceView(TaskVisibleOccurrence entry) {
+        if (!entry.isHistorical()) {
+            return createCalendarTaskView(entry.getMarkdownTask());
+        }
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setPadding(dp(12), dp(10), dp(12), dp(10));
+        item.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TaskOccurrenceRecord record = entry.getHistoryRecord();
+        LocalDateTime due = record.getOccurrenceDueAt();
+        String time = due == null
+                ? getString(R.string.main_no_time)
+                : due.toLocalTime().toString();
+        TextView timeView = createText(time, 13, R.color.text_secondary, true);
+        timeView.setGravity(android.view.Gravity.CENTER);
+        row.addView(timeView, new LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView title = createText(entry.getTitle(), 15, R.color.text_primary, true);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+        item.addView(row, fullWidth());
+
+        String meta = calendarHistoryMeta(record);
+        if (!meta.isEmpty()) {
+            TextView metaView = createText(meta, 12, R.color.text_secondary, false);
+            metaView.setSingleLine(true);
+            metaView.setEllipsize(TextUtils.TruncateAt.END);
+            item.addView(metaView, fullWidthWithTopMargin(dp(6)));
+        }
+        return item;
+    }
+
+    private String calendarHistoryMeta(TaskOccurrenceRecord record) {
+        String source = record.getSourceName() == null ? "" : record.getSourceName().trim();
+        String sourcePart = source.isEmpty() ? "" : compactName(source);
+        String statusLabel;
+        if (record.getOccurrenceStatus() == OccurrenceStatus.COMPLETED) {
+            statusLabel = getString(R.string.status_completed_short);
+        } else if (record.getOccurrenceStatus() == OccurrenceStatus.SKIPPED) {
+            statusLabel = getString(R.string.status_skipped_short);
+        } else if (record.getOccurrenceStatus() == OccurrenceStatus.OVERDUE) {
+            statusLabel = getString(R.string.status_overdue_short);
+        } else {
+            statusLabel = getString(R.string.stats_card_history_hint);
+        }
+        if (sourcePart.isEmpty()) {
+            return statusLabel;
+        }
+        return sourcePart + " · " + statusLabel;
     }
 
     private View createCalendarTaskView(ObsidianTask task) {
@@ -4120,21 +4190,36 @@ public final class MainActivity extends AppCompatActivity {
         return wrapper;
     }
 
-    private Map<LocalDate, List<ObsidianTask>> tasksByDate(List<ObsidianTask> tasks) {
-        Map<LocalDate, List<ObsidianTask>> byDate = new HashMap<>();
-        for (ObsidianTask task : tasks) {
-            if (task.getReminderAt() == null) {
-                continue;
-            }
-            LocalDate date = task.getReminderAt().toLocalDate();
-            List<ObsidianTask> dayTasks = byDate.get(date);
-            if (dayTasks == null) {
-                dayTasks = new ArrayList<>();
-                byDate.put(date, dayTasks);
-            }
-            dayTasks.add(task);
+    private Map<LocalDate, List<TaskVisibleOccurrence>> filterCalendarMergedByGroup(
+            Map<LocalDate, List<TaskVisibleOccurrence>> merged
+    ) {
+        String selectedGroup = UserPreferences.getTaskGroup(this);
+        if (selectedGroup == null || selectedGroup.trim().isEmpty()) {
+            return merged;
         }
-        return byDate;
+        String groupingMode = UserPreferences.getGroupingMode(this);
+        Map<LocalDate, List<TaskVisibleOccurrence>> filtered = new HashMap<>();
+        for (Map.Entry<LocalDate, List<TaskVisibleOccurrence>> entry : merged.entrySet()) {
+            List<TaskVisibleOccurrence> bucketed = TaskCalendarProjection.filterBySelectedBucket(
+                    entry.getValue(),
+                    selectedGroup,
+                    groupingMode,
+                    this::compactName
+            );
+            if (!bucketed.isEmpty()) {
+                filtered.put(entry.getKey(), bucketed);
+            }
+        }
+        return filtered;
+    }
+
+    private Map<LocalDate, List<TaskVisibleOccurrence>> calendarMergeForSelection(List<ObsidianTask> visibleMarkdown) {
+        return TaskCalendarProjection.mergeTasksByDate(
+                visibleMarkdown,
+                OccurrenceHistoryStore.getAllHistory(this),
+                shouldHidePrivateTasks(),
+                UserPreferences.getPrivateMarker(this)
+        );
     }
 
     private LocalDate firstVisibleCalendarDay(YearMonth month) {
@@ -4154,7 +4239,10 @@ public final class MainActivity extends AppCompatActivity {
 
     private void moveCalendarMonth(int monthDelta) {
         displayedCalendarMonth = displayedCalendarMonth.plusMonths(monthDelta);
-        selectedCalendarDate = bestCalendarSelectionForMonth(displayedCalendarMonth, filterVisibleTasks(latestTasks));
+        selectedCalendarDate = bestCalendarSelectionForMonth(
+                displayedCalendarMonth,
+                calendarMergeForSelection(filterVisibleTasks(latestTasks))
+        );
         renderCalendar(latestTasks);
     }
 
@@ -4183,21 +4271,27 @@ public final class MainActivity extends AppCompatActivity {
     private void openMonthFromYear(YearMonth month) {
         calendarMode = CALENDAR_MODE_MONTH;
         displayedCalendarMonth = month;
-        selectedCalendarDate = bestCalendarSelectionForMonth(month, filterVisibleTasks(latestTasks));
+        selectedCalendarDate = bestCalendarSelectionForMonth(
+                month,
+                calendarMergeForSelection(filterVisibleTasks(latestTasks))
+        );
         renderCalendar(latestTasks);
     }
 
-    private LocalDate bestCalendarSelectionForMonth(YearMonth month, List<ObsidianTask> visibleTasks) {
+    private LocalDate bestCalendarSelectionForMonth(
+            YearMonth month,
+            Map<LocalDate, List<TaskVisibleOccurrence>> mergedByDate
+    ) {
         LocalDate today = LocalDate.now();
         if (YearMonth.from(today).equals(month)) {
             return today;
         }
         LocalDate firstTaskDate = null;
-        for (ObsidianTask task : visibleTasks) {
-            if (task.getReminderAt() == null) {
+        for (LocalDate taskDate : mergedByDate.keySet()) {
+            List<TaskVisibleOccurrence> dayEntries = mergedByDate.get(taskDate);
+            if (dayEntries == null || dayEntries.isEmpty()) {
                 continue;
             }
-            LocalDate taskDate = task.getReminderAt().toLocalDate();
             if (!YearMonth.from(taskDate).equals(month)) {
                 continue;
             }
@@ -4208,51 +4302,59 @@ public final class MainActivity extends AppCompatActivity {
         return firstTaskDate == null ? month.atDay(1) : firstTaskDate;
     }
 
-    private int compareTasksByTimeOnly(ObsidianTask first, ObsidianTask second) {
+    private int compareOccurrencesByTime(TaskVisibleOccurrence first, TaskVisibleOccurrence second) {
         int timeCompare = Comparator
                 .nullsLast(LocalDateTime::compareTo)
-                .compare(first.getReminderAt(), second.getReminderAt());
+                .compare(first.getDisplayReminderAt(), second.getDisplayReminderAt());
         if (timeCompare != 0) {
             return timeCompare;
         }
         return first.getTitle().compareToIgnoreCase(second.getTitle());
     }
 
-    private CalendarTaskSummary summarizeCalendarDay(List<ObsidianTask> tasks) {
+    private CalendarTaskSummary summarizeCalendarDayOccurrences(List<TaskVisibleOccurrence> entries) {
         CalendarTaskSummary summary = new CalendarTaskSummary();
-        if (tasks == null || tasks.isEmpty()) {
+        if (entries == null || entries.isEmpty()) {
             return summary;
         }
-        for (ObsidianTask task : tasks) {
-            addTaskToSummary(summary, task);
+        for (TaskVisibleOccurrence entry : entries) {
+            addVisibleOccurrenceToSummary(summary, entry);
         }
         return summary;
     }
 
-    private Map<YearMonth, CalendarTaskSummary> summarizeTasksByMonth(List<ObsidianTask> tasks) {
+    private Map<YearMonth, CalendarTaskSummary> summarizeTasksByMonth(
+            Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate
+    ) {
         Map<YearMonth, CalendarTaskSummary> summaries = new HashMap<>();
         int displayedYear = displayedCalendarMonth.getYear();
-        for (ObsidianTask task : tasks) {
-            if (task.getReminderAt() == null) {
+        for (List<TaskVisibleOccurrence> dayEntries : tasksByDate.values()) {
+            if (dayEntries == null) {
                 continue;
             }
-            YearMonth month = YearMonth.from(task.getReminderAt());
-            if (month.getYear() != displayedYear) {
-                continue;
+            for (TaskVisibleOccurrence entry : dayEntries) {
+                LocalDateTime due = entry.getDisplayReminderAt();
+                if (due == null) {
+                    continue;
+                }
+                YearMonth month = YearMonth.from(due);
+                if (month.getYear() != displayedYear) {
+                    continue;
+                }
+                CalendarTaskSummary summary = summaries.get(month);
+                if (summary == null) {
+                    summary = new CalendarTaskSummary();
+                    summaries.put(month, summary);
+                }
+                addVisibleOccurrenceToSummary(summary, entry);
             }
-            CalendarTaskSummary summary = summaries.get(month);
-            if (summary == null) {
-                summary = new CalendarTaskSummary();
-                summaries.put(month, summary);
-            }
-            addTaskToSummary(summary, task);
         }
         return summaries;
     }
 
-    private void addTaskToSummary(CalendarTaskSummary summary, ObsidianTask task) {
+    private void addVisibleOccurrenceToSummary(CalendarTaskSummary summary, TaskVisibleOccurrence entry) {
         summary.totalTaskCount++;
-        TaskStatus status = taskStatus(task);
+        TaskStatus status = entry.getCalendarStatus(LocalDateTime.now(), overdueGracePeriod());
         if (status == TaskStatus.COMPLETED) {
             summary.completedCount++;
         } else if (status == TaskStatus.SKIPPED) {
@@ -4276,11 +4378,11 @@ public final class MainActivity extends AppCompatActivity {
         return capitalize(CALENDAR_MONTH_FORMAT.format(displayedCalendarMonth.atDay(1)));
     }
 
-    private int periodTaskCount(Map<LocalDate, List<ObsidianTask>> tasksByDate) {
+    private int periodTaskCount(Map<LocalDate, List<TaskVisibleOccurrence>> tasksByDate) {
         int count = 0;
         if (calendarMode == CALENDAR_MODE_YEAR) {
             int year = displayedCalendarMonth.getYear();
-            for (Map.Entry<LocalDate, List<ObsidianTask>> entry : tasksByDate.entrySet()) {
+            for (Map.Entry<LocalDate, List<TaskVisibleOccurrence>> entry : tasksByDate.entrySet()) {
                 if (entry.getKey().getYear() == year) {
                     count += entry.getValue().size();
                 }
@@ -4290,7 +4392,7 @@ public final class MainActivity extends AppCompatActivity {
         if (calendarMode == CALENDAR_MODE_WEEK) {
             LocalDate start = currentWeekStart();
             LocalDate end = start.plusDays(6);
-            for (Map.Entry<LocalDate, List<ObsidianTask>> entry : tasksByDate.entrySet()) {
+            for (Map.Entry<LocalDate, List<TaskVisibleOccurrence>> entry : tasksByDate.entrySet()) {
                 LocalDate date = entry.getKey();
                 if (!date.isBefore(start) && !date.isAfter(end)) {
                     count += entry.getValue().size();
@@ -4298,7 +4400,7 @@ public final class MainActivity extends AppCompatActivity {
             }
             return count;
         }
-        for (Map.Entry<LocalDate, List<ObsidianTask>> entry : tasksByDate.entrySet()) {
+        for (Map.Entry<LocalDate, List<TaskVisibleOccurrence>> entry : tasksByDate.entrySet()) {
             if (YearMonth.from(entry.getKey()).equals(displayedCalendarMonth)) {
                 count += entry.getValue().size();
             }

@@ -2,6 +2,8 @@
 
 ## Near-term work
 
+0. **v0.9.1 repeat history (shipped in codebase):** calendar merges occurrence history; bulk skip/done aligns with repeat advance. Next: optional history detail UI and richer one-off analytics (see `docs/versions/v0.9.1-repeat-history-fix.md`).
+
 1. Finish structural cleanup after the package refactor
    - narrow wildcard imports
    - extract small helpers from the largest activities

@@ -135,6 +135,10 @@ Foundation introduced in this phase:
 Still intentionally left for follow-up:
 
 - richer repeat editor UI for weekly/monthly selection
-- history/statistics screen
-- bulk repeat-series advance parity for all multi-select flows
+- dedicated history/statistics drill-down screen
 - deeper in-app help/examples for the new syntax
+
+Implemented in v0.9.1:
+
+- calendar merges `OccurrenceHistoryStore` with markdown tasks so past repeat resolutions stay visible on their due dates
+- bulk mark-done / bulk skip reuse the same per-task repeat advance path as the list and notification actions

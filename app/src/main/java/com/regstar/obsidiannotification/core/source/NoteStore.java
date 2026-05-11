@@ -672,28 +672,96 @@ public final class NoteStore {
     }
 
     public static BulkEditResult markTasksDone(Context context, List<String> taskKeys) {
-        return editTaskLinesBulk(
-                context,
-                taskKeys,
-                false,
-                false,
-                line -> {
-                    String updatedLine = markDoneLine(line);
-                    return updatedLine == null ? null : TaskLineMutation.replace(updatedLine);
-                },
-                context.getString(R.string.runtime_bulk_mark_done_error)
+        List<String> keys = sanitizeTaskKeys(taskKeys);
+        int totalCount = keys.size();
+        if (totalCount == 0) {
+            return new BulkEditResult(0, 0, 0, 0, 0, 0, new ArrayList<>());
+        }
+        int updatedCount = 0;
+        int skippedCount = 0;
+        int failedCount = 0;
+        int notFoundCount = 0;
+        List<String> updatedTaskKeys = new ArrayList<>();
+        for (String taskKey : keys) {
+            TaskEditResult result = markTaskDone(context, taskKey);
+            switch (result.getStatus()) {
+                case UPDATED:
+                    updatedCount++;
+                    updatedTaskKeys.add(taskKey);
+                    break;
+                case ALREADY_DONE:
+                    skippedCount++;
+                    break;
+                case NOT_FOUND:
+                    notFoundCount++;
+                    break;
+                default:
+                    failedCount++;
+                    break;
+            }
+        }
+        return new BulkEditResult(
+                totalCount,
+                updatedCount,
+                skippedCount,
+                failedCount,
+                notFoundCount,
+                0,
+                updatedTaskKeys
         );
     }
 
     public static BulkEditResult markTasksSkipped(Context context, List<String> taskKeys) {
-        return editTaskLinesBulk(
-                context,
-                taskKeys,
-                false,
-                false,
-                line -> TaskLineMutation.replace(appendSkippedMarker(line)),
-                context.getString(R.string.runtime_bulk_skip_error)
+        List<String> keys = sanitizeTaskKeys(taskKeys);
+        int totalCount = keys.size();
+        if (totalCount == 0) {
+            return new BulkEditResult(0, 0, 0, 0, 0, 0, new ArrayList<>());
+        }
+        int updatedCount = 0;
+        int skippedCount = 0;
+        int failedCount = 0;
+        int notFoundCount = 0;
+        List<String> updatedTaskKeys = new ArrayList<>();
+        for (String taskKey : keys) {
+            TaskEditResult result = markTaskSkipped(context, taskKey);
+            switch (result.getStatus()) {
+                case UPDATED:
+                    updatedCount++;
+                    updatedTaskKeys.add(taskKey);
+                    break;
+                case ALREADY_DONE:
+                    skippedCount++;
+                    break;
+                case NOT_FOUND:
+                    notFoundCount++;
+                    break;
+                default:
+                    failedCount++;
+                    break;
+            }
+        }
+        return new BulkEditResult(
+                totalCount,
+                updatedCount,
+                skippedCount,
+                failedCount,
+                notFoundCount,
+                0,
+                updatedTaskKeys
         );
+    }
+
+    private static List<String> sanitizeTaskKeys(List<String> taskKeys) {
+        List<String> keys = new ArrayList<>();
+        if (taskKeys == null) {
+            return keys;
+        }
+        for (String taskKey : taskKeys) {
+            if (taskKey != null && !taskKey.trim().isEmpty()) {
+                keys.add(taskKey);
+            }
+        }
+        return keys;
     }
 
     public static BulkEditResult deleteTaskLines(Context context, List<String> taskKeys) {
