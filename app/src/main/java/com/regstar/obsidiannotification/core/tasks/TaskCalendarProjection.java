@@ -11,9 +11,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
- * Merges parsed markdown tasks with local repeat occurrence history for calendar views.
+ * Merges parsed markdown tasks with local repeat occurrence history for calendar views
+ * and tasks-tab filters that surface resolved repeat heads.
  */
 public final class TaskCalendarProjection {
     private TaskCalendarProjection() {
@@ -108,6 +110,62 @@ public final class TaskCalendarProjection {
             }
         }
         return out;
+    }
+
+    /**
+     * Appends {@link TaskVisibleOccurrence} history rows to the tasks list when the user
+     * filters by skipped or completed: repeat heads that advanced in markdown no longer
+     * carry {@code @skipped}/{@code [x]}, but their resolutions remain in
+     * {@link OccurrenceHistoryStore}.
+     */
+    public static void appendTaskListHistoryForResolvedStatus(
+            List<TaskVisibleOccurrence> target,
+            List<TaskOccurrenceRecord> history,
+            OccurrenceStatus requiredStatus,
+            boolean hidePrivateTasks,
+            String privateMarker,
+            String selectedGroup,
+            String groupingMode,
+            UnaryOperator<String> compactSource
+    ) {
+        if (target == null || requiredStatus == null) {
+            return;
+        }
+        if (requiredStatus != OccurrenceStatus.SKIPPED && requiredStatus != OccurrenceStatus.COMPLETED) {
+            return;
+        }
+        LinkedHashSet<String> dedupe = new LinkedHashSet<>();
+        for (TaskVisibleOccurrence row : target) {
+            if (row.isHistorical()) {
+                dedupe.add(historyDedupeKey(row.getHistoryRecord()));
+            }
+        }
+        List<TaskOccurrenceRecord> safeHistory = history == null ? Collections.emptyList() : history;
+        for (TaskOccurrenceRecord record : safeHistory) {
+            if (record.getOccurrenceStatus() != requiredStatus) {
+                continue;
+            }
+            if (record.getOccurrenceDueAt() == null) {
+                continue;
+            }
+            if (hidePrivateTasks && TaskGrouping.isPrivateHistoryRecord(record, privateMarker)) {
+                continue;
+            }
+            TaskVisibleOccurrence candidate = TaskVisibleOccurrence.fromHistory(record);
+            List<TaskVisibleOccurrence> inBucket = filterBySelectedBucket(
+                    Collections.singletonList(candidate),
+                    selectedGroup,
+                    groupingMode,
+                    compactSource
+            );
+            if (inBucket.isEmpty()) {
+                continue;
+            }
+            if (!dedupe.add(historyDedupeKey(record))) {
+                continue;
+            }
+            target.add(candidate);
+        }
     }
 
     private static String seriesDueKey(String seriesId, LocalDateTime dueAt) {

@@ -99,6 +99,39 @@ public final class TaskCalendarProjectionTest {
     }
 
     @Test
+    public void appendTaskListHistory_addsSkippedRepeatWhenFilterMatches() {
+        List<TaskVisibleOccurrence> rows = new java.util.ArrayList<>();
+        LocalDateTime oldDue = LocalDateTime.of(2026, 5, 10, 9, 0);
+        TaskOccurrenceRecord skipped = new TaskOccurrenceRecord(
+                "series-x",
+                oldDue,
+                OccurrenceStatus.SKIPPED,
+                LocalDateTime.of(2026, 5, 10, 10, 0),
+                "Note.md",
+                "Water",
+                "home",
+                Collections.singletonList("p"),
+                TaskPriority.NONE,
+                1
+        );
+        List<TaskOccurrenceRecord> history = Collections.singletonList(skipped);
+
+        TaskCalendarProjection.appendTaskListHistoryForResolvedStatus(
+                rows,
+                history,
+                OccurrenceStatus.SKIPPED,
+                false,
+                "",
+                "",
+                UserPreferences.GROUPING_GROUP,
+                s -> s
+        );
+
+        assertEquals(1, rows.size());
+        assertTrue(rows.get(0).isHistorical());
+    }
+
+    @Test
     public void mergeTasksByDate_dedupesDuplicateHistoryLines() {
         LocalDateTime due = LocalDateTime.of(2026, 5, 2, 12, 0);
         TaskOccurrenceRecord a = new TaskOccurrenceRecord(

@@ -2792,30 +2792,195 @@ public final class MainActivity extends AppCompatActivity {
         updateGroupFilterRow(groupingCandidates);
         showTaskSourceNames = hasMultipleSources(tasks);
         List<ObsidianTask> groupedVisibleTasks = filterTasksBySelectedGroup(visibleTasks);
-        List<ObsidianTask> displayTasks = rootTasksForDisplay(tasks, groupedVisibleTasks);
-        displayTasks.sort(this::compareTasksForDisplay);
-        updateTaskSectionHeader(displayTasks.size());
+        List<ObsidianTask> displayMarkdownRoots = rootTasksForDisplay(tasks, groupedVisibleTasks);
+
+        List<TaskVisibleOccurrence> displayRows = new ArrayList<>();
+        for (ObsidianTask task : displayMarkdownRoots) {
+            displayRows.add(TaskVisibleOccurrence.fromMarkdown(task));
+        }
+
+        String filter = UserPreferences.getTaskFilter(this);
+        if (UserPreferences.FILTER_SKIPPED.equals(filter)) {
+            TaskCalendarProjection.appendTaskListHistoryForResolvedStatus(
+                    displayRows,
+                    OccurrenceHistoryStore.getAllHistory(this),
+                    OccurrenceStatus.SKIPPED,
+                    shouldHidePrivateTasks(),
+                    UserPreferences.getPrivateMarker(this),
+                    UserPreferences.getTaskGroup(this),
+                    UserPreferences.getGroupingMode(this),
+                    this::compactName
+            );
+        } else if (UserPreferences.FILTER_COMPLETED.equals(filter)) {
+            TaskCalendarProjection.appendTaskListHistoryForResolvedStatus(
+                    displayRows,
+                    OccurrenceHistoryStore.getAllHistory(this),
+                    OccurrenceStatus.COMPLETED,
+                    shouldHidePrivateTasks(),
+                    UserPreferences.getPrivateMarker(this),
+                    UserPreferences.getTaskGroup(this),
+                    UserPreferences.getGroupingMode(this),
+                    this::compactName
+            );
+        }
+
+        displayRows.sort(this::compareOccurrencesForDisplay);
+        updateTaskSectionHeader(displayRows.size());
         displayOrderTaskKeys.clear();
-        if (displayTasks.isEmpty()) {
+        if (displayRows.isEmpty()) {
             renderEmptyState(getString(R.string.main_empty_due_filtered));
             updateFabVisibility();
             return;
         }
-        for (ObsidianTask t : displayTasks) {
-            displayOrderTaskKeys.add(t.getTaskKey());
+        for (TaskVisibleOccurrence row : displayRows) {
+            if (!row.isHistorical()) {
+                displayOrderTaskKeys.add(row.getMarkdownTask().getTaskKey());
+            }
         }
 
         String currentSource = null;
         boolean showGroupHeaders = showTaskSourceNames;
-        for (ObsidianTask task : displayTasks) {
-            String sourceName = task.getSourceName();
+        for (TaskVisibleOccurrence row : displayRows) {
+            String sourceName = sourceNameForTaskListRow(row);
             if (showGroupHeaders && !sourceName.equals(currentSource)) {
                 currentSource = sourceName;
                 taskList.addView(createSourceHeader(sourceName));
             }
-            taskList.addView(createTaskView(task));
+            if (row.isHistorical()) {
+                taskList.addView(createTaskHistoryListView(row));
+            } else {
+                taskList.addView(createTaskView(row.getMarkdownTask()));
+            }
         }
         updateFabVisibility();
+    }
+
+    private String sourceNameForTaskListRow(TaskVisibleOccurrence row) {
+        if (row.isHistorical()) {
+            String name = row.getHistoryRecord().getSourceName();
+            return name == null ? "" : name;
+        }
+        String name = row.getMarkdownTask().getSourceName();
+        return name == null ? "" : name;
+    }
+
+    private int compareOccurrencesForDisplay(TaskVisibleOccurrence first, TaskVisibleOccurrence second) {
+        int statusCompare = Integer.compare(
+                displayStatusRankForOccurrence(first),
+                displayStatusRankForOccurrence(second)
+        );
+        if (statusCompare != 0) {
+            return statusCompare;
+        }
+
+        int timeCompare = Comparator
+                .nullsLast(LocalDateTime::compareTo)
+                .compare(first.getDisplayReminderAt(), second.getDisplayReminderAt());
+        if (timeCompare != 0) {
+            return timeCompare;
+        }
+
+        int sourceCompare = compactName(sourceNameForTaskListRow(first))
+                .compareToIgnoreCase(compactName(sourceNameForTaskListRow(second)));
+        if (sourceCompare != 0) {
+            return sourceCompare;
+        }
+
+        int firstLine = first.isHistorical()
+                ? first.getHistoryRecord().getLineNumberSnapshot()
+                : first.getMarkdownTask().getLineNumber();
+        int secondLine = second.isHistorical()
+                ? second.getHistoryRecord().getLineNumberSnapshot()
+                : second.getMarkdownTask().getLineNumber();
+        return Integer.compare(firstLine, secondLine);
+    }
+
+    private int displayStatusRankForOccurrence(TaskVisibleOccurrence row) {
+        if (row.isHistorical()) {
+            TaskOccurrenceRecord record = row.getHistoryRecord();
+            if (record.getOccurrenceStatus() == OccurrenceStatus.COMPLETED) {
+                return 3;
+            }
+            if (record.getOccurrenceStatus() == OccurrenceStatus.SKIPPED) {
+                return 2;
+            }
+            return 0;
+        }
+        return displayStatusRank(row.getMarkdownTask());
+    }
+
+    private View createTaskHistoryListView(TaskVisibleOccurrence entry) {
+        TaskOccurrenceRecord record = entry.getHistoryRecord();
+        LinearLayout item = createCardContainer();
+        item.setPadding(dp(14), dp(12), dp(14), dp(12));
+        item.setBackground(createRoundedBackground(
+                getColor(R.color.card_background),
+                getColor(R.color.card_stroke),
+                8
+        ));
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        TextView title = createText(entry.getTitle(), 16, R.color.text_primary, true);
+        title.setMaxLines(2);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        titleRow.addView(title, new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1
+        ));
+
+        TextView statusChip = createStatusChip(entry.getCalendarStatus(LocalDateTime.now(), overdueGracePeriod()));
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(22)
+        );
+        statusParams.setMargins(dp(8), 0, 0, 0);
+        titleRow.addView(statusChip, statusParams);
+
+        item.addView(titleRow, fullWidth());
+        LocalDateTime due = record.getOccurrenceDueAt();
+        item.addView(createMetaLine(
+                        R.drawable.ic_clock,
+                        due == null ? getString(R.string.main_not_set) : DATE_TIME_FORMAT.format(due),
+                        true),
+                fullWidthWithTopMargin(dp(10)));
+
+        if (showTaskSourceNames) {
+            item.addView(
+                    createMetaLine(R.drawable.ic_file, compactName(record.getSourceName())),
+                    fullWidthWithTopMargin(dp(6))
+            );
+        }
+        item.addView(
+                createMetaLine(R.drawable.ic_label, formatGroupMetaForHistory(record)),
+                fullWidthWithTopMargin(dp(6))
+        );
+
+        TextView hint = createText(getString(R.string.stats_card_history_hint), 12, R.color.text_secondary, false);
+        item.addView(hint, fullWidthWithTopMargin(dp(8)));
+        return item;
+    }
+
+    private String formatGroupMetaForHistory(TaskOccurrenceRecord record) {
+        String mode = UserPreferences.getGroupingMode(this);
+        String label = TaskGrouping.bucketForHistoryRecord(
+                record,
+                mode,
+                compactName(record.getSourceName())
+        ).getLabel();
+        if (UserPreferences.GROUPING_TAG.equals(mode)) {
+            return getString(R.string.main_group_meta_tag, label);
+        }
+        if (UserPreferences.GROUPING_FILE.equals(mode)) {
+            return getString(R.string.main_group_meta_file, label);
+        }
+        if (UserPreferences.GROUPING_SMART.equals(mode)) {
+            return getString(R.string.main_group_meta_context, label);
+        }
+        return getString(R.string.main_group_meta_group, label);
     }
 
     private boolean isSelectionMode() {
