@@ -351,6 +351,21 @@ public final class TaskParser {
         return null;
     }
 
+    /**
+     * Same rules as internal due parsing; used by the task editor for field validation.
+     */
+    public static LocalDateTime tryParseDueInput(String combinedDue, LocalDate defaultDate) {
+        return parseDueValue(combinedDue == null ? "" : combinedDue.trim(), defaultDate);
+    }
+
+    public static Duration tryParseDurationToken(String raw) {
+        return parseDurationValue(raw);
+    }
+
+    public static Duration tryParseDurationTokenAllowZero(String raw) {
+        return parseDurationValueAllowZero(raw);
+    }
+
     private static LocalDateTime parseDateTime(
             String date,
             String time,

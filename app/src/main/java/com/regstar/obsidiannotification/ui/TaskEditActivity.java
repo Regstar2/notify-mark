@@ -28,10 +28,13 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.ViewConfiguration;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -113,7 +116,7 @@ public final class TaskEditActivity extends Activity {
     private EditText overdueGraceInput;
     private EditText snoozeInput;
     private EditText tagsInput;
-    private EditText groupInput;
+    private AutoCompleteTextView groupInput;
     private CheckBox checkboxTaskInput;
     private CheckBox repeatUntilDoneInput;
     private CheckBox overdueGraceEnabledInput;
@@ -313,6 +316,7 @@ public final class TaskEditActivity extends Activity {
                 ? defaultDueDateTime()
                 : task.getReminderAt();
         dateInput = createInput(initialDateValue(due));
+        dateInput.setHint(getString(R.string.task_edit_hint_date_example));
         dateInput.setOnClickListener(view -> showDatePicker());
         dateInput.setOnFocusChangeListener((view, hasFocus) -> {
             if (hasFocus) {
@@ -321,6 +325,7 @@ public final class TaskEditActivity extends Activity {
         });
         dateInput.addTextChangedListener(previewWatcher());
         timeInput = createInput(initialTimeValue(due));
+        timeInput.setHint(getString(R.string.task_edit_hint_time_example));
         timeInput.setOnClickListener(view -> showTimePicker());
         timeInput.setOnFocusChangeListener((view, hasFocus) -> {
             if (hasFocus) {
@@ -362,7 +367,7 @@ public final class TaskEditActivity extends Activity {
         card.addView(repeatUntilDoneInput, fullWidthWithBottomMargin(dp(6)));
 
         repeatUntilDoneIntervalInput = createInput(initialRepeatUntilDoneToken());
-        repeatUntilDoneIntervalInput.setHint("15m, 1h, 1d");
+        repeatUntilDoneIntervalInput.setHint(getString(R.string.task_edit_hint_repeat_until_done_example));
         repeatUntilDoneIntervalInput.addTextChangedListener(previewWatcher());
         repeatUntilDoneIntervalRow = createInputBlock(
                 getString(R.string.task_edit_repeat_until_done_interval),
@@ -381,7 +386,7 @@ public final class TaskEditActivity extends Activity {
         card.addView(overdueGraceEnabledInput, fullWidthWithBottomMargin(dp(6)));
 
         overdueGraceInput = createInput(initialOverdueGraceToken());
-        overdueGraceInput.setHint("0m, 10m, 1h");
+        overdueGraceInput.setHint(getString(R.string.task_edit_hint_grace_example));
         overdueGraceInput.addTextChangedListener(previewWatcher());
         overdueGraceRow = createInputBlock(
                 getString(R.string.task_edit_overdue_grace_label),
@@ -419,23 +424,36 @@ public final class TaskEditActivity extends Activity {
         card.addView(header, fullWidthWithBottomMargin(dp(8)));
         extraContent = new LinearLayout(this);
         extraContent.setOrientation(LinearLayout.VERTICAL);
-        groupInput = createInput(task == null ? "" : task.getGroup());
-        groupInput.setHint(ObsidianTask.DEFAULT_GROUP);
+        List<String> groupSuggestions = TaskGroupSuggestionProvider.distinctSortedGroups(
+                TaskCache.loadActiveTasks(this));
+        groupInput = createGroupAutocomplete(task == null ? "" : task.getGroup(), groupSuggestions);
+        groupInput.setHint(getString(R.string.task_edit_hint_group_example));
         groupInput.addTextChangedListener(previewWatcher());
-        extraContent.addView(createInputBlock(getString(R.string.task_edit_field_group), groupInput), fullWidthWithBottomMargin(dp(8)));
+        extraContent.addView(createInputBlock(
+                getString(R.string.task_edit_field_group),
+                groupInput
+        ), fullWidthWithBottomMargin(dp(4)));
+        extraContent.addView(
+                createGroupSuggestionChipRow(groupSuggestions),
+                fullWidthWithBottomMargin(dp(8))
+        );
         extraContent.addView(createLabel(getString(R.string.task_edit_field_priority)), fullWidthWithBottomMargin(dp(4)));
         LinearLayout priorityRow = new LinearLayout(this);
         priorityRow.setOrientation(LinearLayout.HORIZONTAL);
         rebuildPriorityRow(priorityRow);
         extraContent.addView(priorityRow, fullWidthWithBottomMargin(dp(8)));
         tagsInput = createInput(tagsToText(task == null ? Collections.emptyList() : task.getTags()));
-        tagsInput.setHint("#work #health");
+        tagsInput.setHint(getString(R.string.task_edit_hint_tags_example));
         tagsInput.addTextChangedListener(previewWatcher());
-        extraContent.addView(createInputBlock(getString(R.string.task_edit_field_tags), tagsInput), fullWidthWithBottomMargin(dp(8)));
+        extraContent.addView(createInputBlock(getString(R.string.task_edit_field_tags), tagsInput),
+                fullWidthWithBottomMargin(dp(8)));
         snoozeInput = createInput(initialSnoozeToken());
         snoozeInput.setHint(defaultSnoozeToken());
         snoozeInput.addTextChangedListener(previewWatcher());
-        extraContent.addView(createInputBlock(getString(R.string.task_edit_field_snooze), snoozeInput), fullWidthWithBottomMargin(dp(8)));
+        extraContent.addView(createInputBlock(
+                getString(R.string.task_edit_field_snooze),
+                snoozeInput
+        ), fullWidthWithBottomMargin(dp(8)));
         checkboxTaskInput = new CheckBox(this);
         checkboxTaskInput.setText(getString(R.string.task_edit_checkbox_task));
         checkboxTaskInput.setTextColor(getColor(R.color.text_secondary));
@@ -849,7 +867,7 @@ public final class TaskEditActivity extends Activity {
         );
         row.addView(input, inputParams);
 
-        TextView suffixView = createText(suffix, 13, R.color.text_secondary, true);
+        TextView suffixView = createText(suffix, 13, R.color.text_tertiary, true);
         suffixView.setGravity(Gravity.CENTER);
         suffixView.setPadding(dp(12), 0, dp(12), 0);
         suffixView.setBackground(createRoundedBackground(
@@ -1555,6 +1573,20 @@ public final class TaskEditActivity extends Activity {
             return getString(R.string.task_edit_empty_markdown_block);
         }
 
+        TaskEditorInputValidator.FieldIssue fieldIssue = TaskEditorInputValidator.firstFieldIssue(
+                LocalDate.now(),
+                dueValue(),
+                valueOf(repeatInput),
+                repeatUntilDoneValue(),
+                repeatUntilDoneInput != null && repeatUntilDoneInput.isChecked(),
+                overdueGraceValue(),
+                overdueGraceEnabledInput != null && overdueGraceEnabledInput.isChecked(),
+                snoozeValue()
+        );
+        if (fieldIssue != null) {
+            return messageForFieldIssue(fieldIssue);
+        }
+
         TaskParseResult result = TaskParser.parseDocument(
                 candidate + "\n",
                 LocalDate.now(),
@@ -1571,6 +1603,26 @@ public final class TaskEditActivity extends Activity {
             return getString(R.string.task_edit_due_required);
         }
         return "";
+    }
+
+    private String messageForFieldIssue(TaskEditorInputValidator.FieldIssue issue) {
+        if (issue == null) {
+            return "";
+        }
+        switch (issue) {
+            case INVALID_DUE:
+                return getString(R.string.task_edit_validation_due_invalid);
+            case INVALID_REPEAT:
+                return getString(R.string.task_edit_validation_repeat_invalid);
+            case INVALID_REPEAT_UNTIL_DONE:
+                return getString(R.string.task_edit_validation_repeat_until_done_invalid);
+            case INVALID_GRACE:
+                return getString(R.string.task_edit_validation_grace_invalid);
+            case INVALID_SNOOZE:
+                return getString(R.string.task_edit_validation_snooze_invalid);
+            default:
+                return "";
+        }
     }
 
     private String currentMarkdownBlock() {
@@ -1863,13 +1915,11 @@ public final class TaskEditActivity extends Activity {
         return input == null ? "" : input.getText().toString().trim();
     }
 
-    private EditText createInput(String value) {
-        EditText input = new EditText(this);
+    private void applyEditorFieldStyle(EditText input) {
         input.setSingleLine(true);
-        input.setText(value == null ? "" : value);
         input.setSelectAllOnFocus(false);
         input.setTextColor(getColor(R.color.text_primary));
-        input.setHintTextColor(getColor(R.color.text_secondary));
+        input.setHintTextColor(getColor(R.color.text_tertiary));
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         input.setBackground(createRoundedBackground(
                 getColor(R.color.background),
@@ -1877,7 +1927,82 @@ public final class TaskEditActivity extends Activity {
                 8
         ));
         input.setPadding(dp(12), dp(10), dp(12), dp(10));
+    }
+
+    private EditText createInput(String value) {
+        EditText input = new EditText(this);
+        applyEditorFieldStyle(input);
+        input.setText(value == null ? "" : value);
         return input;
+    }
+
+    private AutoCompleteTextView createGroupAutocomplete(String value, List<String> suggestions) {
+        AutoCompleteTextView input = new AutoCompleteTextView(this);
+        applyEditorFieldStyle(input);
+        input.setText(value == null ? "" : value);
+        List<String> safe = suggestions == null ? Collections.emptyList() : suggestions;
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                safe
+        );
+        input.setAdapter(adapter);
+        input.setThreshold(1);
+        return input;
+    }
+
+    /**
+     * Quick-pick chips under the group field; complements {@link AutoCompleteTextView} suggestions.
+     */
+    private HorizontalScrollView createGroupSuggestionChipRow(List<String> groups) {
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setFillViewport(false);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        if (groups == null || groups.isEmpty()) {
+            scroll.setVisibility(View.GONE);
+            scroll.addView(row, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            ));
+            return scroll;
+        }
+
+        String current = valueOf(groupInput);
+        int gap = dp(6);
+        boolean first = true;
+        for (String group : groups) {
+            LinearLayout.LayoutParams chipParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            if (!first) {
+                chipParams.setMargins(gap, 0, 0, 0);
+            }
+            first = false;
+
+            Button chip = createSegmentButton(group, current != null && current.equals(group));
+            chip.setMaxLines(1);
+            chip.setEllipsize(TextUtils.TruncateAt.END);
+            chip.setMaxWidth(dp(220));
+            chip.setPadding(dp(10), dp(6), dp(10), dp(6));
+            chip.setOnClickListener(view -> {
+                groupInput.setText(group);
+                groupInput.setSelection(group.length());
+                updatePreview();
+            });
+            row.addView(chip, chipParams);
+        }
+
+        scroll.addView(row, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        return scroll;
     }
 
     private TextView createText(String text, int sizeSp, int colorRes, boolean bold) {
@@ -2223,7 +2348,7 @@ public final class TaskEditActivity extends Activity {
             card.addView(createInputBlock(getString(R.string.task_edit_field_title), titleView), fullWidthWithBottomMargin(dp(8)));
 
             dateView = createInput(workingCopy.date);
-            dateView.setHint("yyyy-MM-dd");
+            dateView.setHint(getString(R.string.task_edit_hint_date_example));
             dateView.setOnClickListener(view -> showDatePicker());
             dateView.setOnFocusChangeListener((view, hasFocus) -> {
                 if (hasFocus) {
@@ -2233,7 +2358,7 @@ public final class TaskEditActivity extends Activity {
             dateView.addTextChangedListener(localWatcher());
 
             timeView = createInput(workingCopy.time);
-            timeView.setHint("HH:mm");
+            timeView.setHint(getString(R.string.task_edit_hint_time_example));
             timeView.setOnClickListener(view -> showTimePicker());
             timeView.setOnFocusChangeListener((view, hasFocus) -> {
                 if (hasFocus) {
@@ -2276,7 +2401,7 @@ public final class TaskEditActivity extends Activity {
             card.addView(repeatUntilDoneView, fullWidthWithBottomMargin(dp(6)));
 
             repeatUntilDoneIntervalView = createInput(workingCopy.repeatUntilDoneValue);
-            repeatUntilDoneIntervalView.setHint("15m, 1h, 1d");
+            repeatUntilDoneIntervalView.setHint(getString(R.string.task_edit_hint_repeat_until_done_example));
             repeatUntilDoneIntervalView.addTextChangedListener(localWatcher());
             repeatUntilDoneIntervalRowView = createInputBlock(
                     getString(R.string.task_edit_repeat_until_done_interval),
@@ -2295,7 +2420,7 @@ public final class TaskEditActivity extends Activity {
             card.addView(overdueGraceEnabledView, fullWidthWithBottomMargin(dp(6)));
 
             overdueGraceView = createInput(workingCopy.overdueGrace);
-            overdueGraceView.setHint("0m, 10m, 1h");
+            overdueGraceView.setHint(getString(R.string.task_edit_hint_grace_example));
             overdueGraceView.addTextChangedListener(localWatcher());
             overdueGraceRowView = createInputBlock(
                     getString(R.string.task_edit_overdue_grace_label),
@@ -2343,14 +2468,18 @@ public final class TaskEditActivity extends Activity {
             extraContentView.addView(priorityRow, fullWidthWithBottomMargin(dp(8)));
 
             tagsView = createInput(workingCopy.tags);
-            tagsView.setHint("#work #health");
+            tagsView.setHint(getString(R.string.task_edit_hint_tags_example));
             tagsView.addTextChangedListener(localWatcher());
-            extraContentView.addView(createInputBlock(getString(R.string.task_edit_field_tags), tagsView), fullWidthWithBottomMargin(dp(8)));
+            extraContentView.addView(createInputBlock(getString(R.string.task_edit_field_tags), tagsView),
+                    fullWidthWithBottomMargin(dp(8)));
 
             snoozeView = createInput(workingCopy.snooze.isEmpty() ? defaultSnoozeToken() : workingCopy.snooze);
             snoozeView.setHint(defaultSnoozeToken());
             snoozeView.addTextChangedListener(localWatcher());
-            extraContentView.addView(createInputBlock(getString(R.string.task_edit_field_snooze), snoozeView), fullWidthWithBottomMargin(dp(8)));
+            extraContentView.addView(createInputBlock(
+                    getString(R.string.task_edit_field_snooze),
+                    snoozeView
+            ), fullWidthWithBottomMargin(dp(8)));
 
             completedView = new CheckBox(TaskEditActivity.this);
             completedView.setText(getString(R.string.task_edit_subtask_completed));
@@ -2658,9 +2787,38 @@ public final class TaskEditActivity extends Activity {
             dismiss(false);
         }
 
+        private String localDueCombined() {
+            String date = localValue(dateView);
+            String time = localValue(timeView);
+            if (!date.isEmpty() && !time.isEmpty()) {
+                return date + " " + time;
+            }
+            if (!date.isEmpty()) {
+                return date;
+            }
+            return time;
+        }
+
         private String validationError(String candidate) {
             if (candidate == null || candidate.trim().isEmpty()) {
                 return getString(R.string.task_edit_subtask_empty);
+            }
+            TaskEditorInputValidator.FieldIssue fieldIssue = TaskEditorInputValidator.firstFieldIssue(
+                    LocalDate.now(),
+                    localDueCombined(),
+                    localValue(repeatView),
+                    repeatUntilDoneView != null && repeatUntilDoneView.isChecked()
+                            ? localValue(repeatUntilDoneIntervalView)
+                            : "",
+                    repeatUntilDoneView != null && repeatUntilDoneView.isChecked(),
+                    overdueGraceEnabledView != null && overdueGraceEnabledView.isChecked()
+                            ? localValue(overdueGraceView)
+                            : "",
+                    overdueGraceEnabledView != null && overdueGraceEnabledView.isChecked(),
+                    localValue(snoozeView)
+            );
+            if (fieldIssue != null) {
+                return TaskEditActivity.this.messageForFieldIssue(fieldIssue);
             }
             TaskParseResult result = TaskParser.parseDocument(
                     candidate + "\n",

@@ -77,4 +77,26 @@
     </string>
     <string name="task_parse_error_grace_invalid">не удалось разобрать @grace(...). Используйте @grace(10m), @grace(1h) или @grace(0m)</string>
     <string name="task_parse_error_snooze_invalid">не удалось разобрать @snooze(...). Используйте @snooze(10m), @snooze(1h) или @snooze(1d)</string>
+
+    <string name="task_edit_hint_date_example">2026-04-20</string>
+    <string name="task_edit_hint_time_example">19:00</string>
+    <string name="task_edit_hint_group_example">рабочее</string>
+    <string name="task_edit_hint_tags_example">#работа #дом</string>
+    <string name="task_edit_hint_repeat_until_done_example">15m, 1h</string>
+    <string name="task_edit_hint_grace_example">30m, 2h, 1d</string>
+
+    <string name="task_edit_helper_due">Дата и время для напоминания: ISO-дата, дд.мм.гггг, только дата, только время и др. (см. документацию формата).</string>
+    <string name="task_edit_helper_repeat_until_done">Повторное напоминание, пока текущий срок не закрыт (не то же, что расписание @repeat). Примеры: 15m, 1h.</string>
+    <string name="task_edit_helper_overdue_grace">Запас после срока, пока задача не считается просроченной. Примеры: 30m, 2h, 1d.</string>
+    <string name="task_edit_helper_snooze">Шаг отложенного напоминания в строке задачи. Примеры: 15m, 1h.</string>
+    <string name="task_edit_helper_group">Выберите из списка или введите новое имя; пусто — без группы в тексте.</string>
+    <string name="task_edit_helper_priority">Значения в тексте: low, normal/medium, high, urgent (как в парсере).</string>
+    <string name="task_edit_helper_tags_hash">Теги: #слово в тексте или несколько через пробел.</string>
+    <string name="task_edit_helper_tags_at">Теги: @tag(имя) или #метка в тексте, если включено в настройках.</string>
+
+    <string name="task_edit_validation_due_invalid">Проверьте дату и время: например 2026-04-20 19:00, 20.04.2026 19:00 или только 19:00.</string>
+    <string name="task_edit_validation_repeat_invalid">Проверьте повтор: например 1d, 2w, 1mo или используйте режимы «Неделя»/«Месяц».</string>
+    <string name="task_edit_validation_repeat_until_done_invalid">Интервал «до выполнения»: например 15m или 1h.</string>
+    <string name="task_edit_validation_grace_invalid">Грейс: например 30m, 2h или 0m.</string>
+    <string name="task_edit_validation_snooze_invalid">Отложить: например 15m или 1h.</string>
 </resources>

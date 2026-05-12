@@ -31,4 +31,5 @@
     <color name="error_text">#FFB4BF</color>
     <color name="text_primary">#F0F1F4</color>
     <color name="text_secondary">#B8BBC4</color>
+    <color name="text_tertiary">#90959E</color>
 </resources>
