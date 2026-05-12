@@ -33,6 +33,9 @@
                 <action android:name="android.intent.action.DATE_CHANGED" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".core.reminders.AutoSkipReceiver"
+            android:exported="false" />
         <service
             android:name=".ui.tiles.TasksTileService"
             android:exported="true"

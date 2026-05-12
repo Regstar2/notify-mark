@@ -10,6 +10,7 @@ Project name: **NotifyMark**
 - Do not change source or storage behavior without an explicit request.
 - Do not change SAF permission handling without an explicit request.
 - Do not delete real user markdown files when clearing external connections.
+- After making changes, install the new version on your phone. If the phone is missing, tell me about it.
 
 ## Branding and user-facing text
 

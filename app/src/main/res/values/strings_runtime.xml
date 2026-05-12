@@ -72,4 +72,5 @@
     <string name="runtime_show_notification_error">Не удалось показать уведомление</string>
     <string name="runtime_notification_action_receiver_error">Не удалось обработать действие из уведомления</string>
     <string name="runtime_note_sync_receiver_error">Не удалось обработать фоновую синхронизацию заметок</string>
+    <string name="runtime_auto_skip_error">Ошибка автопропуска задачи</string>
 </resources>

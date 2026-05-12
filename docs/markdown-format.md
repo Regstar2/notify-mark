@@ -106,6 +106,12 @@ Tags are also read from regular markdown tags:
 #personal
 ```
 
+## Auto-skip overdue tasks (app setting)
+
+Auto-skip is **not** a markdown token on the task line. Turn it on under **Settings → Notifications** (notification actions) or in the **task editor**, and set the delay in minutes.
+
+When enabled, a due occurrence can be marked skipped after: **reminder time + overdue grace** (from `@grace(...)` / `@g(...)` on the line, otherwise the app default grace minutes) **+ the configured auto-skip delay**. Snoozing a notification does **not** move that auto-skip deadline.
+
 ## Subtasks
 
 Nested markdown checklist items become subtasks:

@@ -111,6 +111,7 @@ public final class HelpActivity extends AppCompatActivity {
         LinearLayout body = (LinearLayout) card.getChildAt(1);
         body.addView(createText(getString(R.string.help_markdown_explainer), 13, R.color.text_secondary, false), fullWidth());
         body.addView(createText(getString(R.string.help_markdown_tokens), 13, R.color.text_primary, false), fullWidthWithTopMargin(dp(8)));
+        body.addView(createText(getString(R.string.help_markdown_auto_skip), 13, R.color.text_secondary, false), fullWidthWithTopMargin(dp(8)));
         body.addView(createCodeBlock(getString(R.string.help_example_due)), fullWidthWithTopMargin(dp(8)));
         body.addView(createCodeBlock(getString(R.string.help_example_repeat)), fullWidthWithTopMargin(dp(8)));
         body.addView(createCodeBlock(getString(R.string.help_example_until_done)), fullWidthWithTopMargin(dp(8)));

@@ -54,6 +54,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -2509,8 +2510,22 @@ public final class MainActivity extends AppCompatActivity {
     private void renderParseResult(NoteStore.TaskSnapshot snapshot) {
         TaskParseResult parseResult = snapshot.getParseResult();
         List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
+        ZoneId zoneId = ZoneId.systemDefault();
+        LocalDateTime now = LocalDateTime.now(zoneId);
+        if (AutoSkipPreferences.isEnabled(this)) {
+            if (AutoSkipScheduler.processDueAutoSkips(this, now, zoneId)) {
+                try {
+                    snapshot = NoteStore.readTaskSnapshot(this);
+                    parseResult = snapshot.getParseResult();
+                    activeTasks = parseResult.getActiveTasks();
+                } catch (IOException | RuntimeException exception) {
+                    ErrorLog.record(this, getString(R.string.main_read_source_ui_error), exception);
+                }
+            }
+        }
         TaskCache.saveActiveTasks(this, activeTasks);
         ReminderSchedule schedule = ReminderScheduler.schedule(this, activeTasks);
+        AutoSkipScheduler.scheduleFutureAlarms(this, activeTasks, now, zoneId);
         renderedFingerprint = NoteChangeMonitor.fingerprintOf(parseResult);
         NoteChangeMonitor.recordSuccessfulSync(this, renderedFingerprint, snapshot);
 
@@ -2665,8 +2680,17 @@ public final class MainActivity extends AppCompatActivity {
         List<ObsidianTask> cachedTasks = TaskCache.loadActiveTasks(this);
         if (!cachedTasks.isEmpty()) {
             ReminderSchedule schedule = null;
+            ZoneId zoneId = ZoneId.systemDefault();
+            LocalDateTime now = LocalDateTime.now(zoneId);
+            if (AutoSkipPreferences.isEnabled(this)) {
+                if (AutoSkipScheduler.processDueAutoSkips(this, now, zoneId)) {
+                    NoteChangeMonitor.syncNow(this, true);
+                }
+                cachedTasks = TaskCache.loadActiveTasks(this);
+            }
             try {
                 schedule = ReminderScheduler.schedule(this, cachedTasks);
+                AutoSkipScheduler.scheduleFutureAlarms(this, cachedTasks, now, zoneId);
             } catch (RuntimeException exception) {
                 ErrorLog.record(this, getString(R.string.main_cache_next_reminder_error), exception);
             }

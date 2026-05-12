@@ -167,6 +167,10 @@ public final class AboutActivity extends AppCompatActivity {
         syntax.setBackground(createRoundedBackground(getColor(R.color.background), getColor(R.color.card_stroke), 10));
         syntax.setPadding(dp(10), dp(10), dp(10), dp(10));
         card.addView(syntax, fullWidthWithTopMargin(dp(6)));
+
+        TextView autoSkipNote = createText(getString(R.string.about_info_auto_skip), 12, R.color.text_secondary, false);
+        autoSkipNote.setPadding(0, dp(8), 0, 0);
+        card.addView(autoSkipNote, fullWidth());
         return card;
     }
 

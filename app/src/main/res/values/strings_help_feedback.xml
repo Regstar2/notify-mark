@@ -13,7 +13,8 @@
     <string name="help_section_markdown_title">Синтаксис markdown</string>
     <string name="help_section_markdown_summary">Ключевые токены и примеры</string>
     <string name="help_markdown_explainer">Основные параметры задачи указываются прямо в строке. Используйте понятные маркеры и проверяйте формат даты/времени.</string>
-    <string name="help_markdown_tokens">@due(...) — дата и время\n@repeat(...) — обычный интервал повтора\n@repeatUntilDone(...) — повтор до выполнения\n@tag(...) — тег\n@priority(...) — приоритет\n@group(...) — группа</string>
+    <string name="help_markdown_tokens">@due(...) — дата и время\n@repeat(...) — обычный интервал повтора\n@repeatUntilDone(...) — повтор до выполнения\n@grace(...) — льгота до «просрочено» (см. автопропуск в настройках)\n@tag(...) — тег\n@priority(...) — приоритет\n@group(...) — группа</string>
+    <string name="help_markdown_auto_skip">Автопропуск просроченных — это настройка приложения, а не токен в строке задачи. Его можно включить в «Настройки → Уведомления» или в редакторе задачи. Срок срабатывания: время напоминания + льгота (@grace(...) или минуты «просрочки» из настроек) + задержка автопропуска в минутах. Отложение уведомления (snooze) этот срок не сдвигает.</string>
     <string name="help_example_due">- [ ] Купить лекарство @due(2026-04-23 18:00)</string>
     <string name="help_example_repeat">- [ ] Напомнить ещё раз @due(2026-04-23 18:00) @repeat(15m)</string>
     <string name="help_example_until_done">- [ ] Задача до выполнения @due(2026-04-23 18:00) @repeatUntilDone(10m)</string>

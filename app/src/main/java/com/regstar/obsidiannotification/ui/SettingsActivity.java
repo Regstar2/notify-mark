@@ -20,6 +20,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.InputType;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -65,6 +66,9 @@ public final class SettingsActivity extends Activity {
     private EditText privateMarkerInput;
     private CheckBox recordSnoozeCountCheckbox;
     private CheckBox showSourceOnMainCheckbox;
+    private CheckBox autoSkipEnabledCheckbox;
+    private EditText autoSkipDelayMinutesInput;
+    private LinearLayout autoSkipDetailsContainer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -638,6 +642,31 @@ public final class SettingsActivity extends Activity {
         );
         overdueGraceMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
 
+        autoSkipEnabledCheckbox = new CheckBox(this);
+        autoSkipEnabledCheckbox.setText(getString(R.string.settings_auto_skip_enabled));
+        autoSkipEnabledCheckbox.setTextColor(getColor(R.color.text_secondary));
+        autoSkipEnabledCheckbox.setChecked(AutoSkipPreferences.isEnabled(this));
+        autoSkipEnabledCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (autoSkipDetailsContainer != null) {
+                autoSkipDetailsContainer.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+            }
+        });
+        root.addView(autoSkipEnabledCheckbox, fullWidthWithBottomMargin());
+
+        autoSkipDetailsContainer = new LinearLayout(this);
+        autoSkipDetailsContainer.setOrientation(LinearLayout.VERTICAL);
+        autoSkipDetailsContainer.setVisibility(
+                AutoSkipPreferences.isEnabled(this) ? View.VISIBLE : View.GONE
+        );
+
+        autoSkipDelayMinutesInput = addKeywordInput(
+                autoSkipDetailsContainer,
+                getString(R.string.settings_auto_skip_custom_minutes_label),
+                String.valueOf(AutoSkipPreferences.getDelayMinutes(this))
+        );
+        autoSkipDelayMinutesInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+        root.addView(autoSkipDetailsContainer, fullWidthWithBottomMargin());
+
         recordSnoozeCountCheckbox = new CheckBox(this);
         recordSnoozeCountCheckbox.setText(getString(R.string.settings_record_snooze_count));
         recordSnoozeCountCheckbox.setTextColor(getColor(R.color.text_secondary));
@@ -877,10 +906,22 @@ public final class SettingsActivity extends Activity {
         ActionPreferences.setRepeatUntilDoneMinutes(this, repeatUntilDoneMinutes);
         ActionPreferences.setOverdueGraceMinutes(this, overdueGraceMinutes);
         ActionPreferences.setRecordSnoozeCount(this, recordSnoozeCountCheckbox.isChecked());
+
+        AutoSkipPreferences.setEnabled(this, autoSkipEnabledCheckbox.isChecked());
+        int autoSkipDelayMinutes;
+        try {
+            autoSkipDelayMinutes = Integer.parseInt(autoSkipDelayMinutesInput.getText().toString().trim());
+        } catch (NumberFormatException exception) {
+            autoSkipDelayMinutes = AutoSkipPreferences.getDelayMinutes(this);
+        }
+        AutoSkipPreferences.setDelayMinutes(this, autoSkipDelayMinutes);
+
         snoozeMinutesInput.setText(String.valueOf(ActionPreferences.getSnoozeMinutes(this)));
         repeatUntilDoneMinutesInput.setText(String.valueOf(ActionPreferences.getRepeatUntilDoneMinutes(this)));
         overdueGraceMinutesInput.setText(String.valueOf(ActionPreferences.getOverdueGraceMinutes(this)));
+        autoSkipDelayMinutesInput.setText(String.valueOf(AutoSkipPreferences.getDelayMinutes(this)));
         Toast.makeText(this, getString(R.string.settings_notification_actions_saved), Toast.LENGTH_SHORT).show();
+        rescheduleAll();
         updateStatus();
     }
 

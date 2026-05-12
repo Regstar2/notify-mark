@@ -23,5 +23,6 @@
     <string name="about_theme_light">Светлая</string>
     <string name="about_theme_system">Системная</string>
     <string name="about_info_syntax">Формат задач</string>
-    <string name="about_info_syntax_value">@due(...) @repeat(...) @repeatUntilDone(...) @tag(...) @priority(...) @group(...)</string>
+    <string name="about_info_syntax_value">@due(...) @repeat(...) @repeatUntilDone(...) @grace(...) @tag(...) @priority(...) @group(...)</string>
+    <string name="about_info_auto_skip">Автопропуск — настройка приложения (не токен в строке): после срока, льготы и задержки задача может стать пропущенной; см. «Помощь».</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.regstar.obsidiannotification.core.source;
 
 import com.regstar.obsidiannotification.R;
+import com.regstar.obsidiannotification.core.reminders.AutoSkipScheduler;
 import com.regstar.obsidiannotification.core.reminders.ReminderSchedule;
 import com.regstar.obsidiannotification.core.reminders.ReminderScheduler;
 import com.regstar.obsidiannotification.core.tasks.ObsidianTask;
@@ -13,6 +14,7 @@ import com.regstar.obsidiannotification.core.tasks.TaskOccurrenceRecord;
 import com.regstar.obsidiannotification.core.tasks.TaskParseError;
 import com.regstar.obsidiannotification.core.tasks.TaskParseResult;
 import com.regstar.obsidiannotification.core.tasks.TaskFormatSettings;
+import com.regstar.obsidiannotification.prefs.AutoSkipPreferences;
 import com.regstar.obsidiannotification.support.ErrorLog;
 
 import android.app.AlarmManager;
@@ -26,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Base64;
 import java.util.List;
 
@@ -113,11 +116,23 @@ public final class NoteChangeMonitor {
                 parseResult = snapshot.getParseResult();
             }
 
+            ZoneId zoneId = ZoneId.systemDefault();
+            LocalDateTime now = LocalDateTime.now(zoneId);
             List<ObsidianTask> activeTasks = parseResult.getActiveTasks();
+            if (AutoSkipPreferences.isEnabled(context)) {
+                boolean autoSkipped = AutoSkipScheduler.processDueAutoSkips(context, now, zoneId);
+                if (autoSkipped) {
+                    snapshot = NoteStore.readTaskSnapshot(context);
+                    parseResult = snapshot.getParseResult();
+                    activeTasks = parseResult.getActiveTasks();
+                }
+            }
+
             TaskCache.saveActiveTasks(context, activeTasks);
             ReminderSchedule schedule = forceReschedule
                     ? ReminderScheduler.rescheduleAll(context, activeTasks)
                     : ReminderScheduler.schedule(context, activeTasks);
+            AutoSkipScheduler.scheduleFutureAlarms(context, activeTasks, now, zoneId);
             String fingerprint = fingerprintOf(context, parseResult);
             String previousFingerprint = getLastFingerprint(context);
             recordSuccessfulSync(context, fingerprint, snapshot);

@@ -8,9 +8,11 @@ import com.regstar.obsidiannotification.core.tasks.*;
 import com.regstar.obsidiannotification.debug.*;
 import com.regstar.obsidiannotification.prefs.*;
 import com.regstar.obsidiannotification.support.ErrorLog;
+import com.regstar.obsidiannotification.support.IoExecutor;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.graphics.Color;
@@ -115,6 +117,9 @@ public final class TaskEditActivity extends Activity {
     private EditText repeatUntilDoneIntervalInput;
     private EditText overdueGraceInput;
     private EditText snoozeInput;
+    private CheckBox taskEditAutoSkipEnabledInput;
+    private EditText taskEditAutoSkipDelayInput;
+    private LinearLayout taskEditAutoSkipDetails;
     private EditText tagsInput;
     private AutoCompleteTextView groupInput;
     private CheckBox checkboxTaskInput;
@@ -394,6 +399,37 @@ public final class TaskEditActivity extends Activity {
         );
         card.addView(overdueGraceRow, fullWidth());
 
+        taskEditAutoSkipEnabledInput = new CheckBox(this);
+        taskEditAutoSkipEnabledInput.setText(getString(R.string.settings_auto_skip_enabled));
+        taskEditAutoSkipEnabledInput.setTextColor(getColor(R.color.text_secondary));
+        taskEditAutoSkipEnabledInput.setChecked(AutoSkipPreferences.isEnabled(this));
+        taskEditAutoSkipEnabledInput.setOnCheckedChangeListener((buttonView, checked) -> {
+            updateTaskEditAutoSkipUi();
+            persistTaskEditorAutoSkipFromForm();
+        });
+        card.addView(taskEditAutoSkipEnabledInput, fullWidthWithBottomMargin(dp(6)));
+
+        taskEditAutoSkipDetails = new LinearLayout(this);
+        taskEditAutoSkipDetails.setOrientation(LinearLayout.VERTICAL);
+
+        taskEditAutoSkipDelayInput = createInput(String.valueOf(AutoSkipPreferences.getDelayMinutes(this)));
+        taskEditAutoSkipDelayInput.setInputType(InputType.TYPE_CLASS_NUMBER);
+        taskEditAutoSkipDelayInput.setOnFocusChangeListener((view, hasFocus) -> {
+            if (!hasFocus
+                    && taskEditAutoSkipEnabledInput != null
+                    && taskEditAutoSkipEnabledInput.isChecked()) {
+                persistTaskEditorAutoSkipFromForm();
+            }
+        });
+        taskEditAutoSkipDetails.addView(
+                createInputBlock(getString(R.string.settings_auto_skip_custom_minutes_label), taskEditAutoSkipDelayInput),
+                fullWidthWithBottomMargin(dp(4))
+        );
+
+        card.addView(taskEditAutoSkipDetails, fullWidth());
+
+        updateTaskEditAutoSkipUi();
+
         updateRepeatUntilDoneUi();
         updateOverdueGraceUi();
         return card;
@@ -641,6 +677,17 @@ public final class TaskEditActivity extends Activity {
         overdueGraceRow.setVisibility(visible ? View.VISIBLE : View.GONE);
         if (visible && valueOf(overdueGraceInput).isEmpty()) {
             overdueGraceInput.setText(defaultOverdueGraceToken());
+        }
+    }
+
+    private void updateTaskEditAutoSkipUi() {
+        if (taskEditAutoSkipDetails == null || taskEditAutoSkipEnabledInput == null) {
+            return;
+        }
+        boolean visible = taskEditAutoSkipEnabledInput.isChecked();
+        taskEditAutoSkipDetails.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (visible && valueOf(taskEditAutoSkipDelayInput).trim().isEmpty()) {
+            taskEditAutoSkipDelayInput.setText(String.valueOf(AutoSkipPreferences.getDelayMinutes(this)));
         }
     }
 
@@ -1501,7 +1548,45 @@ public final class TaskEditActivity extends Activity {
         activeSubtaskEditor.show();
     }
 
+    private void persistTaskEditorAutoSkipFromForm() {
+        applyAutoSkipPrefsFromForm();
+        scheduleAutoSkipResyncAfterPrefs();
+    }
+
+    /**
+     * Writes prefs and normalizes the minutes field on the UI thread (fast).
+     * Heavy reschedule work runs in {@link #scheduleAutoSkipResyncAfterPrefs()} so expanding
+     * the auto-skip block stays as responsive as other checkbox-driven sections.
+     */
+    private void applyAutoSkipPrefsFromForm() {
+        if (taskEditAutoSkipEnabledInput == null || taskEditAutoSkipDelayInput == null) {
+            return;
+        }
+        AutoSkipPreferences.setEnabled(this, taskEditAutoSkipEnabledInput.isChecked());
+        int delayMinutes;
+        try {
+            delayMinutes = Integer.parseInt(taskEditAutoSkipDelayInput.getText().toString().trim());
+        } catch (NumberFormatException ignored) {
+            delayMinutes = AutoSkipPreferences.getDelayMinutes(this);
+        }
+        AutoSkipPreferences.setDelayMinutes(this, delayMinutes);
+        taskEditAutoSkipDelayInput.setText(String.valueOf(AutoSkipPreferences.getDelayMinutes(this)));
+    }
+
+    private void scheduleAutoSkipResyncAfterPrefs() {
+        final Context appContext = getApplicationContext();
+        IoExecutor.io().execute(() -> {
+            try {
+                NoteChangeMonitor.syncNow(appContext, true);
+                NoteChangeMonitor.ensureScheduled(appContext);
+            } catch (RuntimeException ignored) {
+                // syncNow records failures internally; avoid crashing the IO thread
+            }
+        });
+    }
+
     private void saveTask() {
+        persistTaskEditorAutoSkipFromForm();
         String candidate = currentMarkdownBlock();
         if (!validateCandidate(candidate, false)) {
             return;

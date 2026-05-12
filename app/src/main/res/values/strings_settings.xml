@@ -8,7 +8,7 @@
     <string name="settings_section_notifications_title">Уведомления</string>
     <string name="settings_section_notifications_subtitle">Exact alarms, отложить, повторы и действия из уведомления.</string>
     <string name="settings_section_format_title">Формат задач</string>
-    <string name="settings_section_format_subtitle">Ключевые слова @due, @repeat, @tag, @priority и @group.</string>
+    <string name="settings_section_format_subtitle">Ключевые слова @due, @repeat, @grace, @tag, @priority и @group.</string>
     <string name="settings_section_scan_title">Поиск задач в файлах</string>
     <string name="settings_section_scan_subtitle">Маски, исключения и лимит сканирования папок.</string>
     <string name="settings_section_advanced_title">Продвинутые / Отладка</string>
@@ -130,4 +130,7 @@
     <string name="settings_main_filter_active_only">Главный экран: только активные</string>
     <string name="settings_main_filter_all_tasks">Главный экран: все задачи</string>
     <string name="settings_not_selected_short">не выбран</string>
+
+    <string name="settings_auto_skip_enabled">Включить автопропуск</string>
+    <string name="settings_auto_skip_custom_minutes_label">Задержка автопропуска, минут</string>
 </resources>
