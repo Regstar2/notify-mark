@@ -13,6 +13,7 @@ import com.regstar.obsidiannotification.support.IoExecutor;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.os.Build;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.graphics.Color;
@@ -20,13 +21,16 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.Editable;
+import android.text.InputFilter;
 import android.text.InputType;
+import android.text.Layout;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.text.method.ScrollingMovementMethod;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.ViewConfiguration;
@@ -72,6 +76,17 @@ public final class TaskEditActivity extends Activity {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
+
+    /** Task titles are single logical lines in markdown; block Enter from inserting real newlines. */
+    private static final InputFilter TITLE_LINE_BREAK_FILTER = (source, start, end, dest, dstart, dend) -> {
+        for (int i = start; i < end; i++) {
+            char c = source.charAt(i);
+            if (c == '\n' || c == '\r') {
+                return "";
+            }
+        }
+        return null;
+    };
 
     private enum RepeatEditorMode {
         NONE,
@@ -180,7 +195,7 @@ public final class TaskEditActivity extends Activity {
                 task = taskMatch.getTask();
                 TaskFormatSettings formatSettings = TaskFormatSettings.load(this);
                 for (ObsidianTask subtask : task.getSubtasks()) {
-                    subtaskDrafts.add(SubtaskDraft.fromTask(subtask, formatSettings));
+                    subtaskDrafts.add(SubtaskDraft.fromTask(subtask, formatSettings, TaskEditActivity.this));
                 }
             } else {
                 defaultDocument = NoteStore.findDefaultWriteDocument(this);
@@ -313,6 +328,7 @@ public final class TaskEditActivity extends Activity {
     private LinearLayout createBasicSection() {
         LinearLayout card = createSectionCard(getString(R.string.task_edit_section_basic), null);
         titleInput = createInput(task == null ? getString(R.string.task_edit_title_new) : task.getTitle());
+        configureTaskTitleField(titleInput);
         titleInput.setHint(getString(R.string.task_edit_title_hint));
         titleInput.addTextChangedListener(previewWatcher());
         card.addView(createInputBlock(getString(R.string.task_edit_field_title), titleInput), fullWidthWithBottomMargin(dp(8)));
@@ -478,7 +494,7 @@ public final class TaskEditActivity extends Activity {
         priorityRow.setOrientation(LinearLayout.HORIZONTAL);
         rebuildPriorityRow(priorityRow);
         extraContent.addView(priorityRow, fullWidthWithBottomMargin(dp(8)));
-        tagsInput = createInput(tagsToText(task == null ? Collections.emptyList() : task.getTags()));
+        tagsInput = createInput(tagsToEditorDisplay(this, task == null ? Collections.emptyList() : task.getTags()));
         tagsInput.setHint(getString(R.string.task_edit_hint_tags_example));
         tagsInput.addTextChangedListener(previewWatcher());
         extraContent.addView(createInputBlock(getString(R.string.task_edit_field_tags), tagsInput),
@@ -558,10 +574,23 @@ public final class TaskEditActivity extends Activity {
         row.addView(previewChevron, new LinearLayout.LayoutParams(dp(28), dp(28)));
         card.addView(row, fullWidth());
 
+        HorizontalScrollView previewScroll = new HorizontalScrollView(this);
+        previewScroll.setFillViewport(true);
+        previewScroll.setHorizontalScrollBarEnabled(true);
         previewText = createText("", 13, R.color.text_primary, false);
         previewText.setTypeface(Typeface.MONOSPACE);
-        previewText.setPadding(0, dp(8), 0, 0);
-        card.addView(previewText, fullWidth());
+        previewText.setSingleLine(true);
+        previewText.setHorizontallyScrolling(true);
+        previewText.setMovementMethod(new ScrollingMovementMethod());
+        previewText.setPadding(dp(12), dp(8), dp(12), dp(8));
+        previewScroll.addView(
+                previewText,
+                new HorizontalScrollView.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+        );
+        card.addView(previewScroll, fullWidth());
         return card;
     }
 
@@ -891,9 +920,12 @@ public final class TaskEditActivity extends Activity {
         LinearLayout block = new LinearLayout(this);
         block.setOrientation(LinearLayout.VERTICAL);
         block.addView(createLabel(label), fullWidthWithBottomMargin(dp(3)));
+        int inputHeight = input != null && input.getMinLines() > 1
+                ? ViewGroup.LayoutParams.WRAP_CONTENT
+                : dp(44);
         block.addView(input, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(44)
+                inputHeight
         ));
         return block;
     }
@@ -1675,11 +1707,12 @@ public final class TaskEditActivity extends Activity {
         TaskParseResult result = TaskParser.parseDocument(
                 candidate + "\n",
                 LocalDate.now(),
-                "preview.md",
+                editorParseSourceLabel(),
                 TaskFormatSettings.load(this)
         );
-        if (!result.getErrors().isEmpty()) {
-            return formatErrors(result.getErrors());
+        List<TaskParseError> filtered = filterParseErrorsForEditor(candidate, result.getErrors());
+        if (!filtered.isEmpty()) {
+            return formatErrors(filtered);
         }
         if (result.getTasks().isEmpty()) {
             return getString(R.string.task_edit_not_a_task_line);
@@ -1722,7 +1755,7 @@ public final class TaskEditActivity extends Activity {
     }
 
     private String currentParentMarkdownLine() {
-        String title = valueOf(titleInput);
+        String title = valueForTaskTitle(titleInput);
         if (title.isEmpty()) {
             title = getString(R.string.task_edit_title_new);
         }
@@ -1734,12 +1767,13 @@ public final class TaskEditActivity extends Activity {
         }
         builder.append(title);
 
-        appendDue(builder, dueValue());
-        appendRepeat(builder, valueOf(repeatInput));
+        TaskFormatSettings formatSettings = TaskFormatSettings.load(this);
+        appendDue(builder, dueValue(), formatSettings);
+        appendRepeat(builder, valueOf(repeatInput), formatSettings);
         appendRepeatUntilDone(builder, repeatUntilDoneValue());
         appendOverdueGrace(builder, overdueGraceValue());
         appendSnooze(builder, snoozeValue(), shouldPersistSnooze(snoozeValue()));
-        appendPriority(builder, selectedPriority);
+        appendPriority(builder, selectedPriority, formatSettings);
         appendGroup(builder, valueOf(groupInput));
         appendTags(builder, valueOf(tagsInput));
         if (task != null && task.isSkipped()) {
@@ -1760,41 +1794,53 @@ public final class TaskEditActivity extends Activity {
         return time;
     }
 
-    private void appendDue(StringBuilder builder, String dueValue) {
-        if (dueValue != null && !dueValue.trim().isEmpty()) {
+    private void appendDue(StringBuilder builder, String dueValue, TaskFormatSettings settings) {
+        if (dueValue == null || dueValue.trim().isEmpty()) {
+            return;
+        }
+        if (!ObsidianTasksLineAuthoring.tryAppendDueAndReminder(builder, dueValue, settings)) {
             builder.append(" @")
-                    .append(TaskFormatSettings.load(this).getDueKeyword())
+                    .append(settings.getDueKeyword())
                     .append("(")
                     .append(dueValue.trim())
                     .append(")");
         }
     }
 
-    private void appendRepeat(StringBuilder builder, String repeat) {
-        if (repeat != null && !repeat.trim().isEmpty()) {
-            String value = repeat.trim();
-            String keyword = TaskSyntaxPreferences.useCompactSyntax(this)
-                    ? "r"
-                    : TaskFormatSettings.load(this).getRepeatKeyword();
-            int selectorIndex = value.indexOf(" @");
-            if (selectorIndex < 0) {
-                selectorIndex = value.indexOf("@");
-            }
-            if (selectorIndex > 0) {
-                builder.append(" @")
-                        .append(keyword)
-                        .append("(")
-                        .append(value.substring(0, selectorIndex).trim())
-                        .append(") ")
-                        .append(value.substring(selectorIndex).trim());
-                return;
-            }
+    private void appendRepeat(StringBuilder builder, String repeat, TaskFormatSettings settings) {
+        if (repeat == null || repeat.trim().isEmpty()) {
+            return;
+        }
+        String value = repeat.trim();
+        if (settings.getCompatibilityMode() != TaskFormatCompatibilityMode.NATIVE
+                && ObsidianTasksLineAuthoring.tryAppendRepeat(builder, value)) {
+            return;
+        }
+        appendRepeatNative(builder, value, settings);
+    }
+
+    private void appendRepeatNative(StringBuilder builder, String value, TaskFormatSettings settings) {
+        String keyword = TaskSyntaxPreferences.useCompactSyntax(this)
+                ? "r"
+                : settings.getRepeatKeyword();
+        int selectorIndex = value.indexOf(" @");
+        if (selectorIndex < 0) {
+            selectorIndex = value.indexOf("@");
+        }
+        if (selectorIndex > 0) {
             builder.append(" @")
                     .append(keyword)
                     .append("(")
-                    .append(value)
-                    .append(")");
+                    .append(value.substring(0, selectorIndex).trim())
+                    .append(") ")
+                    .append(value.substring(selectorIndex).trim());
+            return;
         }
+        builder.append(" @")
+                .append(keyword)
+                .append("(")
+                .append(value)
+                .append(")");
     }
 
     private void appendRepeatUntilDone(StringBuilder builder, String repeatUntilDone) {
@@ -1809,11 +1855,18 @@ public final class TaskEditActivity extends Activity {
         }
     }
 
-    private void appendPriority(StringBuilder builder, TaskPriority priority) {
+    private void appendPriority(StringBuilder builder, TaskPriority priority, TaskFormatSettings settings) {
+        if (settings.getCompatibilityMode() != TaskFormatCompatibilityMode.NATIVE) {
+            String emoji = ObsidianTasksLineAuthoring.priorityEmoji(priority);
+            if (!emoji.isEmpty()) {
+                builder.append(' ').append(emoji);
+                return;
+            }
+        }
         String token = priorityToToken(priority);
         if (!token.isEmpty()) {
             builder.append(" @")
-                    .append(TaskFormatSettings.load(this).getPriorityKeyword())
+                    .append(settings.getPriorityKeyword())
                     .append("(")
                     .append(token)
                     .append(")");
@@ -1921,6 +1974,16 @@ public final class TaskEditActivity extends Activity {
         return loadError == null ? compactName(NoteStore.sourceLabel(this)) : loadError;
     }
 
+    /**
+     * Source name shown in parse warnings while validating markdown in this editor (not a real file path).
+     */
+    private String editorParseSourceLabel() {
+        if (task != null && task.getSourceName() != null && !task.getSourceName().trim().isEmpty()) {
+            return compactName(task.getSourceName());
+        }
+        return getString(R.string.task_edit_parse_draft_source);
+    }
+
     private String formatErrors(List<TaskParseError> errors) {
         StringBuilder builder = new StringBuilder(getString(R.string.task_edit_format_error_title));
         int limit = Math.min(3, errors.size());
@@ -1998,6 +2061,78 @@ public final class TaskEditActivity extends Activity {
 
     private String valueOf(EditText input) {
         return input == null ? "" : input.getText().toString().trim();
+    }
+
+    /**
+     * Normalizes the task title field for markdown: collapses accidental line breaks to spaces.
+     */
+    static String normalizeTaskTitleInput(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        return raw.replace('\r', ' ').replace('\n', ' ').replaceAll("\\s{2,}", " ").trim();
+    }
+
+    private String valueForTaskTitle(EditText input) {
+        return normalizeTaskTitleInput(input == null ? "" : input.getText().toString());
+    }
+
+    private void configureTaskTitleField(EditText input) {
+        if (input == null) {
+            return;
+        }
+        input.setSingleLine(false);
+        input.setMinLines(3);
+        input.setMaxLines(8);
+        input.setMinimumHeight(dp(128));
+        input.setGravity(Gravity.TOP | Gravity.START);
+        input.setVerticalScrollBarEnabled(true);
+        input.setScrollContainer(true);
+        input.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        input.setHorizontallyScrolling(false);
+        input.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setFilters(new InputFilter[]{TITLE_LINE_BREAK_FILTER});
+    }
+
+    private static String tagsToEditorDisplay(Context context, List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return "";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String tag : tags) {
+            if (tag == null || tag.trim().isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            String t = tag.trim();
+            if (context != null && TaskSyntaxPreferences.useHashTags(context)) {
+                if (!t.startsWith("#")) {
+                    builder.append('#');
+                }
+            }
+            builder.append(t);
+        }
+        return builder.toString();
+    }
+
+    private List<TaskParseError> filterParseErrorsForEditor(String candidate, List<TaskParseError> errors) {
+        if (errors == null || errors.isEmpty()) {
+            return Collections.emptyList();
+        }
+        String doc = (candidate == null ? "" : candidate) + "\n";
+        int maxLine = Math.max(1, doc.split("\\R", -1).length);
+        List<TaskParseError> out = new ArrayList<>();
+        for (TaskParseError e : errors) {
+            int line = e.getLineNumber();
+            if (line >= 1 && line <= maxLine) {
+                out.add(e);
+            }
+        }
+        return out;
     }
 
     private void applyEditorFieldStyle(EditText input) {
@@ -2428,6 +2563,7 @@ public final class TaskEditActivity extends Activity {
         private LinearLayout createBasicSection() {
             LinearLayout card = createSectionCard(getString(R.string.task_edit_section_basic), null);
             titleView = createInput(workingCopy.title);
+            TaskEditActivity.this.configureTaskTitleField(titleView);
             titleView.setHint(getString(R.string.task_edit_title_hint));
             titleView.addTextChangedListener(localWatcher());
             card.addView(createInputBlock(getString(R.string.task_edit_field_title), titleView), fullWidthWithBottomMargin(dp(8)));
@@ -2603,10 +2739,23 @@ public final class TaskEditActivity extends Activity {
             row.addView(previewChevronView, new LinearLayout.LayoutParams(dp(28), dp(28)));
             card.addView(row, fullWidth());
 
+            HorizontalScrollView previewScroll = new HorizontalScrollView(TaskEditActivity.this);
+            previewScroll.setFillViewport(true);
+            previewScroll.setHorizontalScrollBarEnabled(true);
             previewView = createText("", 13, R.color.text_primary, false);
             previewView.setTypeface(Typeface.MONOSPACE);
-            previewView.setPadding(0, dp(8), 0, 0);
-            card.addView(previewView, fullWidth());
+            previewView.setSingleLine(true);
+            previewView.setHorizontallyScrolling(true);
+            previewView.setMovementMethod(new ScrollingMovementMethod());
+            previewView.setPadding(dp(12), dp(8), dp(12), dp(8));
+            previewScroll.addView(
+                    previewView,
+                    new HorizontalScrollView.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+            );
+            card.addView(previewScroll, fullWidth());
             return card;
         }
 
@@ -2842,7 +2991,7 @@ public final class TaskEditActivity extends Activity {
                 return;
             }
 
-            workingCopy.title = localValue(titleView);
+            workingCopy.title = TaskEditActivity.normalizeTaskTitleInput(localValue(titleView));
             workingCopy.date = localValue(dateView);
             workingCopy.time = localValue(timeView);
             workingCopy.repeat = localValue(repeatView);
@@ -2908,11 +3057,12 @@ public final class TaskEditActivity extends Activity {
             TaskParseResult result = TaskParser.parseDocument(
                     candidate + "\n",
                     LocalDate.now(),
-                    "subtask.md",
+                    TaskEditActivity.this.editorParseSourceLabel(),
                     TaskFormatSettings.load(TaskEditActivity.this)
             );
-            if (!result.getErrors().isEmpty()) {
-                return formatErrors(result.getErrors());
+            List<TaskParseError> filtered = TaskEditActivity.this.filterParseErrorsForEditor(candidate, result.getErrors());
+            if (!filtered.isEmpty()) {
+                return formatErrors(filtered);
             }
             if (result.getTasks().isEmpty()) {
                 return getString(R.string.task_edit_subtask_not_recognized);
@@ -2922,7 +3072,7 @@ public final class TaskEditActivity extends Activity {
 
         private String currentMarkdownLine() {
             SubtaskDraft draft = new SubtaskDraft(workingCopy);
-            draft.title = localValue(titleView);
+            draft.title = TaskEditActivity.normalizeTaskTitleInput(localValue(titleView));
             draft.date = localValue(dateView);
             draft.time = localValue(timeView);
             draft.repeat = localValue(repeatView);
@@ -3039,7 +3189,7 @@ public final class TaskEditActivity extends Activity {
             this.snoozeExplicit = source.snoozeExplicit;
         }
 
-        private static SubtaskDraft fromTask(ObsidianTask task, TaskFormatSettings settings) {
+        private static SubtaskDraft fromTask(ObsidianTask task, TaskFormatSettings settings, Context context) {
             SubtaskDraft draft = new SubtaskDraft();
             draft.title = task.getTitle();
             String rawDue = extractFunctionValueStatic(task.getRawLine(), settings.dueKeywords());
@@ -3078,12 +3228,12 @@ public final class TaskEditActivity extends Activity {
             draft.completed = task.isCompleted();
             draft.skipped = task.isSkipped();
             draft.priority = priorityToTokenStatic(task.getPriority());
-            draft.tags = tagsToTextStatic(task.getTags());
+            draft.tags = tagsToEditorDisplay(context, task.getTags());
             return draft;
         }
 
         private String toMarkdownLine(TaskEditActivity activity) {
-            String normalizedTitle = title == null ? "" : title.trim();
+            String normalizedTitle = TaskEditActivity.normalizeTaskTitleInput(title);
             if (normalizedTitle.isEmpty()) {
                 normalizedTitle = activity.getString(R.string.task_edit_subtask_default_title);
             }
@@ -3091,26 +3241,42 @@ public final class TaskEditActivity extends Activity {
             StringBuilder builder = new StringBuilder(completed ? "- [x] " : "- [ ] ");
             builder.append(normalizedTitle);
 
+            TaskFormatSettings settings = TaskFormatSettings.load(activity);
             String due = dueValue();
             if (!due.isEmpty()) {
-                builder.append(" @due(").append(due).append(")");
+                if (!ObsidianTasksLineAuthoring.tryAppendDueAndReminder(builder, due, settings)) {
+                    builder.append(" @")
+                            .append(settings.getDueKeyword())
+                            .append("(")
+                            .append(due)
+                            .append(")");
+                }
             }
             if (repeat != null && !repeat.trim().isEmpty()) {
                 String repeatValue = repeat.trim();
-                String repeatKeyword = TaskSyntaxPreferences.useCompactSyntax(activity) ? "r" : "repeat";
-                int selectorIndex = repeatValue.indexOf(" @");
-                if (selectorIndex < 0) {
-                    selectorIndex = repeatValue.indexOf("@");
-                }
-                if (selectorIndex > 0) {
-                    builder.append(" @")
-                            .append(repeatKeyword)
-                            .append("(")
-                            .append(repeatValue.substring(0, selectorIndex).trim())
-                            .append(") ")
-                            .append(repeatValue.substring(selectorIndex).trim());
-                } else {
-                    builder.append(" @").append(repeatKeyword).append("(").append(repeatValue).append(")");
+                if (settings.getCompatibilityMode() == TaskFormatCompatibilityMode.NATIVE
+                        || !ObsidianTasksLineAuthoring.tryAppendRepeat(builder, repeatValue)) {
+                    String repeatKeyword = TaskSyntaxPreferences.useCompactSyntax(activity)
+                            ? "r"
+                            : settings.getRepeatKeyword();
+                    int selectorIndex = repeatValue.indexOf(" @");
+                    if (selectorIndex < 0) {
+                        selectorIndex = repeatValue.indexOf("@");
+                    }
+                    if (selectorIndex > 0) {
+                        builder.append(" @")
+                                .append(repeatKeyword)
+                                .append("(")
+                                .append(repeatValue.substring(0, selectorIndex).trim())
+                                .append(") ")
+                                .append(repeatValue.substring(selectorIndex).trim());
+                    } else {
+                        builder.append(" @")
+                                .append(repeatKeyword)
+                                .append("(")
+                                .append(repeatValue)
+                                .append(")");
+                    }
                 }
             }
             if (repeatUntilDone && repeatUntilDoneValue != null && !repeatUntilDoneValue.trim().isEmpty()) {
@@ -3132,7 +3298,25 @@ public final class TaskEditActivity extends Activity {
                 builder.append(" @snooze(").append(snooze.trim()).append(")");
             }
             if (priority != null && !priority.trim().isEmpty()) {
-                builder.append(" @priority(").append(priority.trim()).append(")");
+                if (settings.getCompatibilityMode() != TaskFormatCompatibilityMode.NATIVE) {
+                    TaskPriority tp = TaskPriority.fromName(priority.trim());
+                    String emoji = ObsidianTasksLineAuthoring.priorityEmoji(tp);
+                    if (!emoji.isEmpty()) {
+                        builder.append(' ').append(emoji);
+                    } else {
+                        builder.append(" @")
+                                .append(settings.getPriorityKeyword())
+                                .append("(")
+                                .append(priority.trim())
+                                .append(")");
+                    }
+                } else {
+                    builder.append(" @")
+                            .append(settings.getPriorityKeyword())
+                            .append("(")
+                            .append(priority.trim())
+                            .append(")");
+                }
             }
             if (tags != null && !tags.trim().isEmpty()) {
                 if (TaskSyntaxPreferences.useHashTags(activity)) {
@@ -3241,17 +3425,6 @@ public final class TaskEditActivity extends Activity {
             return priority == null || priority == TaskPriority.NONE
                     ? ""
                     : priority.name().toLowerCase(Locale.ROOT);
-        }
-
-        private static String tagsToTextStatic(List<String> tags) {
-            StringBuilder builder = new StringBuilder();
-            for (String tag : tags) {
-                if (builder.length() > 0) {
-                    builder.append(' ');
-                }
-                builder.append(tag);
-            }
-            return builder.toString();
         }
     }
 }

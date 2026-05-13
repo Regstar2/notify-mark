@@ -14,7 +14,11 @@ public final class TaskParseError {
         REPEAT_RULE_INVALID(R.string.task_parse_error_repeat_rule_invalid),
         PRIORITY_INVALID(R.string.task_parse_error_priority_invalid),
         GRACE_INVALID(R.string.task_parse_error_grace_invalid),
-        SNOOZE_INVALID(R.string.task_parse_error_snooze_invalid);
+        SNOOZE_INVALID(R.string.task_parse_error_snooze_invalid),
+        OBSIDIAN_METADATA_CONFLICT(R.string.task_parse_error_obsidian_conflict),
+        OBSIDIAN_CUSTOM_CHECKBOX(R.string.task_parse_error_obsidian_custom_checkbox),
+        OBSIDIAN_INVALID_DATE_OR_TIME(R.string.task_parse_error_obsidian_invalid_date_time),
+        OBSIDIAN_RECURRENCE_UNSUPPORTED(R.string.task_parse_error_obsidian_recurrence_unsupported);
 
         private final int messageResId;
 

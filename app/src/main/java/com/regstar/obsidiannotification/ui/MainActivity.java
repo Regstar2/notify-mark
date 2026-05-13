@@ -25,6 +25,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.text.Layout;
 import android.text.TextUtils;
 import android.view.MotionEvent;
 import android.view.GestureDetector;
@@ -185,11 +186,11 @@ public final class MainActivity extends AppCompatActivity {
             rangeEdgeAutoScrollHandler.postDelayed(this, 42);
         }
     };
-    /** Next-reminder/time zone: weaker horizontal thresholds for switching main tabs via scroll/fling. */
+    /** Horizontal fling/scroll on reminder-time rows (weaker thresholds; does not switch main tabs). */
     private boolean reminderQuickTabGestureActive;
     private float reminderQuickTabStartRawX;
     private float reminderQuickTabStartRawY;
-    /** True after switching tabs once in the current DOWN–UP gesture (prevents duplicate navigation). */
+    /** True after a calendar period swipe was applied once in the current DOWN–UP gesture. */
     private boolean reminderQuickTabConsumed;
     private GestureDetectorCompat mainHorizontalFlingDetector;
     private List<ObsidianTask> latestTasks = new ArrayList<>();
@@ -2101,7 +2102,7 @@ public final class MainActivity extends AppCompatActivity {
         return mainHorizontalFlingDetector;
     }
 
-    /** @return true when a calendar or tab transition was invoked */
+    /** @return true when a calendar period transition was invoked (main tabs are not switched by horizontal swipe). */
     private boolean applyMainOrCalendarHorizontalSwipe(boolean fingerMovedLeft) {
         if (selectedSection == SECTION_CALENDAR) {
             if (touchesCalendarSwipeExclusionRaw(reminderQuickTabStartRawX, reminderQuickTabStartRawY)) {
@@ -2115,8 +2116,7 @@ public final class MainActivity extends AppCompatActivity {
                 return true;
             }
         }
-        navigateMainSectionsHorizontal(fingerMovedLeft);
-        return true;
+        return false;
     }
 
     /** @return unused; GestureDetector ignores return here for our dispatch pattern */
@@ -2201,29 +2201,6 @@ public final class MainActivity extends AppCompatActivity {
         return calendarModeToggleRow != null
                 && calendarModeToggleRow.getGlobalVisibleRect(r)
                 && r.contains(x, y);
-    }
-
-    private void navigateMainSectionsHorizontal(boolean next) {
-        int[] tabs = new int[]{SECTION_TASKS, SECTION_CALENDAR, SECTION_STATS};
-        int index = -1;
-        for (int i = 0; i < tabs.length; i++) {
-            if (tabs[i] == selectedSection) {
-                index = i;
-                break;
-            }
-        }
-        if (index < 0) {
-            return;
-        }
-        int newIndex = next ? (index + 1) % tabs.length : (index + tabs.length - 1) % tabs.length;
-        if (tabs[newIndex] == selectedSection) {
-            return;
-        }
-        selectedTaskKeys.clear();
-        selectionRangeAnchorKey = null;
-        resetRangeSelectionGestureState();
-        selectedSection = tabs[newIndex];
-        rebuildAndRenderCurrentSection();
     }
 
     private void resetRangeSelectionGestureState() {
@@ -4340,8 +4317,13 @@ public final class MainActivity extends AppCompatActivity {
         row.addView(timeView, new LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView title = createText(task.getTitle(), 15, R.color.text_primary, true);
-        title.setSingleLine(true);
+        title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
+        title.setHorizontallyScrolling(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            title.setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY);
+            title.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
+        }
         row.addView(title, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -4980,8 +4962,13 @@ public final class MainActivity extends AppCompatActivity {
         titleRow.addView(completeButton, completeParams);
 
         TextView title = createText(task.getTitle(), 16, R.color.text_primary, true);
-        title.setMaxLines(2);
+        title.setMaxLines(3);
         title.setEllipsize(TextUtils.TruncateAt.END);
+        title.setHorizontallyScrolling(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            title.setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY);
+            title.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
+        }
         titleRow.addView(title, new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -5019,7 +5006,9 @@ public final class MainActivity extends AppCompatActivity {
         if (showTaskSourceNames) {
             item.addView(createMetaLine(R.drawable.ic_file, compactName(task.getSourceName())), fullWidthWithTopMargin(dp(6)));
         }
-        item.addView(createMetaLine(R.drawable.ic_label, formatGroupMeta(task)), fullWidthWithTopMargin(dp(6)));
+        if (!isGroupMetaRedundantWithFileLine(task)) {
+            item.addView(createMetaLine(R.drawable.ic_label, formatGroupMeta(task)), fullWidthWithTopMargin(dp(6)));
+        }
 
         String secondary = formatSecondaryTaskMeta(task);
         if (!secondary.isEmpty()) {
@@ -5242,8 +5231,13 @@ public final class MainActivity extends AppCompatActivity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         TextView title = createText(subtask.getTitle(), 13, R.color.text_primary, true);
-        title.setSingleLine(true);
+        title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
+        title.setHorizontallyScrolling(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            title.setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY);
+            title.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
+        }
         texts.addView(title, fullWidth());
         String meta = subtaskMeta(subtask);
         if (!meta.isEmpty()) {
@@ -5644,7 +5638,7 @@ public final class MainActivity extends AppCompatActivity {
         return createMetaLine(iconRes, value, false);
     }
 
-    /** @param reminderQuickSwipe true for the reminder-time row — short horizontal gestures also change main tabs. */
+    /** @param reminderQuickSwipe true for the reminder-time row — reserved for horizontal gesture tuning (main tabs are not switched by swipe). */
     private LinearLayout createMetaLine(int iconRes, String value, boolean reminderQuickSwipe) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -5658,8 +5652,9 @@ public final class MainActivity extends AppCompatActivity {
         row.addView(icon, new LinearLayout.LayoutParams(dp(15), dp(15)));
 
         TextView textView = createText(value, 12, R.color.text_secondary, false);
-        textView.setSingleLine(true);
+        textView.setMaxLines(1);
         textView.setEllipsize(TextUtils.TruncateAt.END);
+        textView.setSingleLine(true);
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -6053,26 +6048,21 @@ public final class MainActivity extends AppCompatActivity {
         return getString(R.string.status_waiting);
     }
 
+    private boolean isGroupMetaRedundantWithFileLine(ObsidianTask task) {
+        if (!showTaskSourceNames || task == null) {
+            return false;
+        }
+        String fileLabel = compactName(task.getSourceName());
+        String bucket = taskGroupLabel(task);
+        return fileLabel != null && fileLabel.equals(bucket);
+    }
+
     private String formatRepeat(ObsidianTask task) {
-        List<String> parts = new ArrayList<>();
-        if (task.getRepeatRule() != null) {
-            parts.add(getString(R.string.task_repeat_prefix, task.getRepeatRule().formatForUi()));
-        }
-        if (task.getResolvedRepeatUntilDoneInterval() != null) {
-            parts.add(getString(
-                    R.string.task_until_done_prefix,
-                    formatDuration(task.getResolvedRepeatUntilDoneInterval())
-            ));
-        }
-        if (parts.isEmpty() && task.getRepeatInterval() != null) {
-            parts.add(getString(R.string.task_repeat_prefix, formatDuration(task.getRepeatInterval())));
-        }
-        return TextUtils.join(" \u00B7 ", parts);
+        return TaskRepeatDisplayFormatter.formatShortCardLine(task);
     }
 
     private boolean hasRepeatInfo(ObsidianTask task) {
-        return task != null
-                && (task.getRepeatRule() != null || task.getResolvedRepeatUntilDoneInterval() != null);
+        return task != null && !TaskRepeatDisplayFormatter.formatShortCardLine(task).isEmpty();
     }
 
     private String formatPriority(TaskPriority priority) {

@@ -106,6 +106,18 @@ Tags are also read from regular markdown tags:
 #personal
 ```
 
+## Obsidian Tasks emoji (partial compatibility)
+
+When **Settings → Format → Совместимость строк задач** is not *Только NotifyMark*, the parser also reads Obsidian Tasks-style markers on the same checkbox line (ISO dates `YYYY-MM-DD` only in v0.10.0):
+
+```markdown
+- [ ] Buy milk 📅 2026-05-13
+- [ ] Meeting ⏰ 2026-05-13 14:30 📅 2026-05-13
+- [ ] Weekly review 🔁 every week 📅 2026-05-18
+```
+
+Native `@due(...)`, `@repeat(...)`, etc. still work and take priority when both native and emoji fields conflict on reminder time. Obsidian `tasks` fenced query blocks are not supported. See [v0.10.0 release notes](versions/v0.10.0-obsidian-tasks-plugin-compatibility.md).
+
 ## Auto-skip overdue tasks (app setting)
 
 Auto-skip is **not** a markdown token on the task line. Turn it on under **Settings → Notifications** (notification actions) or in the **task editor**, and set the delay in minutes.

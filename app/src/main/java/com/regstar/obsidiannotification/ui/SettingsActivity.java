@@ -537,6 +537,40 @@ public final class SettingsActivity extends Activity {
         formatTitle.setPadding(0, dp(12), 0, dp(6));
         root.addView(formatTitle, fullWidth());
 
+        TaskFormatCompatibilityMode compat = TaskFormatSettings.load(this).getCompatibilityMode();
+        TextView compatTitle = new TextView(this);
+        compatTitle.setText(getString(R.string.settings_task_compat_title));
+        compatTitle.setTextSize(16);
+        compatTitle.setTextColor(getColor(R.color.text_primary));
+        compatTitle.setPadding(0, dp(4), 0, dp(4));
+        root.addView(compatTitle, fullWidth());
+
+        TextView compatDescription = new TextView(this);
+        compatDescription.setText(getString(R.string.settings_task_compat_description));
+        compatDescription.setTextSize(14);
+        compatDescription.setTextColor(getColor(R.color.text_secondary));
+        compatDescription.setPadding(0, 0, 0, dp(8));
+        root.addView(compatDescription, fullWidth());
+
+        root.addView(createChoiceCard(
+                getString(R.string.settings_task_compat_native_title),
+                getString(R.string.settings_task_compat_native_subtitle),
+                compat == TaskFormatCompatibilityMode.NATIVE,
+                () -> setTaskCompatibilityMode(TaskFormatCompatibilityMode.NATIVE)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                getString(R.string.settings_task_compat_obsidian_title),
+                getString(R.string.settings_task_compat_obsidian_subtitle),
+                compat == TaskFormatCompatibilityMode.OBSIDIAN_TASKS,
+                () -> setTaskCompatibilityMode(TaskFormatCompatibilityMode.OBSIDIAN_TASKS)
+        ), fullWidthWithBottomMargin());
+        root.addView(createChoiceCard(
+                getString(R.string.settings_task_compat_auto_title),
+                getString(R.string.settings_task_compat_auto_subtitle),
+                compat == TaskFormatCompatibilityMode.AUTO_MIXED,
+                () -> setTaskCompatibilityMode(TaskFormatCompatibilityMode.AUTO_MIXED)
+        ), fullWidthWithBottomMargin());
+
         TaskFormatSettings settings = TaskFormatSettings.load(this);
         dueKeywordInput = addKeywordInput(root, getString(R.string.settings_due_keyword), settings.getDueKeyword());
         repeatKeywordInput = addKeywordInput(root, getString(R.string.settings_repeat_keyword), settings.getRepeatKeyword());
@@ -961,13 +995,16 @@ public final class SettingsActivity extends Activity {
     }
 
     private void saveFormatSettings() {
+        TaskFormatSettings current = TaskFormatSettings.load(this);
         TaskFormatSettings settings = TaskFormatSettings.fromValues(
                 dueKeywordInput.getText().toString(),
                 repeatKeywordInput.getText().toString(),
                 repeatUntilDoneKeywordInput.getText().toString(),
                 tagKeywordInput.getText().toString(),
                 priorityKeywordInput.getText().toString(),
-                groupKeywordInput.getText().toString()
+                groupKeywordInput.getText().toString(),
+                current.getCompatibilityMode(),
+                current.getObsidianDefaultReminderMinutes()
         );
         if (settings.hasDuplicateKeywords()) {
             Toast.makeText(
@@ -1024,6 +1061,14 @@ public final class SettingsActivity extends Activity {
         tagKeywordInput.setText(settings.getTagKeyword());
         priorityKeywordInput.setText(settings.getPriorityKeyword());
         groupKeywordInput.setText(settings.getGroupKeyword());
+    }
+
+    private void setTaskCompatibilityMode(TaskFormatCompatibilityMode next) {
+        TaskFormatSettings merged = TaskFormatSettings.load(this).withCompatibilityMode(next);
+        TaskFormatSettings.save(this, merged);
+        Toast.makeText(this, getString(R.string.settings_task_compat_saved), Toast.LENGTH_SHORT).show();
+        rescheduleAll();
+        rebuild();
     }
 
     private void populateScanInputs(NoteScanSettings settings) {

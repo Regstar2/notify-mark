@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -51,11 +52,11 @@ public final class NoteStore {
     private static final String KEY_SOURCE_TYPE = "source_type";
     private static final String KEY_SOURCES = "sources";
     private static final Pattern ACTIVE_TASK_MARKER =
-            Pattern.compile("^(\\s*[-*+]\\s+\\[)[ xX](\\].*)$");
+            Pattern.compile("^(\\s*(?:(?:\\d+)\\.\\s+|[-*+]\\s+)\\[)[ xX](\\].*)$");
     private static final Pattern DONE_TASK_MARKER =
-            Pattern.compile("^(\\s*[-*+]\\s+\\[)[xX](\\].*)$");
+            Pattern.compile("^(\\s*(?:(?:\\d+)\\.\\s+|[-*+]\\s+)\\[)[xX](\\].*)$");
     private static final Pattern NON_CHECKBOX_BULLET_MARKER =
-            Pattern.compile("^(\\s*[-*+]\\s+)(?!\\[[ xX]\\]\\s+)(.+)$");
+            Pattern.compile("^(\\s*(?:(?:\\d+)\\.\\s+|[-*+]\\s+))(?!\\[[^\\]]+\\]\\s+)(.+)$");
     private static final Pattern SNOOZED_COUNT =
             Pattern.compile("(?iu)@snoozed\\(\\s*(\\d+)\\s*\\)");
     private static final Pattern SKIPPED_MARKER =
@@ -503,7 +504,7 @@ public final class NoteStore {
         if (seriesResult != null) {
             return seriesResult;
         }
-        return editActiveTaskLine(context, taskKey, NoteStore::markDoneLine);
+        return editActiveTaskLine(context, taskKey, (c, t, l) -> markDoneLine(c, t, l));
     }
 
     public static TaskEditResult unmarkTaskDone(Context context, String taskKey) {
@@ -519,7 +520,7 @@ public final class NoteStore {
     }
 
     public static TaskEditResult incrementSnoozeCount(Context context, String taskKey) {
-        return editActiveTaskLine(context, taskKey, NoteStore::incrementSnoozedMarker);
+        return editActiveTaskLine(context, taskKey, (c, t, l) -> incrementSnoozedMarker(l));
     }
 
     public static TaskEditResult markTaskSkipped(Context context, String taskKey) {
@@ -527,7 +528,7 @@ public final class NoteStore {
         if (seriesResult != null) {
             return seriesResult;
         }
-        return editActiveTaskLine(context, taskKey, NoteStore::appendSkippedMarker);
+        return editActiveTaskLine(context, taskKey, (c, t, l) -> appendSkippedMarker(c, t, l));
     }
 
     public static TaskEditResult unmarkTaskSkipped(Context context, String taskKey) {
@@ -826,7 +827,7 @@ public final class NoteStore {
                         return TaskEditResult.conflict(context.getString(R.string.runtime_task_line_changed));
                     }
 
-                    String updatedLine = editor.edit(lines[index]);
+                    String updatedLine = editor.edit(context, task, lines[index]);
                     if (updatedLine == null || updatedLine.equals(lines[index])) {
                         return TaskEditResult.conflict(context.getString(R.string.runtime_task_not_active_checkbox));
                     }
@@ -1103,7 +1104,15 @@ public final class NoteStore {
         return line + " @snoozed(1)";
     }
 
-    private static String markDoneLine(String line) {
+    private static String markDoneLine(Context context, ObsidianTask task, String line) {
+        TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
+        if (ObsidianTasksWriteBack.shouldPreferObsidianWrite(
+                formatSettings.getCompatibilityMode(),
+                task.getLineMetadata(),
+                line
+        )) {
+            return ObsidianTasksWriteBack.applyComplete(line, LocalDate.now(ZoneId.systemDefault()));
+        }
         Matcher matcher = ACTIVE_TASK_MARKER.matcher(line);
         if (matcher.find()) {
             return matcher.group(1) + "x" + matcher.group(2);
@@ -1129,7 +1138,15 @@ public final class NoteStore {
         return matcher.group(1) + " " + matcher.group(2);
     }
 
-    private static String appendSkippedMarker(String line) {
+    private static String appendSkippedMarker(Context context, ObsidianTask task, String line) {
+        TaskFormatSettings formatSettings = TaskFormatSettings.load(context);
+        if (ObsidianTasksWriteBack.shouldPreferObsidianWrite(
+                formatSettings.getCompatibilityMode(),
+                task.getLineMetadata(),
+                line
+        )) {
+            return ObsidianTasksWriteBack.applyCancelled(line, LocalDate.now(ZoneId.systemDefault()));
+        }
         String safeLine = line == null ? "" : line.trim();
         if (safeLine.isEmpty() || SKIPPED_MARKER.matcher(line).find()) {
             return line;
@@ -1658,7 +1675,7 @@ public final class NoteStore {
     }
 
     private interface TaskLineEditor {
-        String edit(String line);
+        String edit(Context context, ObsidianTask task, String line);
     }
 
     private interface TaskLineMutationEditor {

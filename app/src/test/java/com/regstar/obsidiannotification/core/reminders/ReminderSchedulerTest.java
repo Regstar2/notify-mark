@@ -388,4 +388,73 @@ public final class ReminderSchedulerTest {
                 ReminderScheduler.ensureFutureTriggerAt(now, now, UTC)
         );
     }
+
+    @Test
+    public void buildScheduledReminder_obsidianStyleNineAmDue() {
+        ObsidianTask task = new ObsidianTask(
+                "k",
+                "s",
+                1,
+                "t",
+                "- [ ] A",
+                LocalDateTime.of(2026, 5, 20, 9, 0),
+                null,
+                RepeatMode.NONE,
+                false,
+                false,
+                "",
+                0,
+                0,
+                java.util.Collections.emptyList(),
+                TaskPriority.NONE,
+                ObsidianTask.DEFAULT_GROUP,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ""
+        );
+        ScheduledReminder rem = ReminderScheduler.buildScheduledReminder(
+                task,
+                LocalDateTime.of(2026, 5, 1, 0, 0),
+                UTC
+        );
+        assertEquals(LocalDateTime.of(2026, 5, 20, 9, 0), rem.getTriggerAt());
+    }
+
+    @Test
+    public void buildScheduledReminder_nullWithoutReminderAt() {
+        ObsidianTask task = new ObsidianTask(
+                "k",
+                "s",
+                1,
+                "t",
+                "- [ ] x",
+                null,
+                null,
+                RepeatMode.NONE,
+                false,
+                false,
+                "",
+                0,
+                0,
+                java.util.Collections.emptyList(),
+                TaskPriority.NONE,
+                ObsidianTask.DEFAULT_GROUP,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                ""
+        );
+        assertNull(ReminderScheduler.buildScheduledReminder(
+                task,
+                LocalDateTime.of(2026, 5, 1, 0, 0),
+                UTC
+        ));
+    }
 }

@@ -7,9 +7,11 @@ import com.regstar.obsidiannotification.support.ErrorLog;
 
 import android.content.Context;
 
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public final class TaskFormatSettings {
@@ -27,6 +29,9 @@ public final class TaskFormatSettings {
     private static final String KEY_TAG = "tag_keyword";
     private static final String KEY_PRIORITY = "priority_keyword";
     private static final String KEY_GROUP = "group_keyword";
+    private static final String KEY_COMPATIBILITY = "compatibility_mode";
+    private static final String KEY_OBSIDIAN_DEFAULT_REMINDER_MINUTES = "obsidian_default_reminder_minutes";
+    private static final int DEFAULT_OBSIDIAN_REMINDER_MINUTES = 9 * 60;
 
     private final String dueKeyword;
     private final String repeatKeyword;
@@ -34,6 +39,8 @@ public final class TaskFormatSettings {
     private final String tagKeyword;
     private final String priorityKeyword;
     private final String groupKeyword;
+    private final TaskFormatCompatibilityMode compatibilityMode;
+    private final int obsidianDefaultReminderMinutes;
 
     private TaskFormatSettings(
             String dueKeyword,
@@ -41,7 +48,9 @@ public final class TaskFormatSettings {
             String repeatUntilDoneKeyword,
             String tagKeyword,
             String priorityKeyword,
-            String groupKeyword
+            String groupKeyword,
+            TaskFormatCompatibilityMode compatibilityMode,
+            int obsidianDefaultReminderMinutes
     ) {
         this.dueKeyword = dueKeyword;
         this.repeatKeyword = repeatKeyword;
@@ -49,6 +58,10 @@ public final class TaskFormatSettings {
         this.tagKeyword = tagKeyword;
         this.priorityKeyword = priorityKeyword;
         this.groupKeyword = groupKeyword;
+        this.compatibilityMode = compatibilityMode == null
+                ? TaskFormatCompatibilityMode.AUTO_MIXED
+                : compatibilityMode;
+        this.obsidianDefaultReminderMinutes = clampReminderMinutes(obsidianDefaultReminderMinutes);
     }
 
     public static TaskFormatSettings defaults() {
@@ -58,7 +71,9 @@ public final class TaskFormatSettings {
                 DEFAULT_REPEAT_UNTIL_DONE_KEYWORD,
                 DEFAULT_TAG_KEYWORD,
                 DEFAULT_PRIORITY_KEYWORD,
-                DEFAULT_GROUP_KEYWORD
+                DEFAULT_GROUP_KEYWORD,
+                TaskFormatCompatibilityMode.AUTO_MIXED,
+                DEFAULT_OBSIDIAN_REMINDER_MINUTES
         );
     }
 
@@ -70,13 +85,37 @@ public final class TaskFormatSettings {
             String priorityKeyword,
             String groupKeyword
     ) {
+        return fromValues(
+                dueKeyword,
+                repeatKeyword,
+                repeatUntilDoneKeyword,
+                tagKeyword,
+                priorityKeyword,
+                groupKeyword,
+                TaskFormatCompatibilityMode.AUTO_MIXED,
+                DEFAULT_OBSIDIAN_REMINDER_MINUTES
+        );
+    }
+
+    public static TaskFormatSettings fromValues(
+            String dueKeyword,
+            String repeatKeyword,
+            String repeatUntilDoneKeyword,
+            String tagKeyword,
+            String priorityKeyword,
+            String groupKeyword,
+            TaskFormatCompatibilityMode compatibilityMode,
+            int obsidianDefaultReminderMinutes
+    ) {
         return new TaskFormatSettings(
                 normalizeKeyword(dueKeyword, DEFAULT_DUE_KEYWORD),
                 normalizeKeyword(repeatKeyword, DEFAULT_REPEAT_KEYWORD),
                 normalizeKeyword(repeatUntilDoneKeyword, DEFAULT_REPEAT_UNTIL_DONE_KEYWORD),
                 normalizeKeyword(tagKeyword, DEFAULT_TAG_KEYWORD),
                 normalizeKeyword(priorityKeyword, DEFAULT_PRIORITY_KEYWORD),
-                normalizeKeyword(groupKeyword, DEFAULT_GROUP_KEYWORD)
+                normalizeKeyword(groupKeyword, DEFAULT_GROUP_KEYWORD),
+                compatibilityMode,
+                obsidianDefaultReminderMinutes
         );
     }
 
@@ -87,7 +126,10 @@ public final class TaskFormatSettings {
                 get(context, KEY_REPEAT_UNTIL_DONE, DEFAULT_REPEAT_UNTIL_DONE_KEYWORD),
                 get(context, KEY_TAG, DEFAULT_TAG_KEYWORD),
                 get(context, KEY_PRIORITY, DEFAULT_PRIORITY_KEYWORD),
-                get(context, KEY_GROUP, DEFAULT_GROUP_KEYWORD)
+                get(context, KEY_GROUP, DEFAULT_GROUP_KEYWORD),
+                parseCompatibilityMode(get(context, KEY_COMPATIBILITY, "auto")),
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        .getInt(KEY_OBSIDIAN_DEFAULT_REMINDER_MINUTES, DEFAULT_OBSIDIAN_REMINDER_MINUTES)
         );
     }
 
@@ -100,6 +142,8 @@ public final class TaskFormatSettings {
                 .putString(KEY_TAG, settings.getTagKeyword())
                 .putString(KEY_PRIORITY, settings.getPriorityKeyword())
                 .putString(KEY_GROUP, settings.getGroupKeyword())
+                .putString(KEY_COMPATIBILITY, compatibilityToToken(settings.getCompatibilityMode()))
+                .putInt(KEY_OBSIDIAN_DEFAULT_REMINDER_MINUTES, settings.getObsidianDefaultReminderMinutes())
                 .apply();
     }
 
@@ -132,6 +176,19 @@ public final class TaskFormatSettings {
 
     public String getGroupKeyword() {
         return groupKeyword;
+    }
+
+    public TaskFormatCompatibilityMode getCompatibilityMode() {
+        return compatibilityMode;
+    }
+
+    public LocalTime getObsidianDefaultReminderTime() {
+        int m = obsidianDefaultReminderMinutes;
+        return LocalTime.of(m / 60, m % 60);
+    }
+
+    public int getObsidianDefaultReminderMinutes() {
+        return obsidianDefaultReminderMinutes;
     }
 
     public List<String> dueKeywords() {
@@ -185,6 +242,19 @@ public final class TaskFormatSettings {
         return false;
     }
 
+    public TaskFormatSettings withCompatibilityMode(TaskFormatCompatibilityMode mode) {
+        return fromValues(
+                dueKeyword,
+                repeatKeyword,
+                repeatUntilDoneKeyword,
+                tagKeyword,
+                priorityKeyword,
+                groupKeyword,
+                mode == null ? compatibilityMode : mode,
+                obsidianDefaultReminderMinutes
+        );
+    }
+
     public String formatForStatus() {
         return "@"
                 + dueKeyword
@@ -204,6 +274,40 @@ public final class TaskFormatSettings {
     private static String get(Context context, String key, String fallback) {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .getString(key, fallback);
+    }
+
+    private static TaskFormatCompatibilityMode parseCompatibilityMode(String raw) {
+        if (raw == null) {
+            return TaskFormatCompatibilityMode.AUTO_MIXED;
+        }
+        String v = raw.trim().toLowerCase(Locale.ROOT);
+        if ("native".equals(v)) {
+            return TaskFormatCompatibilityMode.NATIVE;
+        }
+        if ("obsidian".equals(v) || "obsidian_tasks".equals(v)) {
+            return TaskFormatCompatibilityMode.OBSIDIAN_TASKS;
+        }
+        return TaskFormatCompatibilityMode.AUTO_MIXED;
+    }
+
+    private static String compatibilityToToken(TaskFormatCompatibilityMode mode) {
+        if (mode == TaskFormatCompatibilityMode.NATIVE) {
+            return "native";
+        }
+        if (mode == TaskFormatCompatibilityMode.OBSIDIAN_TASKS) {
+            return "obsidian";
+        }
+        return "auto";
+    }
+
+    private static int clampReminderMinutes(int minutes) {
+        if (minutes < 0) {
+            return DEFAULT_OBSIDIAN_REMINDER_MINUTES;
+        }
+        if (minutes >= 24 * 60) {
+            return 23 * 60 + 59;
+        }
+        return minutes;
     }
 
     private static String normalizeKeyword(String value, String fallback) {

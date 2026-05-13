@@ -38,6 +38,11 @@ public final class HelpActivity extends AppCompatActivity {
         ), fullWidthWithTopMargin(dp(10)));
         root.addView(createMarkdownSyntaxCard(), fullWidthWithTopMargin(dp(10)));
         root.addView(createHelpSectionCard(
+                getString(R.string.help_section_obsidian_tasks_title),
+                getString(R.string.help_section_obsidian_tasks_summary),
+                getString(R.string.help_section_obsidian_tasks_body)
+        ), fullWidthWithTopMargin(dp(10)));
+        root.addView(createHelpSectionCard(
                 getString(R.string.help_section_statuses_title),
                 getString(R.string.help_section_statuses_summary),
                 getString(R.string.help_section_statuses_body)

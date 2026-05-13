@@ -9,6 +9,13 @@ It can read tasks from:
 
 The same task engine powers both modes. NotifyMark parses markdown tasks, shows them in task and calendar screens, schedules local Android reminders, and writes status changes back to markdown.
 
+## Supported task formats
+
+- **NotifyMark native**: `@due(...)`, `@repeat(...)`, `@repeatUntilDone(...)`, `@grace(...)`, `@snooze(...)`, `@group(...)`, `@priority(...)`, `@tag(...)`, `#tags`, and legacy inline `@YYYY-MM-DD` date/time fragments as implemented in `TaskParser`.
+- **Obsidian Tasks (emoji, partial)**: `📅` due date, `⏰` reminder, `🔁` recurrence (subset of English phrases), `✅` / `❌` completion markers, priority emoji, `🆔` / `⛔`, plus `➕` / `🛫` / `⏳` stored on the task line. Configure compatibility under **Settings → Format → Совместимость строк задач**.
+
+See [v0.10.0 release notes](docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md) for limitations and behavior details.
+
 ## What it supports
 
 - checkbox tasks and reminder-like markdown lines

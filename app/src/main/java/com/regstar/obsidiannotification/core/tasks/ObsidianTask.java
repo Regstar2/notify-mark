@@ -47,6 +47,7 @@ public final class ObsidianTask {
     private final Duration resolvedOverdueGracePeriod;
     private final Duration explicitRepeatUntilDoneInterval;
     private final Duration resolvedRepeatUntilDoneInterval;
+    private final TaskLineMetadata lineMetadata;
 
     public ObsidianTask(
             int lineNumber,
@@ -89,7 +90,8 @@ public final class ObsidianTask {
                 null,
                 null,
                 legacyRepeatRule(repeatInterval, repeatMode),
-                ""
+                "",
+                TaskLineMetadata.EMPTY
         );
     }
 
@@ -127,7 +129,8 @@ public final class ObsidianTask {
                 null,
                 null,
                 legacyRepeatRule(repeatInterval, repeatMode),
-                ""
+                "",
+                TaskLineMetadata.EMPTY
         );
     }
 
@@ -175,7 +178,8 @@ public final class ObsidianTask {
                 explicitRepeatUntilDoneInterval,
                 resolvedRepeatUntilDoneInterval,
                 repeatRule,
-                seriesId
+                seriesId,
+                TaskLineMetadata.EMPTY
         );
     }
 
@@ -215,7 +219,8 @@ public final class ObsidianTask {
                 null,
                 null,
                 legacyRepeatRule(repeatInterval, repeatMode),
-                ""
+                "",
+                TaskLineMetadata.EMPTY
         );
     }
 
@@ -256,7 +261,8 @@ public final class ObsidianTask {
                 null,
                 null,
                 legacyRepeatRule(repeatInterval, repeatMode),
-                ""
+                "",
+                TaskLineMetadata.EMPTY
         );
     }
 
@@ -298,7 +304,8 @@ public final class ObsidianTask {
                 null,
                 null,
                 legacyRepeatRule(repeatInterval, repeatMode),
-                ""
+                "",
+                TaskLineMetadata.EMPTY
         );
     }
 
@@ -345,7 +352,8 @@ public final class ObsidianTask {
                 repeatMode == RepeatMode.UNTIL_DONE ? repeatInterval : null,
                 repeatMode == RepeatMode.UNTIL_DONE ? repeatInterval : null,
                 legacyRepeatRule(repeatInterval, repeatMode),
-                ""
+                "",
+                TaskLineMetadata.EMPTY
         );
     }
 
@@ -374,6 +382,60 @@ public final class ObsidianTask {
             RepeatRule repeatRule,
             String seriesId
     ) {
+        this(
+                taskKey,
+                sourceName,
+                lineNumber,
+                title,
+                rawLine,
+                reminderAt,
+                repeatInterval,
+                repeatMode,
+                completed,
+                skipped,
+                parentTaskKey,
+                parentLineNumber,
+                indentLevel,
+                tags,
+                priority,
+                group,
+                snoozeDuration,
+                explicitOverdueGracePeriod,
+                resolvedOverdueGracePeriod,
+                explicitRepeatUntilDoneInterval,
+                resolvedRepeatUntilDoneInterval,
+                repeatRule,
+                seriesId,
+                TaskLineMetadata.EMPTY
+        );
+    }
+
+    public ObsidianTask(
+            String taskKey,
+            String sourceName,
+            int lineNumber,
+            String title,
+            String rawLine,
+            LocalDateTime reminderAt,
+            Duration repeatInterval,
+            RepeatMode repeatMode,
+            boolean completed,
+            boolean skipped,
+            String parentTaskKey,
+            int parentLineNumber,
+            int indentLevel,
+            List<String> tags,
+            TaskPriority priority,
+            String group,
+            Duration snoozeDuration,
+            Duration explicitOverdueGracePeriod,
+            Duration resolvedOverdueGracePeriod,
+            Duration explicitRepeatUntilDoneInterval,
+            Duration resolvedRepeatUntilDoneInterval,
+            RepeatRule repeatRule,
+            String seriesId,
+            TaskLineMetadata lineMetadata
+    ) {
         this.taskKey = taskKey;
         this.seriesId = normalizeSeriesId(seriesId);
         this.sourceName = sourceName == null ? "" : sourceName;
@@ -400,6 +462,11 @@ public final class ObsidianTask {
         this.resolvedOverdueGracePeriod = resolvedOverdueGracePeriod;
         this.explicitRepeatUntilDoneInterval = explicitRepeatUntilDoneInterval;
         this.resolvedRepeatUntilDoneInterval = resolvedRepeatUntilDoneInterval;
+        this.lineMetadata = lineMetadata == null ? TaskLineMetadata.EMPTY : lineMetadata;
+    }
+
+    public TaskLineMetadata getLineMetadata() {
+        return lineMetadata;
     }
 
     public String getTaskKey() {
@@ -583,7 +650,8 @@ public final class ObsidianTask {
                 explicitRepeatUntilDoneInterval,
                 resolvedRepeatUntilDone,
                 repeatRule,
-                seriesId
+                seriesId,
+                lineMetadata
         );
     }
 

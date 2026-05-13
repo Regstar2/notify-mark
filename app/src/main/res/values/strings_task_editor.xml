@@ -47,6 +47,7 @@
     <string name="task_edit_due_required">Для уведомления нужно указать дату или время через @due(...).</string>
     <string name="task_edit_write_file_suffix">файл для записи</string>
     <string name="task_edit_format_error_title">Ошибка формата:</string>
+    <string name="task_edit_parse_draft_source">Черновик</string>
     <string name="task_edit_more_errors">Еще ошибок: %1$d</string>
     <string name="task_edit_subtasks_collapse">Свернуть подзадачи</string>
     <string name="task_edit_subtasks_expand">Показать подзадачи</string>
@@ -77,6 +78,10 @@
     </string>
     <string name="task_parse_error_grace_invalid">не удалось разобрать @grace(...). Используйте @grace(10m), @grace(1h) или @grace(0m)</string>
     <string name="task_parse_error_snooze_invalid">не удалось разобрать @snooze(...). Используйте @snooze(10m), @snooze(1h) или @snooze(1d)</string>
+    <string name="task_parse_error_obsidian_conflict">на строке есть и native-метаданные, и метаданные Obsidian Tasks с разным временем напоминания; используется native-значение</string>
+    <string name="task_parse_error_obsidian_custom_checkbox">нестандартный символ в чекбоксе задачи; строка сохраняется как есть</string>
+    <string name="task_parse_error_obsidian_invalid_date_time">некорректная дата или время в emoji-полях Obsidian Tasks</string>
+    <string name="task_parse_error_obsidian_recurrence_unsupported">правило 🔁 не поддержано в этой версии; текст сохранён, автоматическое расписание не применено</string>
 
     <string name="task_edit_hint_date_example">2026-04-20</string>
     <string name="task_edit_hint_time_example">19:00</string>
