@@ -200,7 +200,8 @@ public final class TaskCache {
                     explicitRepeatUntilDone,
                     resolvedRepeatUntilDone,
                     repeatRule,
-                    seriesId
+                    seriesId,
+                    TaskLineMetadata.EMPTY
             );
         } catch (RuntimeException exception) {
             return null;

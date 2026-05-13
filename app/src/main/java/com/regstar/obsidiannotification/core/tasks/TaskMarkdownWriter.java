@@ -22,11 +22,11 @@ public final class TaskMarkdownWriter {
     private static final String SNOOZE_KEYWORD = "snooze";
     private static final String ID_KEYWORD = "id";
     private static final Pattern ACTIVE_TASK_MARKER =
-            Pattern.compile("^(\\s*[-*+]\\s+\\[)[ xX](\\].*)$");
+            Pattern.compile("^(\\s*(?:(?:\\d+)\\.\\s+|[-*+]\\s+)\\[)[ xX](\\].*)$");
     private static final Pattern DONE_TASK_MARKER =
-            Pattern.compile("^(\\s*[-*+]\\s+\\[)[xX](\\].*)$");
+            Pattern.compile("^(\\s*(?:(?:\\d+)\\.\\s+|[-*+]\\s+)\\[)[xX](\\].*)$");
     private static final Pattern NON_CHECKBOX_BULLET_MARKER =
-            Pattern.compile("^(\\s*[-*+]\\s+)(?!\\[[ xX]\\]\\s+)(.+)$");
+            Pattern.compile("^(\\s*(?:(?:\\d+)\\.\\s+|[-*+]\\s+))(?!\\[[^\\]]+\\]\\s+)(.+)$");
     private static final Pattern SKIPPED_MARKER =
             Pattern.compile("(?iu)(?:\\s+@skipped\\b|\\s+@skip\\b|\\s+@status\\(\\s*skipped\\s*\\))");
     private static final Pattern SNOOZED_COUNT =
@@ -54,6 +54,9 @@ public final class TaskMarkdownWriter {
         String updated = markActive(line);
         updated = removeMetadataMarker(updated, SKIPPED_MARKER);
         updated = removeMetadataMarker(updated, SNOOZED_COUNT);
+        if (ObsidianTasksWriteBack.lineLooksLikeObsidianTasks(updated)) {
+            updated = ObsidianTasksWriteBack.rewriteObsidianDueDate(updated, nextDue.toLocalDate());
+        }
         updated = replaceFunctionOrAppend(updated, formatSettings.dueKeywords(), formatDue(nextDue));
         String seriesId = seriesIdOverride == null || seriesIdOverride.trim().isEmpty()
                 ? (task.hasStableSeriesId() ? task.getSeriesId() : ObsidianTask.newSeriesId())

@@ -62,6 +62,15 @@
     <string name="settings_appearance_title">Внешний вид</string>
     <string name="settings_appearance_description">Тема приложения: системная, светлая или темная.</string>
     <string name="settings_task_format_title">Формат задач</string>
+    <string name="settings_task_compat_title">Совместимость строк задач</string>
+    <string name="settings_task_compat_description">Как читать emoji-поля Obsidian Tasks рядом с синтаксисом NotifyMark.</string>
+    <string name="settings_task_compat_native_title">Только NotifyMark</string>
+    <string name="settings_task_compat_native_subtitle">Emoji-поля не влияют на сроки и уведомления.</string>
+    <string name="settings_task_compat_obsidian_title">Obsidian Tasks</string>
+    <string name="settings_task_compat_obsidian_subtitle">Читать и по возможности записывать emoji-формат.</string>
+    <string name="settings_task_compat_auto_title">Авто / смешанный</string>
+    <string name="settings_task_compat_auto_subtitle">Поддерживать оба формата; при конфликте приоритет у native @due.</string>
+    <string name="settings_task_compat_saved">Режим совместимости сохранён</string>
     <string name="settings_due_keyword">Ключ времени</string>
     <string name="settings_repeat_keyword">Ключ повтора</string>
     <string name="settings_repeat_until_done_keyword">Ключ повтора до выполнения</string>

@@ -36,8 +36,8 @@ public final class TaskParser {
     private static final String MONTHDAY_KEYWORD = "monthday";
     private static final String OVERDUE_GRACE_KEYWORD = "grace";
     private static final String SNOOZE_KEYWORD = "snooze";
-    private static final Pattern TASK =
-            Pattern.compile("^\\s*[-*+]\\s+\\[([ xX])\\]\\s+(.+)$");
+    private static final Pattern CHECKBOX_TASK =
+            Pattern.compile("^(\\s*)(?:(\\d+)\\.\\s+|[-*+]\\s+)\\[([^\\]]+)\\]\\s+(.+)$");
     private static final Pattern NON_CHECKBOX_BULLET =
             Pattern.compile("^\\s*[-*+]\\s+(?!\\[[ xX]\\]\\s+)(.+)$");
     private static final Pattern ISO_REMINDER =
@@ -121,7 +121,6 @@ public final class TaskParser {
         for (int i = 0; i < lines.length; i++) {
             String line = stripBom(lines[i]);
             String trimmedLine = line.trim();
-            Matcher taskMatcher = TASK.matcher(line);
             int lineNumber = i + 1;
             int indentLevel = leadingIndentLevel(line);
             if (trimmedLine.startsWith("```") || trimmedLine.startsWith("~~~")) {
@@ -132,11 +131,21 @@ public final class TaskParser {
                 continue;
             }
             boolean completed = false;
+            boolean skipped = false;
+            boolean customCheckbox = false;
+            Character originalCheckboxChar = null;
+            Matcher taskMatcher = CHECKBOX_TASK.matcher(line);
             boolean checkboxTask = taskMatcher.find();
             String body;
             if (checkboxTask) {
-                completed = taskMatcher.group(1).equalsIgnoreCase("x");
-                body = taskMatcher.group(2).trim();
+                String inside = taskMatcher.group(3).trim();
+                completed = "x".equalsIgnoreCase(inside);
+                skipped = "-".equals(inside);
+                customCheckbox = !completed && !skipped && !inside.isEmpty();
+                if (!inside.isEmpty()) {
+                    originalCheckboxChar = inside.charAt(0);
+                }
+                body = taskMatcher.group(4).trim();
             } else {
                 body = nonCheckboxReminderBody(line, format);
                 if (body == null) {
@@ -145,6 +154,16 @@ public final class TaskParser {
             }
 
             ParsedTaskFields fields = parseFields(body, defaultDate, format);
+            ObsidianTasksParser.Result obsidian = ObsidianTasksParser.parse(
+                    body,
+                    defaultDate,
+                    format.getObsidianDefaultReminderTime(),
+                    format.getCompatibilityMode()
+            );
+            integrateObsidianMetadata(body, format, fields, obsidian, customCheckbox);
+            completed = completed || obsidian.doneDate != null;
+            skipped = skipped || obsidian.cancelledDate != null || fields.skipped;
+
             ParsedTaskRecord parentRecord = parentForIndent(taskStack, indentLevel);
             if (parentRecord != null && !fields.groupExplicit) {
                 fields.group = parentRecord.task.getGroup();
@@ -154,8 +173,36 @@ public final class TaskParser {
                 continue;
             }
 
-            String title = cleanTitle(body, format);
-            String displayTitle = title.isEmpty() ? body : title;
+            String titleBody = body;
+            if (format.getCompatibilityMode() != TaskFormatCompatibilityMode.NATIVE
+                    && ObsidianTasksParser.containsObsidianTasksServiceMarkers(body)) {
+                titleBody = ObsidianTasksParser.stripServiceMetadataForDisplay(
+                        body,
+                        defaultDate,
+                        format.getCompatibilityMode()
+                );
+            }
+            String title = cleanTitle(
+                    titleBody,
+                    format,
+                    format.getCompatibilityMode() != TaskFormatCompatibilityMode.NATIVE
+                            && ObsidianTasksParser.containsObsidianTasksServiceMarkers(body)
+            );
+            String displayTitle = title.isEmpty() ? titleBody : title;
+            displayTitle = displayTitle.replaceAll("\\s{2,}", " ").trim();
+            if (displayTitle.isEmpty()) {
+                displayTitle = "\u0417\u0430\u0434\u0430\u0447\u0430 \u0431\u0435\u0437 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044f";
+            }
+
+            TaskSyntaxStyle syntaxStyle = detectSyntaxStyle(body, format, obsidian);
+            boolean conflict = fields.obsidianMetadataConflict;
+            TaskLineMetadata lineMetadata = obsidian.toMetadata(
+                    syntaxStyle,
+                    originalCheckboxChar,
+                    customCheckbox,
+                    findFunctionValue(body, format.dueKeywords()) != null,
+                    conflict
+            );
 
             addParseWarnings(errors, sourceName, lineNumber, body, fields, format);
 
@@ -176,7 +223,7 @@ public final class TaskParser {
                     legacyRepeatInterval(fields),
                     legacyRepeatMode(fields),
                     completed,
-                    fields.skipped,
+                    skipped,
                     parentRecord == null ? "" : parentRecord.task.getTaskKey(),
                     parentRecord == null ? 0 : parentRecord.task.getLineNumber(),
                     indentLevel,
@@ -189,7 +236,8 @@ public final class TaskParser {
                     fields.explicitRepeatUntilDoneInterval,
                     fields.explicitRepeatUntilDoneInterval,
                     fields.repeatRule,
-                    fields.seriesId
+                    fields.seriesId,
+                    lineMetadata
             );
             tasks.add(task);
             if (parentRecord != null) {
@@ -727,6 +775,34 @@ public final class TaskParser {
                     TaskParseError.Kind.SNOOZE_INVALID
             ));
         }
+        if (fields.obsidianMetadataConflict) {
+            errors.add(new TaskParseError(
+                    sourceName,
+                    lineNumber,
+                    TaskParseError.Kind.OBSIDIAN_METADATA_CONFLICT
+            ));
+        }
+        if (fields.obsidianCustomCheckbox) {
+            errors.add(new TaskParseError(
+                    sourceName,
+                    lineNumber,
+                    TaskParseError.Kind.OBSIDIAN_CUSTOM_CHECKBOX
+            ));
+        }
+        if (fields.obsidianInvalidObsidianDateOrTime) {
+            errors.add(new TaskParseError(
+                    sourceName,
+                    lineNumber,
+                    TaskParseError.Kind.OBSIDIAN_INVALID_DATE_OR_TIME
+            ));
+        }
+        if (fields.obsidianRecurrenceUnsupported) {
+            errors.add(new TaskParseError(
+                    sourceName,
+                    lineNumber,
+                    TaskParseError.Kind.OBSIDIAN_RECURRENCE_UNSUPPORTED
+            ));
+        }
     }
 
     private static boolean hasSuspiciousReminderToken(String body, TaskFormatSettings format) {
@@ -757,7 +833,7 @@ public final class TaskParser {
                 || findFunctionValue(body, List.of(MONTHDAY_KEYWORD)) != null;
     }
 
-    private static String cleanTitle(String body, TaskFormatSettings format) {
+    private static String cleanTitle(String body, TaskFormatSettings format, boolean preserveInlineHashTags) {
         String cleaned = removeFunctions(body, format.dueKeywords());
         cleaned = removeFunctions(cleaned, format.repeatUntilDoneKeywords());
         cleaned = removeFunctions(cleaned, format.repeatKeywords());
@@ -777,7 +853,9 @@ public final class TaskParser {
         cleaned = RU_DATE_ONLY_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = TIME_ONLY_REMINDER.matcher(cleaned).replaceAll(" ");
         cleaned = REPEAT.matcher(cleaned).replaceAll(" ");
-        cleaned = HASH_TAG.matcher(cleaned).replaceAll(" ");
+        if (!preserveInlineHashTags) {
+            cleaned = HASH_TAG.matcher(cleaned).replaceAll(" ");
+        }
         return cleaned.replaceAll("\\s{2,}", " ").trim();
     }
 
@@ -841,6 +919,108 @@ public final class TaskParser {
         return false;
     }
 
+    private static void integrateObsidianMetadata(
+            String body,
+            TaskFormatSettings format,
+            ParsedTaskFields fields,
+            ObsidianTasksParser.Result obs,
+            boolean customCheckbox
+    ) {
+        if (format.getCompatibilityMode() == TaskFormatCompatibilityMode.NATIVE) {
+            if (customCheckbox) {
+                fields.obsidianCustomCheckbox = true;
+            }
+            return;
+        }
+
+        LocalDateTime obsEffective = computeObsidianEffectiveReminder(obs, format.getObsidianDefaultReminderTime());
+        boolean nativeExplicitDue = findFunctionValue(body, format.dueKeywords()) != null;
+        LocalDateTime nativeBaseline = fields.reminderAt;
+
+        if (obsEffective != null && nativeBaseline != null && !sameReminder(nativeBaseline, obsEffective)) {
+            fields.obsidianMetadataConflict = true;
+        } else if (obsEffective != null && nativeBaseline == null) {
+            fields.reminderAt = obsEffective;
+        }
+
+        if (fields.repeatRule != null
+                && obs.recurrenceRawText != null
+                && !obs.recurrenceRawText.trim().isEmpty()) {
+            fields.obsidianMetadataConflict = true;
+        } else if (fields.repeatRule == null && obs.mappedRepeatRule != null) {
+            fields.repeatRule = obs.mappedRepeatRule;
+            fields.repeatMode = parseRepeatMode(fields.repeatRule, fields.explicitRepeatUntilDoneInterval);
+        } else if (fields.repeatRule == null
+                && obs.recurrenceRawText != null
+                && !obs.recurrenceRawText.trim().isEmpty()
+                && obs.mappedRepeatRule == null) {
+            fields.obsidianRecurrenceUnsupported = true;
+        }
+
+        boolean nativePriorityExplicit = findFunctionValue(body, format.priorityKeywords()) != null;
+        if (!nativePriorityExplicit && obs.priority != null) {
+            if (fields.priority == TaskPriority.NONE || fields.priorityFunctionInvalid) {
+                fields.priority = obs.priority;
+                fields.priorityFunctionInvalid = false;
+            }
+        }
+
+        if (customCheckbox) {
+            fields.obsidianCustomCheckbox = true;
+        }
+
+        if (obs.invalidDateToken || obs.invalidReminderToken) {
+            fields.obsidianInvalidObsidianDateOrTime = true;
+        }
+    }
+
+    private static boolean sameReminder(LocalDateTime a, LocalDateTime b) {
+        return a != null && b != null && a.equals(b);
+    }
+
+    private static LocalDateTime computeObsidianEffectiveReminder(
+            ObsidianTasksParser.Result obs,
+            LocalTime defaultTime
+    ) {
+        if (obs.reminderAt != null) {
+            return obs.reminderAt;
+        }
+        if (obs.dueDate != null) {
+            LocalTime t = defaultTime != null ? defaultTime : LocalTime.of(9, 0);
+            return LocalDateTime.of(obs.dueDate, t);
+        }
+        return null;
+    }
+
+    private static TaskSyntaxStyle detectSyntaxStyle(
+            String body,
+            TaskFormatSettings format,
+            ObsidianTasksParser.Result obs
+    ) {
+        boolean nativeLike = findFunctionValue(body, format.dueKeywords()) != null
+                || findFunctionValue(body, format.repeatKeywords()) != null
+                || findFunctionValue(body, format.repeatUntilDoneKeywords()) != null
+                || findFunctionValue(body, format.tagKeywords()) != null
+                || findFunctionValue(body, format.priorityKeywords()) != null
+                || findFunctionValue(body, format.groupKeywords()) != null
+                || ISO_REMINDER.matcher(body).find()
+                || RU_REMINDER.matcher(body).find()
+                || ISO_DATE_ONLY_REMINDER.matcher(body).find()
+                || RU_DATE_ONLY_REMINDER.matcher(body).find()
+                || TIME_ONLY_REMINDER.matcher(body).find();
+        boolean obsLike = obs.hasAnyServiceMarker();
+        if (nativeLike && obsLike) {
+            return TaskSyntaxStyle.MIXED;
+        }
+        if (nativeLike) {
+            return TaskSyntaxStyle.NATIVE;
+        }
+        if (obsLike) {
+            return TaskSyntaxStyle.OBSIDIAN_TASKS;
+        }
+        return TaskSyntaxStyle.UNKNOWN;
+    }
+
     private static final class ParsedTaskFields {
         private String seriesId = "";
         private LocalDateTime reminderAt;
@@ -863,6 +1043,10 @@ public final class TaskParser {
         private boolean priorityFunctionInvalid;
         private boolean snoozeFunctionInvalid;
         private boolean overdueGraceFunctionInvalid;
+        private boolean obsidianMetadataConflict;
+        private boolean obsidianCustomCheckbox;
+        private boolean obsidianInvalidObsidianDateOrTime;
+        private boolean obsidianRecurrenceUnsupported;
     }
 
     private static Duration legacyRepeatInterval(ParsedTaskFields fields) {
