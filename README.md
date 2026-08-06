@@ -1,58 +1,162 @@
+<div align="center">
+
 # NotifyMark
 
-NotifyMark is an Android app for local reminders backed by markdown task files.
+Android-приложение для локальных напоминаний по задачам в Markdown. Оно читает встроенное хранилище или выбранные файлы и папки, показывает задачи в списке и календаре, планирует уведомления и записывает изменения обратно в Markdown.
 
-It can read tasks from:
-- built-in app-owned markdown storage
-- externally selected markdown files
-- externally selected markdown folders through Android SAF
+**Русский** · [English](README_EN.md)
 
-The same task engine powers both modes. NotifyMark parses markdown tasks, shows them in task and calendar screens, schedules local Android reminders, and writes status changes back to markdown.
+![Android](https://img.shields.io/badge/platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+![Java](https://img.shields.io/badge/language-Java%2017-007396?style=for-the-badge&logo=openjdk&logoColor=white)
+![minSdk](https://img.shields.io/badge/minSdk-26-0A7EA4?style=for-the-badge)
 
-## Supported task formats
+[Быстрый старт](#быстрый-старт) ·
+[Форматы задач](#форматы-задач) ·
+[Документация](#документация) ·
+[Ограничения](#ограничения)
 
-- **NotifyMark native**: `@due(...)`, `@repeat(...)`, `@repeatUntilDone(...)`, `@grace(...)`, `@snooze(...)`, `@group(...)`, `@priority(...)`, `@tag(...)`, `#tags`, and legacy inline `@YYYY-MM-DD` date/time fragments as implemented in `TaskParser`.
-- **Obsidian Tasks (emoji, partial)**: `📅` due date, `⏰` reminder, `🔁` recurrence (subset of English phrases), `✅` / `❌` completion markers, priority emoji, `🆔` / `⛔`, plus `➕` / `🛫` / `⏳` stored on the task line. Configure compatibility under **Settings → Format → Совместимость строк задач**.
+</div>
 
-See [v0.10.0 release notes](docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md) for limitations and behavior details.
+---
 
-## What it supports
+## О проекте
 
-- checkbox tasks and reminder-like markdown lines
-- `@due(...)`, `@repeat(...)`, `@repeatUntilDone(...)`
-- `@grace(...)`, `@snooze(...)`, `@group(...)`, `@priority(...)`
-- `#tags` and `@tag(...)`
-- subtasks from nested markdown checklists
-- local reminder actions for done, snooze, skip, and open-source flows
-- built-in markdown storage for quick start
-- external markdown files and folders for Obsidian vaults, Syncthing folders, and regular markdown collections
+NotifyMark хранит напоминания рядом с обычными Markdown-задачами и не требует отдельного серверного сервиса. Источником может быть внутренний файл приложения, отдельный документ или папка, выбранная через Android Storage Access Framework (SAF).
 
-## Internal docs
+Приложение использует один движок задач для всех источников: разбирает строки Markdown, отображает задачи и повторения, планирует локальные уведомления и обновляет исходную строку после выполнения, откладывания или пропуска.
 
-- [Architecture](docs/architecture.md)
-- [Project structure](docs/project-structure.md)
-- [Source system](docs/source-system.md)
-- [Task model](docs/task-model.md)
-- [Markdown format](docs/markdown-format.md)
-- [Notification system](docs/notification-system.md)
-- [UI navigation](docs/ui-navigation.md)
-- [Technical debt](docs/technical-debt.md)
-- [Roadmap](docs/roadmap.md)
+## Статус проекта
 
-## Build
+| Область | Статус |
+|---|---|
+| Основной Android-клиент | Реализован, продолжается разработка |
+| Нативный формат NotifyMark | Реализован |
+| Совместимость с Obsidian Tasks | Частичная, с явно описанными ограничениями |
+| Метаданные версии | `versionName 0.9.4` в `app/build.gradle`; в ветке также есть работа, описанная как v0.10.0 |
+
+## Возможности
+
+- внутреннее Markdown-хранилище для быстрого начала работы;
+- подключение отдельных файлов и папок через SAF;
+- задачи с датой и временем, повторениями, льготным периодом и отложенным напоминанием;
+- теги, группы, приоритеты и вложенные подзадачи;
+- представления списка и календаря;
+- действия из уведомления: выполнить, отложить, пропустить и открыть задачу;
+- восстановление расписания после перезагрузки, обновления приложения и изменения времени или часового пояса;
+- плитки быстрых настроек для списка задач и создания новой задачи;
+- запись статуса обратно в исходный Markdown-файл.
+
+## Быстрый старт
+
+Для сборки debug APK из корня репозитория:
 
 ```powershell
 .\gradlew.bat assembleDebug
-.\gradlew.bat testDebugUnitTest
 ```
 
-Debug APK:
+Готовый файл:
 
 ```text
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## Notes
+После установки откройте приложение, выберите встроенное хранилище или подключите Markdown-файл/папку и разрешите уведомления. Для точных напоминаний Android также может запросить разрешение на точные будильники.
 
-- The package namespace remains `com.regstar.obsidiannotification` for now to avoid risky Android identity changes during a structural refactor.
-- The app still works with Obsidian markdown files, but Obsidian is now a compatibility target rather than the product name.
+## Требования
+
+- Android 8.0 или новее (`minSdk 26`);
+- Android SDK 35 для сборки;
+- JDK 17;
+- доступ к уведомлениям;
+- разрешение на точные будильники для напоминаний в заданное время;
+- постоянный доступ SAF для внешних файлов и папок.
+
+## Использование
+
+### Подключение источника
+
+1. Откройте управление источниками.
+2. Выберите встроенное хранилище, отдельный файл или папку.
+3. Для внешнего источника подтвердите доступ в системном диалоге Android.
+4. Создайте задачу в приложении или добавьте поддерживаемую строку в Markdown.
+
+### Работа с напоминанием
+
+Уведомление позволяет выполнить задачу, отложить её, пропустить текущее срабатывание или открыть исходную задачу. Для повторяющихся задач приложение хранит историю отдельных срабатываний и переносит серию по правилам повторения.
+
+### Форматы задач
+
+NotifyMark поддерживает собственные директивы:
+
+```markdown
+- [ ] Подготовить отчёт @due(2026-08-10 18:00) @priority(high) #учёба
+- [ ] Проверить резервную копию @repeat(1w) @snooze(30m)
+```
+
+Реализованы `@due(...)`, `@repeat(...)`, `@repeatUntilDone(...)`, `@grace(...)`, `@snooze(...)`, `@group(...)`, `@priority(...)`, `@tag(...)`, `#tags` и прежний формат даты `@YYYY-MM-DD`.
+
+Также реализована частичная совместимость с метаданными Obsidian Tasks: `📅`, `⏰`, `🔁`, `✅`, `❌`, приоритеты и несколько служебных emoji-полей. Поддерживается не вся грамматика повторений Obsidian Tasks; точные правила описаны в [документе совместимости v0.10.0](docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md).
+
+## Приватность
+
+- задачи и настройки обрабатываются локально;
+- внешние файлы доступны только после выбора пользователем через SAF;
+- текущий `AndroidManifest.xml` не запрашивает разрешение `INTERNET`;
+- приложение изменяет выбранные Markdown-файлы при выполнении, пропуске и редактировании задач.
+
+Перед подключением важных заметок рекомендуется иметь резервную копию или синхронизацию с историей версий.
+
+## Диагностика
+
+Проверка unit-тестов:
+
+```powershell
+.\gradlew.bat testDebugUnitTest
+```
+
+При отсутствии уведомлений проверьте разрешения приложения, доступ к точным будильникам и ограничения фоновой работы производителя устройства. Если внешний файл перестал обновляться, повторно проверьте сохранённое SAF-разрешение и доступность поставщика документов.
+
+## Сборка
+
+```powershell
+.\gradlew.bat assembleDebug
+```
+
+Проект использует Java 17, `compileSdk 35` и `targetSdk 35`. Пространство имён и `applicationId` пока остаются `com.regstar.obsidiannotification`, чтобы не менять Android-идентичность приложения во время рефакторинга.
+
+## Тестирование
+
+Команда проекта:
+
+```powershell
+.\gradlew.bat testDebugUnitTest
+```
+
+Этот README не утверждает результат тестов для текущей ветки: команда указана по конфигурации репозитория, но в рамках изменения документации не запускалась.
+
+## Документация
+
+| Задача | Документ |
+|---|---|
+| Архитектура | [docs/architecture.md](docs/architecture.md) |
+| Структура проекта | [docs/project-structure.md](docs/project-structure.md) |
+| Источники Markdown | [docs/source-system.md](docs/source-system.md) |
+| Модель задач | [docs/task-model.md](docs/task-model.md) |
+| Формат Markdown | [docs/markdown-format.md](docs/markdown-format.md) |
+| Система уведомлений | [docs/notification-system.md](docs/notification-system.md) |
+| Навигация интерфейса | [docs/ui-navigation.md](docs/ui-navigation.md) |
+| Технический долг | [docs/technical-debt.md](docs/technical-debt.md) |
+| Дорожная карта | [docs/roadmap.md](docs/roadmap.md) |
+
+## Ограничения
+
+- совместимость с Obsidian Tasks неполная и не повторяет весь синтаксис плагина;
+- работа с внешними файлами зависит от SAF и возможностей выбранного поставщика документов;
+- точность фоновых напоминаний зависит от системных разрешений и ограничений Android;
+- идентификатор пакета всё ещё содержит прежнее имя проекта;
+- готовая публичная сборка и подтверждённый канал распространения в README не указаны;
+- условия распространения исходного кода пока не определены.
+
+## Лицензия
+
+В корне репозитория отсутствует файл `LICENSE`. До выбора лицензии код нельзя считать открытым для копирования, изменения или распространения.
