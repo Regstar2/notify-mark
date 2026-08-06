@@ -1,33 +1,167 @@
+<div align="center">
+
 # NotifyMark
 
-NotifyMark is an Android app for local reminders backed by markdown task files.
+### Markdown tasks that can actually remind you
 
-It can read tasks from:
-- built-in app-owned markdown storage
-- externally selected markdown files
-- externally selected markdown folders through Android SAF
+A local-first Android reminder app backed by readable Markdown files.
 
-The same task engine powers both modes. NotifyMark parses markdown tasks, shows them in task and calendar screens, schedules local Android reminders, and writes status changes back to markdown.
+[Overview](#overview) · [Task format](#task-format) · [Storage](#storage-options) · [Build](#build) · [Documentation](#documentation)
 
-## Supported task formats
+</div>
 
-- **NotifyMark native**: `@due(...)`, `@repeat(...)`, `@repeatUntilDone(...)`, `@grace(...)`, `@snooze(...)`, `@group(...)`, `@priority(...)`, `@tag(...)`, `#tags`, and legacy inline `@YYYY-MM-DD` date/time fragments as implemented in `TaskParser`.
-- **Obsidian Tasks (emoji, partial)**: `📅` due date, `⏰` reminder, `🔁` recurrence (subset of English phrases), `✅` / `❌` completion markers, priority emoji, `🆔` / `⛔`, plus `➕` / `🛫` / `⏳` stored on the task line. Configure compatibility under **Settings → Format → Совместимость строк задач**.
+---
 
-See [v0.10.0 release notes](docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md) for limitations and behavior details.
+## Overview
 
-## What it supports
+NotifyMark reads tasks from Markdown, presents them as a task list and calendar, schedules Android reminders, and writes state changes back to the source file.
 
-- checkbox tasks and reminder-like markdown lines
-- `@due(...)`, `@repeat(...)`, `@repeatUntilDone(...)`
-- `@grace(...)`, `@snooze(...)`, `@group(...)`, `@priority(...)`
-- `#tags` and `@tag(...)`
-- subtasks from nested markdown checklists
-- local reminder actions for done, snooze, skip, and open-source flows
-- built-in markdown storage for quick start
-- external markdown files and folders for Obsidian vaults, Syncthing folders, and regular markdown collections
+It is designed around a simple rule:
 
-## Internal docs
+> Your task data should remain useful even without the application.
+
+```markdown
+- [ ] Submit the report @due(2026-08-10 18:00) @priority(high) #university
+- [ ] Take a walk @repeat(daily) @grace(30m)
+- [ ] Pay for hosting @due(2026-08-15) @repeat(monthly) @repeatUntilDone
+```
+
+## What it does
+
+| Read | Organize | Remind | Write back |
+|---|---|---|---|
+| Markdown task files and folders | Lists, calendar, groups, priorities, tags | Exact local Android reminders | Done, snooze, skip, and task state changes |
+
+NotifyMark supports:
+
+- app-owned Markdown storage for a quick start;
+- selected external Markdown files;
+- selected folders through Android Storage Access Framework;
+- nested checklist subtasks;
+- local notifications with done, snooze, skip, and open-source actions;
+- recurring tasks and repeat-until-done behavior;
+- calendar views powered by the same parser and task engine;
+- partial compatibility with Obsidian Tasks emoji metadata.
+
+## Task format
+
+### Native NotifyMark metadata
+
+```markdown
+- [ ] Prepare presentation
+  @due(2026-08-12 14:30)
+  @repeat(weekly)
+  @grace(20m)
+  @snooze(15m)
+  @group(University)
+  @priority(high)
+  @tag(study)
+```
+
+Supported metadata includes:
+
+| Metadata | Purpose |
+|---|---|
+| `@due(...)` | due date and optional time |
+| `@repeat(...)` | recurrence rule |
+| `@repeatUntilDone(...)` | continue reminding until completion |
+| `@grace(...)` | allowed delay before overdue state |
+| `@snooze(...)` | default snooze interval |
+| `@group(...)` | logical task group |
+| `@priority(...)` | task priority |
+| `@tag(...)` and `#tags` | searchable labels |
+
+Legacy inline `@YYYY-MM-DD` date and time fragments are also supported where implemented by `TaskParser`.
+
+### Obsidian Tasks compatibility
+
+NotifyMark partially understands the emoji format used by Obsidian Tasks:
+
+```markdown
+- [ ] Example task 📅 2026-08-12 ⏰ 14:30 🔁 every week
+```
+
+Supported fields include due date, reminder time, a subset of recurrence phrases, completion markers, priorities, IDs, and selected stored metadata.
+
+Compatibility can be configured under:
+
+```text
+Settings → Format → Task line compatibility
+```
+
+See [v0.10.0 compatibility notes](docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md) for the exact limitations.
+
+## Storage options
+
+```text
+NotifyMark
+├── Built-in storage
+│   └── app-owned Markdown files
+│
+├── External file
+│   └── one selected Markdown document
+│
+└── External folder
+    └── Markdown collection through Android SAF
+```
+
+The same task engine is used for every source type. External files can belong to an Obsidian vault, a Syncthing folder, or any ordinary Markdown collection available through Android SAF.
+
+> [!NOTE]
+> NotifyMark is local-first. The application does not require a proprietary cloud task format.
+
+## Reminder flow
+
+```text
+Markdown source
+      │
+      ▼
+Task parser
+      │
+      ├── task list
+      ├── calendar
+      └── reminder scheduler
+              │
+              ▼
+       Android notification
+              │
+       ┌──────┼───────┐
+       ▼      ▼       ▼
+      Done  Snooze   Skip
+       │      │       │
+       └──────┴───────┘
+              │
+              ▼
+       Markdown write-back
+```
+
+## Build
+
+Requirements:
+
+- JDK 17;
+- Android SDK;
+- Gradle Wrapper from the repository.
+
+```powershell
+.\gradlew.bat assembleDebug
+.\gradlew.bat testDebugUnitTest
+```
+
+Debug APK:
+
+```text
+app\build\outputs\apk\debug\app-debug.apk
+```
+
+## Project notes
+
+- The package namespace remains `com.regstar.obsidiannotification` to avoid a risky Android identity change during structural refactoring.
+- Obsidian remains a compatibility target, not the product name.
+- Parser behavior is the source of truth for supported task syntax.
+- External storage access uses Android SAF rather than unrestricted filesystem access.
+
+## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Project structure](docs/project-structure.md)
@@ -39,20 +173,10 @@ See [v0.10.0 release notes](docs/versions/v0.10.0-obsidian-tasks-plugin-compatib
 - [Technical debt](docs/technical-debt.md)
 - [Roadmap](docs/roadmap.md)
 
-## Build
+---
 
-```powershell
-.\gradlew.bat assembleDebug
-.\gradlew.bat testDebugUnitTest
-```
+<div align="center">
 
-Debug APK:
+**Readable files. Local reminders. No lock-in.**
 
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-## Notes
-
-- The package namespace remains `com.regstar.obsidiannotification` for now to avoid risky Android identity changes during a structural refactor.
-- The app still works with Obsidian markdown files, but Obsidian is now a compatibility target rather than the product name.
+</div>
