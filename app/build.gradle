@@ -2,6 +2,17 @@ plugins {
     id "com.android.application"
 }
 
+def releaseSigning = [
+        storeFile    : System.getenv("NOTIFYMARK_RELEASE_STORE_FILE"),
+        storePassword: System.getenv("NOTIFYMARK_RELEASE_STORE_PASSWORD"),
+        keyAlias     : System.getenv("NOTIFYMARK_RELEASE_KEY_ALIAS"),
+        keyPassword  : System.getenv("NOTIFYMARK_RELEASE_KEY_PASSWORD")
+]
+def hasReleaseSigningValue = { value ->
+    value != null && !value.trim().isEmpty()
+}
+def releaseSigningConfigured = releaseSigning.values().every(hasReleaseSigningValue)
+
 android {
     namespace "com.regstar.obsidiannotification"
     compileSdk 35
@@ -12,6 +23,25 @@ android {
         targetSdk 35
         versionCode 26
         versionName "0.10.1-beta.1"
+    }
+
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseSigning.storeFile)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.release
+        }
     }
 
     compileOptions {
@@ -30,4 +60,25 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    boolean releaseArtifactRequested = taskGraph.allTasks.any { task ->
+        task.project == project &&
+                task.name ==~ /(?i)(assemble|bundle|package|install).*release.*/
+    }
+
+    if (releaseArtifactRequested) {
+        if (!releaseSigningConfigured) {
+            throw new GradleException(
+                    "Release signing is not configured. Set NOTIFYMARK_RELEASE_STORE_FILE, " +
+                            "NOTIFYMARK_RELEASE_STORE_PASSWORD, NOTIFYMARK_RELEASE_KEY_ALIAS and " +
+                            "NOTIFYMARK_RELEASE_KEY_PASSWORD."
+            )
+        }
+
+        if (!file(releaseSigning.storeFile).isFile()) {
+            throw new GradleException("Configured NotifyMark release keystore file does not exist.")
+        }
+    }
 }
