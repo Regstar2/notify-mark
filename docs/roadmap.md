@@ -2,10 +2,10 @@
 
 ## Near-term work
 
-0. **v0.9.4 auto-skip (shipped in codebase):** global optional auto-skip after `due + grace + delay`; `NoteStore.markTaskSkipped`; `AutoSkipScheduler` / `AutoSkipReceiver`; settings in notifications section (see `docs/versions/v0.9.4-auto-skip.md`). Next: **v0.10.0 — Obsidian Tasks Plugin compatibility**.
-1. **v0.9.3 editor UX (shipped in codebase):** group autocomplete from cached tasks; softer input hints (`text_tertiary`); field-level validation in `TaskEditActivity` (see `docs/versions/v0.9.3-editor-ux-polish.md`).
-2. **v0.9.2 notification actions (shipped in codebase):** dedicated small icon + action icons; **Время** opens `ReminderTimePickerActivity` (time-only or date+time, DayNight dialog); compact shade labels (`+Nм`, **Время**, ✓/✗ for done/skip); `NotificationCompat` + rasterized bitmap `smallIcon` for Bluetooth watch bridges (Realme, etc.); `scheduleSnoozeUntil` (see `docs/versions/v0.9.2-notification-actions-upgrade.md`).
-3. **v0.9.1 repeat history (shipped in codebase):** calendar merges occurrence history; bulk skip/done aligns with repeat advance. Next: optional history detail UI and richer one-off analytics (see `docs/versions/v0.9.1-repeat-history-fix.md`).
+0. **v0.10.1-beta.1 release baseline (current):** Android metadata is synchronized to `versionName 0.10.1-beta.1` / `versionCode 26`; the planned Git tag is `v0.10.1-beta.1`. The baseline combines the shipped v0.10.0 compatibility work and v0.10.1 UI fixes. Next: validate the beta build and publish the prerelease (see `docs/versions/v0.10.1-beta.1.md`).
+1. **v0.10.1 UI fixes (shipped in codebase):** compact repeat rows on task cards and improved long-title editing/display, including safer markdown preview and preservation checks (see `docs/versions/v0.10.1-repeat-card-display-compacting.md` and `docs/versions/v0.10.1-long-task-title-editor-ui.md`).
+2. **v0.10.0 Obsidian Tasks compatibility (shipped in codebase):** partial emoji metadata parsing/write-back, compatibility modes, recurrence mapping with documented limitations, and reminder resolution rules (see `docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md`).
+3. **v0.9.4 auto-skip (shipped in codebase):** global optional auto-skip after `due + grace + delay`; `NoteStore.markTaskSkipped`; `AutoSkipScheduler` / `AutoSkipReceiver`; settings in notifications section (see `docs/versions/v0.9.4-auto-skip.md`).
 
 4. Finish structural cleanup after the package refactor
    - narrow wildcard imports

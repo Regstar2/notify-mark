@@ -29,10 +29,10 @@ The same task engine handles every source: it parses Markdown lines, displays ta
 
 | Area | Status |
 |---|---|
-| Main Android client | Implemented and under continued development |
+| Main Android client | Implemented; first public beta is being prepared |
 | Native NotifyMark format | Implemented |
 | Obsidian Tasks compatibility | Partial, with documented limitations |
-| Version metadata | `versionName 0.9.4` in `app/build.gradle`; the branch also contains work documented as v0.10.0 |
+| Version metadata | Beta baseline: `versionName 0.10.1-beta.1`, `versionCode 26`; planned Git tag: `v0.10.1-beta.1` |
 
 ## Features
 
@@ -132,7 +132,7 @@ Project command:
 .\gradlew.bat testDebugUnitTest
 ```
 
-This README does not claim a passing result for the current branch: the command is taken from the repository configuration, but it was not executed as part of this documentation-only change.
+This README does not claim a passing result for the current branch: the command is taken from the repository configuration, but it was not executed as part of this GitHub beta-baseline preparation.
 
 ## Documentation
 
@@ -147,6 +147,7 @@ This README does not claim a passing result for the current branch: the command 
 | UI navigation | [docs/ui-navigation.md](docs/ui-navigation.md) |
 | Technical debt | [docs/technical-debt.md](docs/technical-debt.md) |
 | Roadmap | [docs/roadmap.md](docs/roadmap.md) |
+| Beta baseline / changelog | [docs/versions/v0.10.1-beta.1.md](docs/versions/v0.10.1-beta.1.md) |
 
 ## Limitations
 
