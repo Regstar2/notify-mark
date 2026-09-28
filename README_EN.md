@@ -132,7 +132,7 @@ Project command:
 .\gradlew.bat testDebugUnitTest
 ```
 
-This README does not claim a passing result for the current branch: the command is taken from the repository configuration, but it was not executed as part of this documentation-only change.
+This README does not claim a passing result for the current branch: the command is taken from the repository configuration, but it was not executed as part of this GitHub beta-baseline preparation.
 
 ## Documentation
 
