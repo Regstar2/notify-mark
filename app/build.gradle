@@ -2,11 +2,27 @@ plugins {
     id "com.android.application"
 }
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.isFile()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+
+def signingValue = { envName, propertyName ->
+    def environmentValue = System.getenv(envName)
+    if (environmentValue != null && !environmentValue.trim().isEmpty()) {
+        return environmentValue
+    }
+
+    def localValue = localProperties.getProperty(propertyName)
+    return localValue != null ? localValue.trim() : null
+}
+
 def releaseSigning = [
-        storeFile    : System.getenv("NOTIFYMARK_RELEASE_STORE_FILE"),
-        storePassword: System.getenv("NOTIFYMARK_RELEASE_STORE_PASSWORD"),
-        keyAlias     : System.getenv("NOTIFYMARK_RELEASE_KEY_ALIAS"),
-        keyPassword  : System.getenv("NOTIFYMARK_RELEASE_KEY_PASSWORD")
+        storeFile    : signingValue("NOTIFYMARK_RELEASE_STORE_FILE", "notifyMark.release.storeFile"),
+        storePassword: signingValue("NOTIFYMARK_RELEASE_STORE_PASSWORD", "notifyMark.release.storePassword"),
+        keyAlias     : signingValue("NOTIFYMARK_RELEASE_KEY_ALIAS", "notifyMark.release.keyAlias"),
+        keyPassword  : signingValue("NOTIFYMARK_RELEASE_KEY_PASSWORD", "notifyMark.release.keyPassword")
 ]
 def hasReleaseSigningValue = { value ->
     value != null && !value.trim().isEmpty()
@@ -71,9 +87,8 @@ gradle.taskGraph.whenReady { taskGraph ->
     if (releaseArtifactRequested) {
         if (!releaseSigningConfigured) {
             throw new GradleException(
-                    "Release signing is not configured. Set NOTIFYMARK_RELEASE_STORE_FILE, " +
-                            "NOTIFYMARK_RELEASE_STORE_PASSWORD, NOTIFYMARK_RELEASE_KEY_ALIAS and " +
-                            "NOTIFYMARK_RELEASE_KEY_PASSWORD."
+                    "Release signing is not configured. Set NOTIFYMARK_RELEASE_* environment variables " +
+                            "or notifyMark.release.* values in local.properties."
             )
         }
 
