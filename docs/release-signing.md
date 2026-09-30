@@ -4,64 +4,42 @@
 
 ## Политика ключа
 
-Для публичных APK используется один постоянный release-keystore. Сам keystore, его пароли и пароль ключа не хранятся в репозитории, GitHub Actions или файлах, попадающих в артефакты.
+Для публичных APK используется один постоянный release-keystore. Сам keystore не хранится в репозитории. Пароли и alias могут храниться локально в `local.properties`, который исключён из Git, либо передаваться через переменные окружения.
 
-Gradle читает signing-параметры только из переменных окружения текущего процесса:
+Gradle использует значения в таком порядке:
 
-- `NOTIFYMARK_RELEASE_STORE_FILE`;
-- `NOTIFYMARK_RELEASE_STORE_PASSWORD`;
-- `NOTIFYMARK_RELEASE_KEY_ALIAS`;
-- `NOTIFYMARK_RELEASE_KEY_PASSWORD`.
+1. переменные окружения `NOTIFYMARK_RELEASE_*`;
+2. локальные свойства `notifyMark.release.*` из `local.properties`.
 
-Если запрошена сборка release-артефакта и хотя бы одна переменная отсутствует, сборка завершается ошибкой. Debug-сборка от release-ключа не зависит.
+Поддерживаемые значения:
+
+- `NOTIFYMARK_RELEASE_STORE_FILE` / `notifyMark.release.storeFile`;
+- `NOTIFYMARK_RELEASE_STORE_PASSWORD` / `notifyMark.release.storePassword`;
+- `NOTIFYMARK_RELEASE_KEY_ALIAS` / `notifyMark.release.keyAlias`;
+- `NOTIFYMARK_RELEASE_KEY_PASSWORD` / `notifyMark.release.keyPassword`.
+
+Если запрошена release-сборка и хотя бы одно значение отсутствует, сборка завершается ошибкой. Debug-сборка от release-ключа не зависит.
+
+`local.properties` содержит секреты в открытом виде. Его нельзя прикладывать к issue, логам, архивам или копировать в репозиторий.
 
 ## Создание постоянного keystore
 
-Keystore создаётся один раз и хранится вне репозитория. Пример для Windows:
+Keystore создаётся один раз и хранится вне репозитория. Если для уже опубликованной версии NotifyMark существовал другой release-keystore, новый ключ нельзя использовать для обновления такой установки.
 
-```powershell
-New-Item -ItemType Directory -Force "C:\Base\keys" | Out-Null
+Рекомендуемый путь на Windows:
 
-keytool -genkeypair -v `
-    -keystore "C:\Base\keys\notify-mark-release.jks" `
-    -alias "notifymark-release" `
-    -keyalg RSA `
-    -keysize 4096 `
-    -validity 10000 `
-    -storetype JKS
+```text
+C:\Base\keys\notify-mark-release.jks
 ```
 
-`keytool` запросит пароли и данные сертификата интерактивно. Не передавайте пароли аргументами командной строки и не записывайте их в `gradle.properties`, `local.properties`, workflow или commit.
-
-Если для NotifyMark уже существует release-keystore, новый ключ создавать нельзя: используйте исходный keystore и alias, иначе Android не примет APK как обновление существующей установки.
+Для нового проекта можно сгенерировать сильные случайные пароли PowerShell-командами и записать их в локальный `local.properties`. Полный воспроизводимый блок команд приведён в рабочей инструкции Issue #9.
 
 ## Сборка подписанного APK
 
-Из корня репозитория:
+После заполнения `local.properties`:
 
 ```powershell
-$env:NOTIFYMARK_RELEASE_STORE_FILE = "C:\Base\keys\notify-mark-release.jks"
-$env:NOTIFYMARK_RELEASE_KEY_ALIAS = "notifymark-release"
-
-$StorePassword = Read-Host "Keystore password" -AsSecureString
-$KeyPassword = Read-Host "Key password" -AsSecureString
-
-$env:NOTIFYMARK_RELEASE_STORE_PASSWORD = [System.Net.NetworkCredential]::new("", $StorePassword).Password
-$env:NOTIFYMARK_RELEASE_KEY_PASSWORD = [System.Net.NetworkCredential]::new("", $KeyPassword).Password
-
-try {
-    .\gradlew.bat assembleRelease
-    if ($LASTEXITCODE -ne 0) {
-        throw "assembleRelease failed"
-    }
-}
-finally {
-    Remove-Item Env:NOTIFYMARK_RELEASE_STORE_FILE -ErrorAction SilentlyContinue
-    Remove-Item Env:NOTIFYMARK_RELEASE_STORE_PASSWORD -ErrorAction SilentlyContinue
-    Remove-Item Env:NOTIFYMARK_RELEASE_KEY_ALIAS -ErrorAction SilentlyContinue
-    Remove-Item Env:NOTIFYMARK_RELEASE_KEY_PASSWORD -ErrorAction SilentlyContinue
-    Remove-Variable StorePassword, KeyPassword -ErrorAction SilentlyContinue
-}
+.\gradlew.bat assembleRelease
 ```
 
 Ожидаемый APK:
@@ -115,12 +93,14 @@ if ($LASTEXITCODE -ne 0) {
 adb install -r ".\app\build\outputs\apk\release\app-release.apk"
 ```
 
-2. Создайте в приложении тестовую задачу или измените настройку, чтобы было что проверить после обновления.
-3. Повторно соберите APK с тем же keystore и alias.
-4. Ещё раз выполните `adb install -r` для нового APK.
-5. Убедитесь, что установка проходит без ошибки несовпадения подписи, а данные приложения сохраняются.
+2. Создайте тестовую задачу или измените настройку.
+3. Повторно соберите APK с тем же keystore и теми же signing-параметрами.
+4. Ещё раз выполните `adb install -r`.
+5. Убедитесь, что установка проходит без ошибки несовпадения подписи и данные приложения сохраняются.
 
 Повторная установка APK с тем же `versionCode` подходит для проверки непрерывности подписи через ADB. Для реального обновления через канал распространения следующая версия должна иметь больший `versionCode`.
+
+Если на устройстве уже установлена debug-сборка с тем же `applicationId`, release APK с новым ключом поверх неё не установится. Не удаляйте такую установку автоматически, если в ней есть нужные данные.
 
 ## Backup и восстановление
 
@@ -130,23 +110,23 @@ adb install -r ".\app\build\outputs\apk\release\app-release.apk"
 - alias ключа;
 - пароль keystore;
 - пароль ключа;
-- краткую запись, что этот ключ относится к Android applicationId `com.regstar.obsidiannotification`.
+- запись, что этот ключ относится к Android applicationId `com.regstar.obsidiannotification`.
 
 Рекомендуемый минимум:
 
 - рабочая копия keystore вне Git-репозитория;
 - вторая копия в зашифрованном резервном хранилище;
 - alias и пароли в менеджере паролей;
-- периодическая проверка, что резервная копия читается через `keytool -list`.
+- периодическая проверка резервной копии через `keytool -list`.
 
-Потеря release-ключа означает, что для прямого APK-канала нельзя будет выпускать обновления поверх уже установленных сборок, подписанных этим ключом.
+Потеря release-ключа или его паролей означает, что для прямого APK-канала нельзя будет выпускать обновления поверх уже установленных сборок, подписанных этим ключом.
 
 ## Контроль Git
 
-Файлы `*.jks`, `*.keystore`, `*.p12`, `*.pfx` и `keystore.properties` игнорируются Git. После работы можно дополнительно проверить историю:
+Файлы `local.properties`, `*.jks`, `*.keystore`, `*.p12`, `*.pfx` и `keystore.properties` игнорируются Git. После работы можно проверить историю:
 
 ```powershell
-git log --all --name-only --pretty=format: -- "*.jks" "*.keystore" "*.p12" "*.pfx" "keystore.properties" |
+git log --all --name-only --pretty=format: -- "local.properties" "*.jks" "*.keystore" "*.p12" "*.pfx" "keystore.properties" |
     Where-Object { $_ } |
     Sort-Object -Unique
 ```
