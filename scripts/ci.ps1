@@ -7,8 +7,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-$isWindows = $env:OS -eq 'Windows_NT'
-$gradle = if ($isWindows) {
+$runningOnWindows = $env:OS -eq 'Windows_NT'
+$gradle = if ($runningOnWindows) {
     Join-Path $root 'gradlew.bat'
 }
 else {
