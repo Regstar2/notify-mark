@@ -41,12 +41,6 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
-      - name: Assemble debug APK
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: Security audit
+      - name: Run project CI
         shell: pwsh
-        run: ./scripts/security-audit.ps1 -ApkPath "./app/build/outputs/apk/debug/app-debug.apk"
-
-      - name: Run debug unit tests
-        run: ./gradlew testDebugUnitTest --stacktrace
+        run: ./scripts/ci.ps1
