@@ -132,3 +132,41 @@ git log --all --name-only --pretty=format: -- "local.properties" "*.jks" "*.keys
 ```
 
 Для чистой истории команда не должна вывести signing-файлы.
+
+
+## GitHub Actions release automation
+
+Автоматическая публикация реализована в `.github/workflows/release.yml`. Workflow использует точный существующий tag, повторно запускает проектный CI, собирает подписанный release APK через `scripts/release.ps1`, проверяет APK security-аудитом и `apksigner`, затем создаёт SHA-256 checksum.
+
+Для GitHub Actions нужны repository secrets:
+
+- `NOTIFYMARK_RELEASE_KEYSTORE_BASE64` — release-keystore целиком в Base64;
+- `NOTIFYMARK_RELEASE_STORE_PASSWORD`;
+- `NOTIFYMARK_RELEASE_KEY_ALIAS`;
+- `NOTIFYMARK_RELEASE_KEY_PASSWORD`.
+
+Keystore материализуется только во временном каталоге runner и удаляется шагом `always()` после workflow. Значение keystore и пароли не должны выводиться в logs.
+
+### Dry-run
+
+Ручной `workflow_dispatch` принимает существующий release tag и параметр `publish`.
+
+При `publish = false` workflow:
+
+1. переключается на точный tag;
+2. запускает `scripts/ci.ps1`;
+3. собирает подписанный release APK;
+4. проверяет security-аудит и подпись;
+5. создаёт `NotifyMark-<tag>.apk` и `.apk.sha256` в `dist/`;
+6. загружает эти два файла как GitHub Actions artifact;
+7. не создаёт GitHub Release.
+
+Это штатный способ проверить pipeline перед первой публичной публикацией.
+
+### Публикация
+
+Push подходящего tag `v*` автоматически запускает публикацию. Перед сборкой workflow дополнительно проверяет SemVer-подобный формат tag и соответствие `v...` значению `versionName` в `app/build.gradle`.
+
+GitHub Release создаётся только после успешных CI, release security-аудита и проверки подписи. Release notes генерируются GitHub автоматически. Tags с `alpha`, `beta` или `rc` публикуются как prerelease и не помечаются как latest.
+
+Ручной запуск с `publish = true` выполняет тот же publish path для существующего tag. Если GitHub Release для tag уже существует, workflow завершается ошибкой вместо молчаливой перезаписи.
