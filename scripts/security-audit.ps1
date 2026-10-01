@@ -147,7 +147,8 @@ function Test-GitHistory {
             'AKIA[0-9A-Z]{16}',
             'AIza[0-9A-Za-z_-]{35}',
             'gh[pousr]_[0-9A-Za-z]{20,}',
-            '(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd)[[:space:]]*[:=][[:space:]]*["''][^"'[:space:]]{8,}["'']',
+            '(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd)[[:space:]]*[:=][[:space:]]*"[^"[:space:]]{8,}"',
+            "(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd)[[:space:]]*[:=][[:space:]]*'[^'[:space:]]{8,}'",
             'https?://[^/@[:space:]]+:[^/@[:space:]]+@'
         )
 
