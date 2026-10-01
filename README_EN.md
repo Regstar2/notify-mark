@@ -161,8 +161,8 @@ This README does not claim a passing result for the current branch: the command 
 
 ## License
 
-NotifyMark source code and project-specific resources are distributed under the **Apache License 2.0**. The full license text is available in [LICENSE](LICENSE).
+NotifyMark source code and project-specific resources are distributed under the **MIT License**. The full license text is available in [LICENSE](LICENSE).
 
-Release APKs may be used, copied, modified, and redistributed under Apache License 2.0 as it applies to NotifyMark material. APKs also contain third-party components that remain under their own licenses; their versions, scope, and license information are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Release APKs may be used, copied, modified, and redistributed under the MIT License as it applies to NotifyMark material. APKs also contain third-party components that remain under their own licenses; their versions, scope, and license information are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 The NotifyMark license does not relicense third-party components, names, or trademarks.
