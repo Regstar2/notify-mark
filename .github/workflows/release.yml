@@ -208,7 +208,7 @@ jobs:
         if: ${{ always() }}
         shell: pwsh
         run: |
-          if (-not [string]::IsNullOrWhiteSpace($env:NOTIFYMARK_RELEASE_STORE_FILE) -and
-              (Test-Path -LiteralPath $env:NOTIFYMARK_RELEASE_STORE_FILE)) {
-              Remove-Item -LiteralPath $env:NOTIFYMARK_RELEASE_STORE_FILE -Force
+          $keystorePath = Join-Path $env:RUNNER_TEMP 'notify-mark-release.jks'
+          if (Test-Path -LiteralPath $keystorePath) {
+              Remove-Item -LiteralPath $keystorePath -Force
           }
