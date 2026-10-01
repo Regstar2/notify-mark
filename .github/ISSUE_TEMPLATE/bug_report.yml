@@ -1,8 +1,6 @@
 name: Сообщить об ошибке / Bug report
 description: Сообщить о воспроизводимой проблеме NotifyMark / Report a reproducible NotifyMark problem
 title: "[Bug]: "
-labels:
-  - bug
 body:
   - type: markdown
     attributes:
