@@ -33,7 +33,8 @@ Markdown остаётся источником истины: приложени�
 | Первая публичная версия | Подготовлена как `v0.10.1-beta.1`, GitHub Release ещё не опубликован |
 | Нативный формат NotifyMark | Реализован |
 | Совместимость с Obsidian Tasks | Частичная, ограничения задокументированы |
-| Release pipeline | Подписанный APK, security audit, проверка подписи и SHA-256 автоматизированы |\n| Язык интерфейса | Русский; английская локализация UI не входит в эту beta |
+| Release pipeline | Подписанный APK, security audit, проверка подписи и SHA-256 автоматизированы |
+| Язык интерфейса | Русский; английская локализация UI не входит в эту beta |
 
 Beta не означает подтверждённую стабильность. Перед публикацией final tag workflow повторно запускает CI и release-проверки; ручная проверка финального APK на устройстве остаётся отдельным release gate.
 
@@ -205,7 +206,8 @@ app/build/outputs/apk/debug/app-debug.apk
 - `⏳` и `🛫` сами по себе не являются Android notification trigger;
 - работа внешних файлов зависит от SAF и document provider;
 - точность напоминаний зависит от Android permissions и фоновых ограничений;
-- `applicationId` пока остаётся `com.regstar.obsidiannotification` для сохранения Android identity.\n- интерфейс приложения в `v0.10.1-beta.1` доступен на русском языке; английские README и release notes не означают наличие английской локализации UI.
+- `applicationId` пока остаётся `com.regstar.obsidiannotification` для сохранения Android identity.
+- интерфейс приложения в `v0.10.1-beta.1` доступен на русском языке; английские README и release notes не означают наличие английской локализации UI.
 
 ## Лицензия
 
