@@ -29,7 +29,7 @@ Keystore создаётся один раз и хранится вне репо�
 Рекомендуемый путь на Windows:
 
 ```text
-C:\Base\keys\notify-mark-release.jks
+$env:USERPROFILE\.notify-mark\keys\notify-mark-release.jks
 ```
 
 Для нового проекта можно сгенерировать сильные случайные пароли PowerShell-командами и записать их в локальный `local.properties`. Полный воспроизводимый блок команд приведён в рабочей инструкции Issue #9.

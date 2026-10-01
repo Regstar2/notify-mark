@@ -83,3 +83,17 @@ Clearing external connections removes the app's saved references to external fil
 It does not delete the real markdown files from disk.
 
 Depending on the flow, the app may also stop using those sources immediately and fall back to built-in storage if that is the active mode chosen afterward.
+
+
+## Backup and restore policy
+
+NotifyMark treats app-owned Markdown files, local settings, reminder state, statistics, and persisted SAF URI references as local data that must not be copied by Android backup.
+
+The manifest disables automatic backup and points to explicit exclusion rules for both generations of Android backup configuration:
+
+- `app/src/main/res/xml/backup_rules_legacy.xml` covers Android 11 and lower;
+- `app/src/main/res/xml/backup_rules.xml` covers Android 12+ cloud backup and device-to-device transfer.
+
+All app backup domains are excluded, including credential-protected and device-protected files, databases, shared preferences, and app-specific external files.
+
+SAF-selected Markdown documents are not owned by the app and are not copied by these rules. They remain under the selected document provider's own storage and backup policy. Persisted URI references are local app state and are excluded from backup.
