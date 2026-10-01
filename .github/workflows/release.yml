@@ -81,6 +81,25 @@ jobs:
               Write-Host "Dry-run: validating checked-out source $(git rev-parse HEAD) as $tag without creating a GitHub Release."
           }
 
+      - name: Validate prepared release notes
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          $requiredNotes = @(
+              "./docs/releases/$tag.md",
+              "./docs/releases/${tag}_EN.md"
+          )
+
+          foreach ($path in $requiredNotes) {
+              if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+                  throw "Prepared release notes are missing: $path"
+              }
+
+              if (-not (Select-String -LiteralPath $path -SimpleMatch $tag -Quiet)) {
+                  throw "Release notes do not reference release tag '$tag': $path"
+              }
+          }
+
       - name: Set up JDK 17
         uses: actions/setup-java@v6.0.1
         with:
@@ -194,28 +213,78 @@ jobs:
               throw "GitHub Release '$env:RELEASE_TAG' already exists."
           }
 
-          $files = @(
-              Get-ChildItem './dist' -File |
-              Select-Object -ExpandProperty FullName
-          )
+          $files = @(Get-ChildItem './dist' -File)
+          $apk = @($files | Where-Object { $_.Extension -eq '.apk' })
+          $checksum = @($files | Where-Object { $_.Name -like '*.apk.sha256' })
 
+          if ($apk.Count -ne 1 -or $checksum.Count -ne 1) {
+              throw 'Release publication requires exactly one APK and one .apk.sha256 file.'
+          }
+
+          $hash = ((Get-Content -LiteralPath $checksum[0].FullName -Raw).Trim() -split '\\s+')[0].ToLowerInvariant()
+          $actualHash = (Get-FileHash -LiteralPath $apk[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $actualHash) {
+              throw 'Release checksum changed after artifact verification.'
+          }
+
+          $tag = $env:RELEASE_TAG
+          $repo = $env:GITHUB_REPOSITORY
+          $ruNotesUrl = "https://github.com/$repo/blob/$tag/docs/releases/$tag.md"
+          $enNotesUrl = "https://github.com/$repo/blob/$tag/docs/releases/${tag}_EN.md"
+          $issuesUrl = "https://github.com/$repo/issues"
+
+          $releaseBody = @(
+              "# NotifyMark $tag",
+              "",
+              "Signed Android release built from the exact tag after project CI, security audit, signature verification, and checksum validation.",
+              "",
+              "[Полное описание на русском]($ruNotesUrl) · [Full release notes in English]($enNotesUrl)",
+              "",
+              "## Установка / Installation",
+              "",
+              "- APK: $($apk[0].Name)",
+              "- SHA-256 file: $($checksum[0].Name)",
+              "- SHA-256: $hash",
+              "- Verify the checksum before installation.",
+              "",
+              "## Проверено / Verification",
+              "",
+              "- project CI passed on the release source;",
+              "- signed release APK build passed;",
+              "- security audit passed;",
+              "- apksigner verification passed;",
+              "- APK SHA-256 matches the published checksum file.",
+              "",
+              "## Ограничения / Limitations",
+              "",
+              "This release follows the limitations documented in the full release notes. Prerelease versions are not presented as stable.",
+              "",
+              "## Feedback",
+              "",
+              "Bug reports and feature requests: $issuesUrl"
+          ) -join [Environment]::NewLine
+
+          $notesPath = Join-Path $env:RUNNER_TEMP "notify-mark-$tag-release-notes.md"
+          $releaseBody | Set-Content -LiteralPath $notesPath -Encoding utf8
+
+          $assetPaths = @($files | Select-Object -ExpandProperty FullName)
           $arguments = @(
-              'release', 'create', $env:RELEASE_TAG
+              'release', 'create', $tag
           )
-          $arguments += $files
+          $arguments += $assetPaths
           $arguments += @(
               '--verify-tag',
-              '--title', "NotifyMark $env:RELEASE_TAG",
-              '--generate-notes'
+              '--title', "NotifyMark $tag",
+              '--notes-file', $notesPath
           )
 
-          if ($env:RELEASE_TAG -match '-(alpha|beta|rc)(\.|$)') {
+          if ($tag -match '-(alpha|beta|rc)(\\.|$)') {
               $arguments += @('--prerelease', '--latest=false')
           }
 
           & gh @arguments
           if ($LASTEXITCODE -ne 0) {
-              throw "Failed to create GitHub Release '$env:RELEASE_TAG'."
+              throw "Failed to create GitHub Release '$tag'."
           }
 
       - name: Remove temporary keystore
