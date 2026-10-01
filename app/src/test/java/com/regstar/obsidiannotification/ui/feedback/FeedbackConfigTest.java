@@ -13,7 +13,7 @@ public final class FeedbackConfigTest {
     }
 
     @Test
-    public void config_usesPublicRepositoryIssues() {
+    public void config_usesRepositoryIssues() {
         assertTrue(FeedbackConfig.GITHUB_ISSUES_ENABLED);
         assertTrue(FeedbackConfig.GITHUB_ISSUES_URL.equals(
                 "https://github.com/Regstar2/notify-mark/issues"
@@ -21,9 +21,12 @@ public final class FeedbackConfigTest {
     }
 
     @Test
-    public void config_containsPreparedGithubUrls() {
-        assertTrue(FeedbackConfig.GITHUB_BUG_REPORT_URL.contains("/Regstar2/notify-mark/issues/new"));
-        assertTrue(FeedbackConfig.GITHUB_BUG_REPORT_URL.contains("title=Bug"));
-        assertTrue(FeedbackConfig.GITHUB_FEATURE_REQUEST_URL.contains("title=Feature"));
+    public void config_routesFeedbackToPreparedIssueForms() {
+        assertTrue(FeedbackConfig.GITHUB_BUG_REPORT_URL.endsWith(
+                "/issues/new?template=bug_report.yml"
+        ));
+        assertTrue(FeedbackConfig.GITHUB_FEATURE_REQUEST_URL.endsWith(
+                "/issues/new?template=feature_request.yml"
+        ));
     }
 }
