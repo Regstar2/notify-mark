@@ -1,19 +1,19 @@
 <div align="center">
 
+<img src="icon-transparent.png" width="120" alt="NotifyMark">
+
 # NotifyMark
 
-An Android app for local reminders backed by Markdown tasks. It reads app-owned storage or selected files and folders, displays tasks in list and calendar views, schedules notifications, and writes status changes back to Markdown.
+An Android app for local reminders backed by Markdown tasks: it reads selected notes, schedules notifications, and writes task changes back to the source Markdown.
+
+[![Platform](https://img.shields.io/badge/platform-Android%208.0%2B-0A7EA4?style=for-the-badge&logo=android&logoColor=white)](#requirements)
 
 [Русский](README.md) · **English**
 
-![Android](https://img.shields.io/badge/platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
-![Java](https://img.shields.io/badge/language-Java%2017-007396?style=for-the-badge&logo=openjdk&logoColor=white)
-![minSdk](https://img.shields.io/badge/minSdk-26-0A7EA4?style=for-the-badge)
-
 [Quick start](#quick-start) ·
-[Task formats](#task-formats) ·
 [Documentation](#documentation) ·
-[Limitations](#limitations)
+[Releases](../../releases) ·
+[Feedback](#feedback)
 
 </div>
 
@@ -21,55 +21,78 @@ An Android app for local reminders backed by Markdown tasks. It reads app-owned 
 
 ## About
 
-NotifyMark keeps reminders next to ordinary Markdown tasks and does not require a separate server. A source can be an app-owned file, an individual document, or a folder selected through the Android Storage Access Framework (SAF).
+NotifyMark keeps reminders next to ordinary Markdown tasks and does not require a separate server. A source can be app-owned storage, an individual Markdown document, or a folder selected through the Android Storage Access Framework (SAF).
 
-The same task engine handles every source: it parses Markdown lines, displays tasks and recurring occurrences, schedules local notifications, and updates the source line after a task is completed, snoozed, or skipped.
+Markdown remains the source of truth: the app parses task lines, shows them in list and calendar views, schedules local reminders, and updates the source line after completion, skip, or editing.
 
 ## Project status
 
 | Area | Status |
 |---|---|
-| Main Android client | Implemented; first public beta is being prepared |
+| Main Android client | **Beta** |
+| First public version | Prepared as `v0.10.1-beta.1`; the GitHub Release is not published yet |
 | Native NotifyMark format | Implemented |
 | Obsidian Tasks compatibility | Partial, with documented limitations |
-| Version metadata | Beta baseline: `versionName 0.10.1-beta.1`, `versionCode 26`; planned Git tag: `v0.10.1-beta.1` |
+| Release pipeline | Signed APK, security audit, signature verification, and SHA-256 are automated |
+
+Beta does not mean confirmed stability. Before publishing the final tag, the workflow reruns CI and release checks; manual verification of the final APK on a device remains a separate release gate.
 
 ## Features
 
-- app-owned Markdown storage for immediate use;
-- individual files and folders selected through SAF;
-- due date and time, recurrence, grace period, and snooze settings;
-- tags, groups, priorities, and nested subtasks;
+- app-owned Markdown storage;
+- individual files and folders through SAF;
+- due date/time, recurrence, grace period, and snooze;
+- tags, groups, priorities, and subtasks;
 - task list and calendar views;
 - notification actions for complete, snooze, skip, and open;
-- schedule restoration after reboot, app update, and time or time-zone changes;
+- schedule restoration after reboot, app update, and system time changes;
 - Quick Settings tiles for opening tasks and creating a task;
-- status write-back to the original Markdown file.
+- status write-back to the source Markdown;
+- partial Obsidian Tasks metadata compatibility.
 
 ## Quick start
 
-Build a debug APK from the repository root:
+Until the first public beta is published, the reproducible path is a debug build from source:
 
 ```powershell
 .\gradlew.bat assembleDebug
+adb install -r ".\app\build\outputs\apk\debug\app-debug.apk"
 ```
 
-Output:
+After launch, use app-owned storage or connect a Markdown file/folder and grant the required Android permissions.
 
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-After installation, open the app, use app-owned storage or connect a Markdown file/folder, and grant notification access. Android may also request exact-alarm access for reminders scheduled at a specific time.
+After the public beta is published, end users should use the signed APK from [GitHub Releases](../../releases), not a debug build.
 
 ## Requirements
 
 - Android 8.0 or newer (`minSdk 26`);
-- Android SDK 35 for builds;
-- JDK 17;
-- notification permission;
-- exact-alarm access for time-specific reminders;
-- persisted SAF access for external files and folders.
+- notification permission on Android versions that request it;
+- exact-alarm special access when reminders must fire at a precise time;
+- SAF access for external files and folders.
+
+Building from source requires JDK 17 and Android SDK 35.
+
+## Installation
+
+### Public beta
+
+After `v0.10.1-beta.1` is published:
+
+1. Open [GitHub Releases](../../releases/tag/v0.10.1-beta.1).
+2. Download `NotifyMark-v0.10.1-beta.1.apk` and `NotifyMark-v0.10.1-beta.1.apk.sha256`.
+3. Verify the APK SHA-256 against the published checksum file.
+4. Allow APK installation from the selected source if Android requests it.
+5. Install the APK and open NotifyMark.
+
+PowerShell checksum verification:
+
+```powershell
+$Expected = ((Get-Content ".\NotifyMark-v0.10.1-beta.1.apk.sha256" -Raw).Trim() -split "\s+")[0]
+$Actual = (Get-FileHash ".\NotifyMark-v0.10.1-beta.1.apk" -Algorithm SHA256).Hash
+$Actual.ToLowerInvariant() -eq $Expected.ToLowerInvariant()
+```
+
+If a debug/development build signed with a different key is already installed, Android may reject an in-place update. Back up important Markdown and settings that cannot be restored before removing such a build.
 
 ## Usage
 
@@ -77,45 +100,54 @@ After installation, open the app, use app-owned storage or connect a Markdown fi
 
 1. Open source management.
 2. Select app-owned storage, an individual file, or a folder.
-3. Confirm access in the Android system picker for external sources.
+3. Confirm access in the system SAF picker for an external source.
 4. Create a task in the app or add a supported task line to Markdown.
 
-### Handling a reminder
+### Android permissions
 
-A notification can complete the task, snooze it, skip the current occurrence, or open the source task. Recurring tasks keep per-occurrence history and advance according to their recurrence rule.
+- **SAF** — grants NotifyMark access only to a file or document tree selected by the user. Persistable read/write permission is retained for external sources; access can stop working if the document provider revokes the grant, the file moves, or the source becomes unavailable.
+- **Notifications** — required to display reminders. Modern Android versions request this as a runtime permission.
+- **Exact alarms** — `SCHEDULE_EXACT_ALARM` is used for precise reminder times. Android versions with special access may require an additional approval; without it reminder precision can be limited.
+- **Boot completed** — `RECEIVE_BOOT_COMPLETED` is used to restore schedules after reboot.
+- **Vibrate** — used for notification vibration.
 
-### Task formats
+### Task format
 
-NotifyMark supports its native directives:
+Native NotifyMark syntax:
 
 ```markdown
-- [ ] Prepare the report @due(2026-08-10 18:00) @priority(high) #study
+- [ ] Prepare the report @due(2026-10-05 18:00) @priority(high) #study
 - [ ] Check the backup @repeat(1w) @snooze(30m)
 ```
 
-Implemented metadata includes `@due(...)`, `@repeat(...)`, `@repeatUntilDone(...)`, `@grace(...)`, `@snooze(...)`, `@group(...)`, `@priority(...)`, `@tag(...)`, `#tags`, and the legacy `@YYYY-MM-DD` date form.
+Implemented metadata includes `@due(...)`, `@repeat(...)`, `@repeatUntilDone(...)`, `@grace(...)`, `@snooze(...)`, `@group(...)`, `@priority(...)`, `@tag(...)`, `#tags`, and the legacy `@YYYY-MM-DD` form.
 
-The app also provides partial compatibility with Obsidian Tasks metadata: `📅`, `⏰`, `🔁`, `✅`, `❌`, priority markers, and several auxiliary emoji fields. It does not implement the full Obsidian Tasks recurrence grammar; exact behavior is documented in the [v0.10.0 compatibility notes](docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md).
+Obsidian Tasks support is limited to a subset of emoji metadata. Exact behavior is documented in [v0.10.0 compatibility notes](docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md).
 
 ## Privacy
 
 - tasks and settings are processed locally;
-- external files are available only after the user selects them through SAF;
-- the app does not request the `INTERNET` permission and does not perform its own HTTP/socket requests; GitHub links are opened only after a user action in an external app;
-- app-owned Markdown files, settings, and persisted SAF references are excluded from Android cloud backup and device-to-device transfer; external Markdown files remain with the selected document provider and are not copied by the app backup mechanism;
+- the app does not request `INTERNET` and does not perform its own HTTP/socket requests;
+- external Markdown is available only after the user selects it through SAF;
+- app-owned Markdown, settings, and persisted SAF references are excluded from Android cloud backup/device transfer;
 - completing, skipping, and editing tasks changes the selected Markdown files.
 
-Keep a backup or versioned synchronization for important notes before connecting them.
+**Back up important notes or use versioned synchronization before connecting them.** A beta can still contain write-back defects that have not been found by manual QA.
 
 ## Troubleshooting
 
-Run unit tests with:
+If reminders do not appear, check:
+
+1. notification permission;
+2. exact-alarm special access;
+3. vendor background restrictions;
+4. persisted SAF access to the external source.
+
+Unit tests:
 
 ```powershell
 .\gradlew.bat testDebugUnitTest
 ```
-
-When notifications do not appear, check notification access, exact-alarm access, and vendor-specific background restrictions. If an external file is no longer updated, verify the persisted SAF permission and the document provider's availability.
 
 ## Build
 
@@ -123,46 +155,58 @@ When notifications do not appear, check notification access, exact-alarm access,
 .\gradlew.bat assembleDebug
 ```
 
-The project uses Java 17, `compileSdk 35`, and `targetSdk 35`. The namespace and `applicationId` remain `com.regstar.obsidiannotification` to avoid changing the Android application identity during the ongoing refactor.
+Debug APK:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+A signed release build requires the configured release keystore; see [docs/release-signing.md](docs/release-signing.md).
 
 ## Testing
 
-Project command:
+Project CI runs through:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest
+.\scripts\ci.ps1
 ```
 
-This README does not claim a passing result for the current branch: the command is taken from the repository configuration, but it was not executed as part of this GitHub beta-baseline preparation.
+The script builds the debug APK, runs unit tests, and executes the security audit. The release workflow additionally builds the signed APK, verifies it with `apksigner`, and checks SHA-256.
 
 ## Documentation
 
 | Task | Document |
 |---|---|
-| Architecture | [docs/architecture.md](docs/architecture.md) |
-| Project structure | [docs/project-structure.md](docs/project-structure.md) |
-| Markdown sources | [docs/source-system.md](docs/source-system.md) |
-| Task model | [docs/task-model.md](docs/task-model.md) |
+| Documentation index | [docs/README.md](docs/README.md) |
 | Markdown format | [docs/markdown-format.md](docs/markdown-format.md) |
+| Sources and SAF | [docs/source-system.md](docs/source-system.md) |
 | Notification system | [docs/notification-system.md](docs/notification-system.md) |
-| UI navigation | [docs/ui-navigation.md](docs/ui-navigation.md) |
-| Technical debt | [docs/technical-debt.md](docs/technical-debt.md) |
+| Obsidian Tasks compatibility | [docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md](docs/versions/v0.10.0-obsidian-tasks-plugin-compatibility.md) |
+| APK signing and publishing | [docs/release-signing.md](docs/release-signing.md) |
+| `v0.10.1-beta.1` release notes | [docs/releases/v0.10.1-beta.1_EN.md](docs/releases/v0.10.1-beta.1_EN.md) |
+| Change history | [CHANGELOG.md](CHANGELOG.md) |
 | Roadmap | [docs/roadmap.md](docs/roadmap.md) |
-| Beta baseline / changelog | [docs/versions/v0.10.1-beta.1.md](docs/versions/v0.10.1-beta.1.md) |
+
+## Feedback
+
+- [Report a bug](../../issues/new?template=bug_report.yml)
+- [Request a feature](../../issues/new?template=feature_request.yml)
+- [Open issues](../../issues)
+
+The app also links to GitHub Issues. Before external distribution, the repository must be accessible to the intended audience; private Issues are not a working public feedback channel.
+
+Do not attach private notes in full. Remove personal data and unrelated Markdown content from logs and screenshots before posting them.
 
 ## Limitations
 
-- Obsidian Tasks compatibility is partial and does not reproduce the complete plugin syntax;
+- this is a beta with no stability promise until the final tagged APK completes manual QA;
+- Obsidian Tasks compatibility is partial: query blocks/query language, full natural-language recurrence grammar, and natural-language dates are not implemented;
+- `every ... when done` and several other recurrence forms are preserved as metadata but are not mapped to a native recurrence rule;
+- `⏳` and `🛫` alone do not trigger Android notifications;
 - external-file behavior depends on SAF and the selected document provider;
 - reminder timing depends on Android permissions and background restrictions;
-- the package identifier still contains the previous project name;
-- the README does not identify a ready public build or a confirmed distribution channel;
-- third-party Android libraries and some standard UI icons retain their own licenses; they are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- `applicationId` remains `com.regstar.obsidiannotification` to preserve Android application identity.
 
 ## License
 
-NotifyMark source code and project-specific resources are distributed under the **MIT License**. The full license text is available in [LICENSE](LICENSE).
-
-Release APKs may be used, copied, modified, and redistributed under the MIT License as it applies to NotifyMark material. APKs also contain third-party components that remain under their own licenses; their versions, scope, and license information are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-The NotifyMark license does not relicense third-party components, names, or trademarks.
+NotifyMark is distributed under the [MIT License](LICENSE). Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

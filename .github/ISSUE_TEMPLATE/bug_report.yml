@@ -1,0 +1,71 @@
+name: Сообщить об ошибке / Bug report
+description: Сообщить о воспроизводимой проблеме NotifyMark / Report a reproducible NotifyMark problem
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Не публикуйте приватные заметки целиком, токены, пароли или другие чувствительные данные.
+
+        Do not publish private notes in full, tokens, passwords, or other sensitive data.
+  - type: input
+    id: version
+    attributes:
+      label: Версия NotifyMark / NotifyMark version
+      placeholder: v0.10.1-beta.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Android и устройство / Android and device
+      placeholder: Android 14, Xiaomi 11 Lite 5G NE
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Источник Markdown / Markdown source
+      options:
+        - Встроенное хранилище / App-owned storage
+        - Отдельный файл SAF / SAF file
+        - Папка SAF / SAF folder
+        - Не связано с источником / Not source-related
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги воспроизведения / Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемое поведение / Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Фактическое поведение / Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Диагностика / Diagnostics
+      description: Прикладывайте только очищенные логи, скриншоты и минимальные Markdown-фрагменты. / Attach only redacted logs, screenshots, and minimal Markdown fragments.
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Проверка приватности / Privacy check
+      options:
+        - label: Я проверил текст и вложения и удалил приватные данные. / I checked the report and removed private data.
+          required: true

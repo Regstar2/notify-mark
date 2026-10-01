@@ -154,13 +154,14 @@ Keystore материализуется только во временном к�
 При `publish = false` workflow:
 
 1. использует checkout выбранного для ручного запуска ref (для первой проверки — `main`);
-2. проверяет, что указанная версия совпадает с `versionName`;
-3. запускает `scripts/ci.ps1`;
-4. собирает подписанный release APK;
-5. проверяет security-аудит и подпись;
-6. создаёт `NotifyMark-<tag>.apk` и `.apk.sha256` в `dist/`;
-7. загружает эти два файла как GitHub Actions artifact;
-8. не создаёт tag и GitHub Release.
+2. проверяет, что для tag подготовлены RU/EN release notes в `docs/releases/`;
+3. проверяет, что указанная версия совпадает с `versionName`;
+4. запускает `scripts/ci.ps1`;
+5. собирает подписанный release APK;
+6. проверяет security-аудит и подпись;
+7. создаёт `NotifyMark-<tag>.apk` и `.apk.sha256` в `dist/`;
+8. загружает эти два файла как GitHub Actions artifact;
+9. не создаёт tag и GitHub Release.
 
 Это штатный способ проверить pipeline перед первой публичной публикацией.
 
@@ -168,6 +169,6 @@ Keystore материализуется только во временном к�
 
 Push подходящего tag `v*` автоматически запускает публикацию. Перед сборкой workflow дополнительно проверяет SemVer-подобный формат tag и соответствие `v...` значению `versionName` в `app/build.gradle`.
 
-GitHub Release создаётся только после успешных CI, release security-аудита и проверки подписи. Release notes генерируются GitHub автоматически. Tags с `alpha`, `beta` или `rc` публикуются как prerelease и не помечаются как latest.
+GitHub Release создаётся только после успешных CI, release security-аудита и проверки подписи. Workflow требует заранее подготовленные `docs/releases/<tag>.md` и `docs/releases/<tag>_EN.md`, а краткое тело GitHub Release формирует из проверенных artifact-данных. В него попадает фактический SHA-256 финального APK; полный текст остаётся в двуязычных release notes на release tag. Tags с `alpha`, `beta` или `rc` публикуются как prerelease и не помечаются как latest.
 
 Ручной запуск с `publish = true` требует существующий tag, переключается на его точный commit и выполняет тот же publish path, что и tag push. Если GitHub Release для tag уже существует, workflow завершается ошибкой вместо молчаливой перезаписи.
