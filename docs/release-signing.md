@@ -149,17 +149,18 @@ Keystore материализуется только во временном к�
 
 ### Dry-run
 
-Ручной `workflow_dispatch` принимает существующий release tag и параметр `publish`.
+Ручной `workflow_dispatch` принимает планируемую release-версию в формате tag и параметр `publish`.
 
 При `publish = false` workflow:
 
-1. переключается на точный tag;
-2. запускает `scripts/ci.ps1`;
-3. собирает подписанный release APK;
-4. проверяет security-аудит и подпись;
-5. создаёт `NotifyMark-<tag>.apk` и `.apk.sha256` в `dist/`;
-6. загружает эти два файла как GitHub Actions artifact;
-7. не создаёт GitHub Release.
+1. использует checkout выбранного для ручного запуска ref (для первой проверки — `main`);
+2. проверяет, что указанная версия совпадает с `versionName`;
+3. запускает `scripts/ci.ps1`;
+4. собирает подписанный release APK;
+5. проверяет security-аудит и подпись;
+6. создаёт `NotifyMark-<tag>.apk` и `.apk.sha256` в `dist/`;
+7. загружает эти два файла как GitHub Actions artifact;
+8. не создаёт tag и GitHub Release.
 
 Это штатный способ проверить pipeline перед первой публичной публикацией.
 
@@ -169,4 +170,4 @@ Push подходящего tag `v*` автоматически запускае
 
 GitHub Release создаётся только после успешных CI, release security-аудита и проверки подписи. Release notes генерируются GitHub автоматически. Tags с `alpha`, `beta` или `rc` публикуются как prerelease и не помечаются как latest.
 
-Ручной запуск с `publish = true` выполняет тот же publish path для существующего tag. Если GitHub Release для tag уже существует, workflow завершается ошибкой вместо молчаливой перезаписи.
+Ручной запуск с `publish = true` требует существующий tag, переключается на его точный commit и выполняет тот же publish path, что и tag push. Если GitHub Release для tag уже существует, workflow завершается ошибкой вместо молчаливой перезаписи.
