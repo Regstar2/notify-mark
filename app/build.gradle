@@ -2,6 +2,33 @@ plugins {
     id "com.android.application"
 }
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.isFile()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+
+def signingValue = { envName, propertyName ->
+    def environmentValue = System.getenv(envName)
+    if (environmentValue != null && !environmentValue.trim().isEmpty()) {
+        return environmentValue
+    }
+
+    def localValue = localProperties.getProperty(propertyName)
+    return localValue != null ? localValue.trim() : null
+}
+
+def releaseSigning = [
+        storeFile    : signingValue("NOTIFYMARK_RELEASE_STORE_FILE", "notifyMark.release.storeFile"),
+        storePassword: signingValue("NOTIFYMARK_RELEASE_STORE_PASSWORD", "notifyMark.release.storePassword"),
+        keyAlias     : signingValue("NOTIFYMARK_RELEASE_KEY_ALIAS", "notifyMark.release.keyAlias"),
+        keyPassword  : signingValue("NOTIFYMARK_RELEASE_KEY_PASSWORD", "notifyMark.release.keyPassword")
+]
+def hasReleaseSigningValue = { value ->
+    value != null && !value.trim().isEmpty()
+}
+def releaseSigningConfigured = releaseSigning.values().every(hasReleaseSigningValue)
+
 android {
     namespace "com.regstar.obsidiannotification"
     compileSdk 35
@@ -12,6 +39,25 @@ android {
         targetSdk 35
         versionCode 26
         versionName "0.10.1-beta.1"
+    }
+
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseSigning.storeFile)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.release
+        }
     }
 
     compileOptions {
@@ -30,4 +76,24 @@ dependencies {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    boolean releaseArtifactRequested = taskGraph.allTasks.any { task ->
+        task.project == project &&
+                task.name ==~ /(?i)(assemble|bundle|package|install).*release.*/
+    }
+
+    if (releaseArtifactRequested) {
+        if (!releaseSigningConfigured) {
+            throw new GradleException(
+                    "Release signing is not configured. Set NOTIFYMARK_RELEASE_* environment variables " +
+                            "or notifyMark.release.* values in local.properties."
+            )
+        }
+
+        if (!file(releaseSigning.storeFile).isFile()) {
+            throw new GradleException("Configured NotifyMark release keystore file does not exist.")
+        }
+    }
 }
