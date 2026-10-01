@@ -28,24 +28,6 @@ if ($versionMatch.Groups[1].Value -ne $versionName) {
     throw "Tag '$Version' does not match app versionName '$($versionMatch.Groups[1].Value)'."
 }
 
-$requiredSigningVariables = @(
-    'NOTIFYMARK_RELEASE_STORE_FILE',
-    'NOTIFYMARK_RELEASE_STORE_PASSWORD',
-    'NOTIFYMARK_RELEASE_KEY_ALIAS',
-    'NOTIFYMARK_RELEASE_KEY_PASSWORD'
-)
-
-foreach ($name in $requiredSigningVariables) {
-    $value = [Environment]::GetEnvironmentVariable($name)
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        throw "Required release signing variable '$name' is not configured."
-    }
-}
-
-if (-not (Test-Path -LiteralPath $env:NOTIFYMARK_RELEASE_STORE_FILE -PathType Leaf)) {
-    throw 'Configured NotifyMark release keystore file does not exist.'
-}
-
 $runningOnWindows = $env:OS -eq 'Windows_NT'
 $gradle = if ($runningOnWindows) {
     Join-Path $root 'gradlew.bat'
