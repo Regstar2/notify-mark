@@ -2,7 +2,7 @@
 
 This document records the direct dependencies and bundled resources reviewed for NotifyMark Issue #13.
 
-NotifyMark's own source code and project-specific resources are licensed under the Apache License 2.0 in the root `LICENSE` file. Third-party components remain under their own licenses.
+NotifyMark's own source code and project-specific resources are licensed under the MIT License in the root `LICENSE` file. Third-party components remain under their own licenses.
 
 ## Direct application dependencies
 
@@ -30,10 +30,10 @@ Several small UI vector drawables use standard Material icon glyphs (for example
 
 - https://github.com/google/material-design-icons/blob/master/LICENSE
 
-Project-specific launcher/logo assets and their repository copies are treated as NotifyMark project resources under the root Apache License 2.0. Repository history does not record a separate third-party copyright or license notice for those assets, so this audit does not invent one.
+Project-specific launcher/logo assets and their repository copies are treated as NotifyMark project resources under the root MIT License. Repository history does not record a separate third-party copyright or license notice for those assets, so this audit does not invent one.
 
 No bundled font files or other separately licensed media resources were identified in `app/src/main/res` during this audit.
 
 ## Redistribution
 
-A NotifyMark source or APK redistribution must preserve the root Apache License 2.0 terms for NotifyMark material and must also comply with the third-party licenses listed above. Third-party names and trademarks are not relicensed by NotifyMark.
+A NotifyMark source or APK redistribution must preserve the root MIT License notice and permission terms for NotifyMark material and must also comply with the third-party licenses listed above. Third-party names and trademarks are not relicensed by NotifyMark.
