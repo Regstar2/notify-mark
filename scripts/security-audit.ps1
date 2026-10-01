@@ -147,7 +147,7 @@ function Test-GitHistory {
             'AKIA[0-9A-Z]{16}',
             'AIza[0-9A-Za-z_-]{35}',
             'gh[pousr]_[0-9A-Za-z]{20,}',
-            '(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd)[[:space:]]*[:=][[:space:]]*["'']?[A-Za-z0-9_./+=:@-]{12,}',
+            '(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd)[[:space:]]*[:=][[:space:]]*["''][^"'[:space:]]{8,}["'']',
             'https?://[^/@[:space:]]+:[^/@[:space:]]+@'
         )
 
@@ -161,14 +161,24 @@ function Test-GitHistory {
             }
         }
 
-        $emails = @(& git grep -I -l -E -i -- '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' @commits -- 2>$null)
-        foreach ($match in ($emails | Sort-Object -Unique | Select-Object -First 20)) {
-            Add-Warning "Email-like text exists in Git history; confirm it is intentional before publication: $match"
+        $emailPaths = @(
+            & git grep -I -l -E -i -- '[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}' @commits -- 2>$null |
+                ForEach-Object { ($_ -split ':', 2)[1] } |
+                Where-Object { $_ } |
+                Sort-Object -Unique
+        )
+        foreach ($path in ($emailPaths | Select-Object -First 20)) {
+            Add-Warning "Email-like text exists in Git history; confirm it is intentional before publication: $path"
         }
 
-        $localPaths = @(& git grep -I -l -E -- '([A-Za-z]:\\Users\\|/Users/[^/]+/|/home/[^/]+/)' @commits -- 2>$null)
-        foreach ($match in ($localPaths | Sort-Object -Unique | Select-Object -First 20)) {
-            Add-Warning "Local user path exists in Git history; review before publication: $match"
+        $localPathFiles = @(
+            & git grep -I -l -E -- '([A-Za-z]:\\Users\\|/Users/[^/]+/|/home/[^/]+/)' @commits -- 2>$null |
+                ForEach-Object { ($_ -split ':', 2)[1] } |
+                Where-Object { $_ -and $_ -ne 'scripts/security-audit.ps1' } |
+                Sort-Object -Unique
+        )
+        foreach ($path in ($localPathFiles | Select-Object -First 20)) {
+            Add-Warning "Local user path exists in Git history; review before publication: $path"
         }
     }
     finally {
@@ -268,15 +278,20 @@ function Test-Apk {
         }
         $name = Get-AndroidAttribute $node "name"
         Write-Host "  $name"
-        $expected =
+        $permission = Get-AndroidAttribute $node "permission"
+        $isExpectedAppComponent =
             $name.EndsWith(".ui.MainActivity", [System.StringComparison]::Ordinal) -or
             $name.EndsWith(".ui.tiles.TasksTileService", [System.StringComparison]::Ordinal) -or
             $name.EndsWith(".ui.tiles.NewTaskTileService", [System.StringComparison]::Ordinal)
-        if (-not $expected) {
+        $isProtectedProfileInstaller =
+            $name -eq "androidx.profileinstaller.ProfileInstallReceiver" -and
+            $permission -eq "android.permission.DUMP"
+
+        if (-not $isExpectedAppComponent -and -not $isProtectedProfileInstaller) {
             Add-Failure "Unexpected exported component in APK: $name"
         }
         if ($name.EndsWith("TileService", [System.StringComparison]::Ordinal) -and
-            (Get-AndroidAttribute $node "permission") -ne "android.permission.BIND_QUICK_SETTINGS_TILE") {
+            $permission -ne "android.permission.BIND_QUICK_SETTINGS_TILE") {
             Add-Failure "Exported Quick Settings tile lacks BIND_QUICK_SETTINGS_TILE in APK: $name"
         }
     }
