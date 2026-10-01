@@ -22,7 +22,7 @@ import com.regstar.obsidiannotification.ui.feedback.FeedbackConfig;
 import com.regstar.obsidiannotification.ui.feedback.FeedbackEmailComposer;
 
 /**
- * Feedback screen with GitHub issue channels and an optional email channel.
+ * Feedback screen with active email channel and prepared GitHub channels.
  */
 public final class FeedbackActivity extends AppCompatActivity {
     @Override
