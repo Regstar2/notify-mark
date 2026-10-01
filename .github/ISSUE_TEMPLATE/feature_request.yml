@@ -1,8 +1,6 @@
 name: Предложить улучшение / Feature request
 description: Предложить улучшение NotifyMark / Suggest a NotifyMark improvement
 title: "[Feature]: "
-labels:
-  - enhancement
 body:
   - type: textarea
     id: problem
