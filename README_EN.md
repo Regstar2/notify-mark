@@ -101,7 +101,8 @@ The app also provides partial compatibility with Obsidian Tasks metadata: `📅`
 
 - tasks and settings are processed locally;
 - external files are available only after the user selects them through SAF;
-- the current `AndroidManifest.xml` does not request the `INTERNET` permission;
+- the app does not request the `INTERNET` permission and does not perform its own HTTP/socket requests; GitHub links are opened only after a user action in an external app;
+- app-owned Markdown files, settings, and persisted SAF references are excluded from Android cloud backup and device-to-device transfer; external Markdown files remain with the selected document provider and are not copied by the app backup mechanism;
 - completing, skipping, and editing tasks changes the selected Markdown files.
 
 Keep a backup or versioned synchronization for important notes before connecting them.

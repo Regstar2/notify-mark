@@ -39,8 +39,10 @@ public final class FeedbackActivity extends AppCompatActivity {
         root.addView(createChannelCard(
                 getString(R.string.feedback_email_title),
                 getString(R.string.feedback_email_subtitle),
-                FeedbackConfig.SUPPORT_EMAIL,
-                true,
+                FeedbackConfig.EMAIL_ENABLED
+                        ? FeedbackConfig.SUPPORT_EMAIL
+                        : getString(R.string.feedback_channel_unavailable),
+                FeedbackConfig.EMAIL_ENABLED,
                 this::openEmailFeedback
         ), fullWidthWithTopMargin(dp(10)));
         root.addView(createChannelCard(

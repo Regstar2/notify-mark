@@ -8,7 +8,7 @@ public final class FeedbackEmailComposerTest {
     @Test
     public void buildMailToUri_encodesSubjectAndBody() {
         String uri = FeedbackEmailComposer.buildMailToUri(
-                "avvv6940@gmail.com",
+                "support@example.com",
                 "ObsidianNotification: обратная связь",
                 "Здравствуйте.\n\n## Тип обращения"
         );
