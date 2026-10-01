@@ -177,6 +177,7 @@ The script builds the debug APK, runs unit tests, and executes the security audi
 
 | Task | Document |
 |---|---|
+| Documentation index | [docs/README.md](docs/README.md) |
 | Markdown format | [docs/markdown-format.md](docs/markdown-format.md) |
 | Sources and SAF | [docs/source-system.md](docs/source-system.md) |
 | Notification system | [docs/notification-system.md](docs/notification-system.md) |

@@ -177,6 +177,7 @@ app/build/outputs/apk/debug/app-debug.apk
 
 | Задача | Документ |
 |---|---|
+| Индекс документации | [docs/README.md](docs/README.md) |
 | Формат Markdown | [docs/markdown-format.md](docs/markdown-format.md) |
 | Источники и SAF | [docs/source-system.md](docs/source-system.md) |
 | Система уведомлений | [docs/notification-system.md](docs/notification-system.md) |
