@@ -206,7 +206,7 @@ Do not attach private notes in full. Remove personal data and unrelated Markdown
 - `⏳` and `🛫` alone do not trigger Android notifications;
 - external-file behavior depends on SAF and the selected document provider;
 - reminder timing depends on Android permissions and background restrictions;
-- `applicationId` remains `com.regstar.obsidiannotification` to preserve Android application identity.
+- `applicationId` remains `com.regstar.obsidiannotification` to preserve Android application identity;
 - the app UI in `v0.10.1-beta.1` is Russian-only; the English README and release notes do not imply an English-localized UI.
 
 ## License
