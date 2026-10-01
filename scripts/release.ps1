@@ -46,8 +46,8 @@ if (-not (Test-Path -LiteralPath $env:NOTIFYMARK_RELEASE_STORE_FILE -PathType Le
     throw 'Configured NotifyMark release keystore file does not exist.'
 }
 
-$isWindows = $env:OS -eq 'Windows_NT'
-$gradle = if ($isWindows) {
+$runningOnWindows = $env:OS -eq 'Windows_NT'
+$gradle = if ($runningOnWindows) {
     Join-Path $root 'gradlew.bat'
 }
 else {
@@ -75,7 +75,7 @@ $sdkRoot = if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_SDK_ROOT)) {
 elseif (-not [string]::IsNullOrWhiteSpace($env:ANDROID_HOME)) {
     $env:ANDROID_HOME
 }
-elseif ($isWindows -and -not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+elseif ($runningOnWindows -and -not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
     Join-Path $env:LOCALAPPDATA 'Android/Sdk'
 }
 else {
@@ -96,7 +96,7 @@ if (-not $buildTools) {
     throw 'Android SDK build-tools were not found.'
 }
 
-$apkSignerName = if ($isWindows) { 'apksigner.bat' } else { 'apksigner' }
+$apkSignerName = if ($runningOnWindows) { 'apksigner.bat' } else { 'apksigner' }
 $apkSigner = Join-Path $buildTools.FullName $apkSignerName
 
 if (-not (Test-Path -LiteralPath $apkSigner -PathType Leaf)) {
