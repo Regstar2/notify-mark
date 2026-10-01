@@ -221,7 +221,7 @@ jobs:
               throw 'Release publication requires exactly one APK and one .apk.sha256 file.'
           }
 
-          $hash = ((Get-Content -LiteralPath $checksum[0].FullName -Raw).Trim() -split '\\s+')[0].ToLowerInvariant()
+          $hash = ((Get-Content -LiteralPath $checksum[0].FullName -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
           $actualHash = (Get-FileHash -LiteralPath $apk[0].FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -ne $actualHash) {
               throw 'Release checksum changed after artifact verification.'
@@ -278,7 +278,7 @@ jobs:
               '--notes-file', $notesPath
           )
 
-          if ($tag -match '-(alpha|beta|rc)(\\.|$)') {
+          if ($tag -match '-(alpha|beta|rc)(\.|$)') {
               $arguments += @('--prerelease', '--latest=false')
           }
 
