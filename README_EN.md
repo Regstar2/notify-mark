@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icon-transparent.png" width="120" alt="NotifyMark">
+<img src="docs/assets/icon-transparent.png" width="120" alt="NotifyMark">
 
 # NotifyMark
 
@@ -34,6 +34,7 @@ Markdown remains the source of truth: the app parses task lines, shows them in l
 | Native NotifyMark format | Implemented |
 | Obsidian Tasks compatibility | Partial, with documented limitations |
 | Release pipeline | Signed APK, security audit, signature verification, and SHA-256 are automated |
+| UI language | Russian; English UI localization is not part of this beta |
 
 Beta does not mean confirmed stability. Before publishing the final tag, the workflow reruns CI and release checks; manual verification of the final APK on a device remains a separate release gate.
 
@@ -205,7 +206,8 @@ Do not attach private notes in full. Remove personal data and unrelated Markdown
 - `⏳` and `🛫` alone do not trigger Android notifications;
 - external-file behavior depends on SAF and the selected document provider;
 - reminder timing depends on Android permissions and background restrictions;
-- `applicationId` remains `com.regstar.obsidiannotification` to preserve Android application identity.
+- `applicationId` remains `com.regstar.obsidiannotification` to preserve Android application identity;
+- the app UI in `v0.10.1-beta.1` is Russian-only; the English README and release notes do not imply an English-localized UI.
 
 ## License
 
