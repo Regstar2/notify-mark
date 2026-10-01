@@ -157,8 +157,12 @@ This README does not claim a passing result for the current branch: the command 
 - reminder timing depends on Android permissions and background restrictions;
 - the package identifier still contains the previous project name;
 - the README does not identify a ready public build or a confirmed distribution channel;
-- source-code distribution terms have not been defined.
+- third-party Android libraries and some standard UI icons retain their own licenses; they are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 
-The repository has no root `LICENSE` file. Until a license is selected, the code must not be treated as open for copying, modification, or redistribution.
+NotifyMark source code and project-specific resources are distributed under the **Apache License 2.0**. The full license text is available in [LICENSE](LICENSE).
+
+Release APKs may be used, copied, modified, and redistributed under Apache License 2.0 as it applies to NotifyMark material. APKs also contain third-party components that remain under their own licenses; their versions, scope, and license information are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+The NotifyMark license does not relicense third-party components, names, or trademarks.
