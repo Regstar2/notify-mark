@@ -206,7 +206,7 @@ app/build/outputs/apk/debug/app-debug.apk
 - `⏳` и `🛫` сами по себе не являются Android notification trigger;
 - работа внешних файлов зависит от SAF и document provider;
 - точность напоминаний зависит от Android permissions и фоновых ограничений;
-- `applicationId` пока остаётся `com.regstar.obsidiannotification` для сохранения Android identity.
+- `applicationId` пока остаётся `com.regstar.obsidiannotification` для сохранения Android identity;
 - интерфейс приложения в `v0.10.1-beta.1` доступен на русском языке; английские README и release notes не означают наличие английской локализации UI.
 
 ## Лицензия
