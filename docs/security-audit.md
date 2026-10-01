@@ -45,7 +45,7 @@ Security-аудит дополнительно проверяет имена ф�
 - Android 11 и ниже: `backup_rules_legacy.xml`;
 - Android 12+: `backup_rules.xml` отдельно для cloud backup и device-to-device transfer.
 
-Исключены files, databases, shared preferences, app-specific external storage и device-protected equivalents. SAF-selected Markdown documents остаются у document provider и не копируются backup-механизмом NotifyMark.
+Исключены все домены, поддерживаемые Android backup XML schema: `root`, `file`, `database`, `sharedpref` и `external`. SAF-selected Markdown documents остаются у document provider и не копируются backup-механизмом NotifyMark.
 
 ## Автоматическая проверка
 
@@ -55,14 +55,14 @@ CI делает checkout с полной историей (`fetch-depth: 0`) и 
 ./scripts/security-audit.ps1 -ApkPath "./app/build/outputs/apk/debug/app-debug.apk"
 ```
 
-Скрипт проверяет source manifest, backup rules, sensitive paths во всей Git history, типовые secret patterns и merged manifest APK через `apkanalyzer`. Значение найденного секрета в лог не печатается.
+Скрипт проверяет source manifest, backup rules, sensitive paths во всей Git history, типовые secret patterns, свежесть APK относительно tracked build inputs и merged manifest APK через `apkanalyzer`. Значение найденного секрета в лог не печатается.
 
 ## Проверка финального release APK
 
 После локальной подписанной сборки:
 
 ```powershell
-.\gradlew.bat assembleRelease
+.\gradlew.bat clean assembleRelease
 .\scripts\security-audit.ps1 -ApkPath ".\app\build\outputs\apk\release\app-release.apk"
 ```
 

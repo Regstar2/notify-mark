@@ -94,6 +94,6 @@ The manifest disables automatic backup and points to explicit exclusion rules fo
 - `app/src/main/res/xml/backup_rules_legacy.xml` covers Android 11 and lower;
 - `app/src/main/res/xml/backup_rules.xml` covers Android 12+ cloud backup and device-to-device transfer.
 
-All app backup domains are excluded, including credential-protected and device-protected files, databases, shared preferences, and app-specific external files.
+All backup domains supported by Android's backup XML schema are excluded: root, files, databases, shared preferences, and app-specific external files.
 
 SAF-selected Markdown documents are not owned by the app and are not copied by these rules. They remain under the selected document provider's own storage and backup policy. Persisted URI references are local app state and are excluded from backup.

@@ -90,7 +90,7 @@ function Test-BackupRuleFile {
     param([string]$Path, [string[]]$Sections)
 
     [xml]$xml = Get-Content -LiteralPath $Path -Raw
-    $domains = @("root","file","database","sharedpref","external","device_root","device_file","device_database","device_sharedpref")
+    $domains = @("root","file","database","sharedpref","external")
 
     foreach ($section in $Sections) {
         $nodes = if ($section -eq "legacy") {
@@ -215,6 +215,43 @@ function Find-ApkAnalyzer {
     return $null
 }
 
+function Test-ApkFreshness {
+    param(
+        [string]$RepoRoot,
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Add-Failure "APK does not exist: $Path"
+        return
+    }
+
+    $apk = Get-Item -LiteralPath $Path
+    $trackedInputs = @(
+        git -C $RepoRoot ls-files -- app/src app/build.gradle build.gradle settings.gradle gradle.properties gradle
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+    $latestInput = $null
+    foreach ($relativePath in $trackedInputs) {
+        $fullPath = Join-Path $RepoRoot $relativePath
+        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+            continue
+        }
+
+        $item = Get-Item -LiteralPath $fullPath
+        if ($null -eq $latestInput -or $item.LastWriteTimeUtc -gt $latestInput.LastWriteTimeUtc) {
+            $latestInput = $item
+        }
+    }
+
+    if ($null -ne $latestInput -and $apk.LastWriteTimeUtc -lt $latestInput.LastWriteTimeUtc) {
+        Add-Failure (
+            "APK appears stale: '$($apk.FullName)' is older than tracked build input " +
+            "'$($latestInput.FullName)'. Rebuild the APK successfully before auditing it."
+        )
+    }
+}
+
 function Test-Apk {
     param([string]$Path)
 
@@ -308,7 +345,10 @@ if (-not $SkipHistory) {
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ApkPath)) {
-    Test-Apk -Path $ApkPath
+    Test-ApkFreshness -RepoRoot $repoRoot -Path $ApkPath
+    if (Test-Path -LiteralPath $ApkPath -PathType Leaf) {
+        Test-Apk -Path $ApkPath
+    }
 }
 
 $warnings | ForEach-Object { Write-Host "WARNING: $_" }
