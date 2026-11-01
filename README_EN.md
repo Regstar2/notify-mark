@@ -30,13 +30,13 @@ Markdown remains the source of truth: the app parses task lines, shows them in l
 | Area | Status |
 |---|---|
 | Main Android client | **Beta** |
-| First public version | Prepared as `v0.10.1-beta.1`; the GitHub Release is not published yet |
+| First public version | Published as `v0.10.1-beta.1` (October 3, 2026); signed APK and SHA-256 are available in GitHub Releases |
 | Native NotifyMark format | Implemented |
 | Obsidian Tasks compatibility | Partial, with documented limitations |
 | Release pipeline | Signed APK, security audit, signature verification, and SHA-256 are automated |
 | UI language | Russian; English UI localization is not part of this beta |
 
-Beta does not mean confirmed stability. Before publishing the final tag, the workflow reruns CI and release checks; manual verification of the final APK on a device remains a separate release gate.
+Beta does not mean confirmed stability. The release workflow runs CI and release checks when publishing; this README does not confirm a separate manual installation test of the published APK on a device.
 
 ## Features
 
@@ -53,7 +53,7 @@ Beta does not mean confirmed stability. Before publishing the final tag, the wor
 
 ## Quick start
 
-Until the first public beta is published, the reproducible path is a debug build from source:
+For development, a debug build can be built from source:
 
 ```powershell
 .\gradlew.bat assembleDebug
@@ -62,7 +62,7 @@ adb install -r ".\app\build\outputs\apk\debug\app-debug.apk"
 
 After launch, use app-owned storage or connect a Markdown file/folder and grant the required Android permissions.
 
-After the public beta is published, end users should use the signed APK from [GitHub Releases](../../releases), not a debug build.
+For normal installation, use the signed APK from [GitHub Releases](../../releases/tag/v0.10.1-beta.1), not a debug build.
 
 ## Requirements
 
@@ -77,7 +77,7 @@ Building from source requires JDK 17 and Android SDK 35.
 
 ### Public beta
 
-After `v0.10.1-beta.1` is published:
+To install the published `v0.10.1-beta.1`:
 
 1. Open [GitHub Releases](../../releases/tag/v0.10.1-beta.1).
 2. Download `NotifyMark-v0.10.1-beta.1.apk` and `NotifyMark-v0.10.1-beta.1.apk.sha256`.
